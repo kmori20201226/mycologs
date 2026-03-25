@@ -1,25 +1,25 @@
 import fp from 'fastify-plugin'
-import { Pool } from 'pg'
+import { PrismaClient } from '../../../../generated/prisma/client'
+import { PrismaPg } from '@prisma/adapter-pg'
+
+const adapter = new PrismaPg({
+    connectionString: process.env.DATABASE_URL!,
+})
+
 import { FastifyInstance } from 'fastify'
+
+const prisma = new PrismaClient({ adapter })
+
+export default fp(async (fastify: FastifyInstance) => {
+    fastify.decorate('prisma', prisma)
+
+    fastify.addHook('onClose', async () => {
+        await prisma.$disconnect()
+    })
+})
 
 declare module 'fastify' {
     interface FastifyInstance {
-        db: Pool
+        prisma: PrismaClient
     }
 }
-
-export default fp(async (fastify: FastifyInstance) => {
-    const pool = new Pool({
-        host: 'localhost',
-        port: 5432,
-        user: 'postgres',
-        password: 'password',
-        database: 'mycologs',
-    })
-
-    fastify.decorate('db', pool)
-
-    fastify.addHook('onClose', async () => {
-        await pool.end()
-    })
-})

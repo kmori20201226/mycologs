@@ -1,3 +1,4 @@
+import 'dotenv/config'
 import Fastify from 'fastify'
 import dbPlugin from './plugins/db'
 import userRoutes from './routes/users'

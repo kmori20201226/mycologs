@@ -10,6 +10,8 @@
     "db:up": "docker compose -f docker/postgres/docker-compose.yml up -d",
     "db:down": "docker compose -f docker/postgres/docker-compose.yml down",
     "migrate": "bash scripts/migrate.sh",
+    "do-migrate": "npx prisma migrate dev",
+    "prisma:gen": "npx prisma generate",
     "test:users": "npx ts-node apps/api/test/users.test.ts"
   },
   "keywords": [],
@@ -22,6 +24,15 @@
   "license": "ISC",
   "type": "commonjs",
   "devDependencies": {
-    "@types/pg": "^8.20.0"
+    "@types/pg": "^8.20.0",
+    "prisma": "^7.5.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^6.0.2"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "^7.5.0",
+    "@prisma/client": "^7.5.0",
+    "dotenv": "^17.3.1",
+    "pg": "^8.20.0"
   }
 }

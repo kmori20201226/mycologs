@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",          // compiled JS goes here
+    "rootDir": ".",            // root of your source for TS compiler
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "ignoreDeprecations": "6.0"
+  },
+  "include": [
+    "apps/**/*",
+    "prisma/**/*"
+  ]
+}
