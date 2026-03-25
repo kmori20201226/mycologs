@@ -1,0 +1,68 @@
+# =========================
+# Node.js / Package Manager
+# =========================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# =========================
+# Environment variables
+# =========================
+.env
+.env.*
+!.env.example
+
+# =========================
+# Build outputs
+# =========================
+dist/
+build/
+.next/
+out/
+
+# =========================
+# TypeScript
+# =========================
+*.tsbuildinfo
+
+# =========================
+# Logs
+# =========================
+logs/
+*.log
+
+# =========================
+# OS / Editor
+# =========================
+.DS_Store
+Thumbs.db
+
+# VSCode
+.vscode/
+
+# JetBrains
+.idea/
+
+# =========================
+# Docker (optional)
+# =========================
+docker/**/*.log
+
+# =========================
+# Database (local files only)
+# =========================
+*.sqlite
+*.db
+
+# =========================
+# Coverage / Testing
+# =========================
+coverage/
+
+# =========================
+# Misc
+# =========================
+tmp/
+temp/
