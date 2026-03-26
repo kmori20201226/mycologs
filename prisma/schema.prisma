@@ -12,11 +12,83 @@ datasource db {
   provider = "postgresql"
 }
 
+model Club {
+  id            Int      @id @default(autoincrement())
+  name          String
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  clubUsers     ClubUser[]
+
+  @@map("clubs")
+}
+
+enum RoleType {
+  ADMIN
+  DEVELOPER
+  MODERATOR
+  CLUBMEMBER
+}
+
+model Role {
+  id            Int      @id @default(autoincrement())
+  name          RoleType @unique
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  clubUsers     ClubUser[]
+
+  @@map("roles")
+}
+
+model ClubUser {
+  id            Int      @id @default(autoincrement())
+  clubId        Int      @map("club_id")
+  userId        Int      @map("user_id")
+  roleId        Int      @map("role_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  club          Club     @relation(fields: [clubId], references: [id])
+  user          User     @relation(fields: [userId], references: [id])
+  role          Role     @relation(fields: [roleId], references: [id])
+
+  @@unique([clubId, userId])
+  @@map("club_users")
+}
+
 model User {
   id            Int      @id @default(autoincrement())
   name          String
   email         String   @unique
-  password_hash String
+  password_hash String?
+  emailVerified DateTime? @map("email_verified")
+  address       String?
+  tel           String?
+  line_id       String?
   meta          Json?
-  createdAt     DateTime @default(now())
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  clubUsers     ClubUser[]
+  oauthAccounts OAuthAccount[]
+
+  @@map("users")
+}
+
+model OAuthAccount {
+  id                String    @id @default(cuid())
+  userId            Int       @map("user_id")
+  provider          String    // "google", "github", "discord", etc.
+  providerAccountId String    @map("provider_account_id") // ID from the provider
+  accessToken       String?   @db.Text @map("access_token")
+  refreshToken      String?   @db.Text @map("refresh_token")
+  expiresAt         Int?      @map("expires_at") // Unix timestamp
+  tokenType         String?   @map("token_type")
+  scope             String?   // Space-separated permissions
+  idToken           String?   @db.Text @map("id_token")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("oauth_accounts")
 }

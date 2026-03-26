@@ -12,7 +12,11 @@
     "migrate": "bash scripts/migrate.sh",
     "do-migrate": "npx prisma migrate dev",
     "prisma:gen": "npx prisma generate",
-    "test:users": "npx ts-node apps/api/test/users.test.ts"
+    "test:users": "npx ts-node apps/api/test/users.test.ts",
+    "test:clubs": "npx ts-node apps/api/test/clubs.test.ts",
+    "test:roles": "npx ts-node apps/api/test/roles.test.ts",
+    "test:oauth-accounts": "npx ts-node apps/api/test/oauth-accounts.test.ts",
+    "test": "npm run test:users && npm run test:clubs && npm run test:roles && npm run test:oauth-accounts"
   },
   "keywords": [],
   "author": "Kazuya Mori",
