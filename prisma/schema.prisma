@@ -64,11 +64,16 @@ model User {
   tel           String?
   line_id       String?
   meta          Json?
+  voteWeight    Int?     @map("vote_weight")
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
   clubUsers     ClubUser[]
   oauthAccounts OAuthAccount[]
+  posts         Post[]
+  followups     Followup[]
+  identifications Identification[]
+  votes         Vote[]
 
   @@map("users")
 }
@@ -91,4 +96,164 @@ model OAuthAccount {
 
   @@unique([provider, providerAccountId])
   @@map("oauth_accounts")
+}
+
+enum PublicityType {
+  PUBLIC
+  CLUBMEMBERONLY
+  PRIVATE
+}
+
+model Event {
+  id                Int        @id @default(autoincrement())
+  name              String
+  description       String?
+  startAt           DateTime?  @map("start_at")
+  endAt             DateTime?  @map("end_at")
+  createdAt         DateTime   @default(now()) @map("created_at")
+
+  posts             Post[]
+}
+
+model Post {
+  id                Int       @id @default(autoincrement())
+  eventId           Int?      @map("event_id")
+  userId            Int       @map("user_id")
+  contents          String
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event             Event?    @relation(fields: [eventId], references: [id])
+  identifications   Identification[]
+  votes             Vote[]
+  media             Media[]
+  followups         Followup[]
+}
+
+model Followup {
+  id                Int       @id @default(autoincrement())
+  postId            Int       @map("post_id")
+  userId            Int?      @map("user_id")
+  contents          String
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  user              User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post              Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+}
+
+model Identification {
+  id                Int       @id @default(autoincrement())
+  postId            Int       @map("post_id")
+  userId            Int       @map("user_id")
+  specieId          Int       @map("specie_id")
+  confidence        Float?    // Calculated at query time
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post              Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  species           Species   @relation(fields: [specieId], references: [id], onDelete: Cascade)
+  votes             Vote[]
+}
+
+model Vote {
+  id                Int       @id @default(autoincrement())
+  postId            Int       @map("post_id")
+  userId            Int       @map("user_id")
+  identificationId  Int       @map("identification_id")
+  probability       Float
+  createdAt         DateTime  @default(now()) @map("created_at")
+
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post              Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  identification    Identification @relation(fields: [identificationId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+  @@map("votes")
+}
+
+model Species {
+  id                Int       @id @default(autoincrement())
+  genusId           Int       @map("genus_id")
+  name              String    @unique
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  deletedAt         DateTime? @map("deleted_at") // Soft delete
+
+  genus             Genus     @relation(fields: [genusId], references: [id], onDelete: Cascade)
+  identifications   Identification[]
+}
+
+model Genus {
+  id                Int       @id @default(autoincrement())
+  familyId          Int       @map("family_id")
+  name              String    @unique
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  family            Family    @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  species           Species[]
+}
+
+model Family {
+  id                Int       @id @default(autoincrement())
+  name              String    @unique
+  shapeId           Int       @map("shape_id")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  shape             Shape     @relation(fields: [shapeId], references: [id], onDelete: Cascade)
+  genera            Genus[]
+}
+
+model Shape {
+  id                Int       @id @default(autoincrement())
+  name              String    @unique
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  families          Family[]
+}
+
+enum MediaType {
+  IMAGE
+  VIDEO
+  AUDIO
+  DOCUMENT
+}
+
+model Media {
+  id            String    @id @default(cuid())
+  filename      String
+  originalName  String    // Original filename uploaded by user
+  url           String    // S3, Cloud Storage, or CDN URL
+  type          MediaType
+  mimeType      String    // image/jpeg, video/mp4, etc.
+  
+  // File metadata
+  size          Int       // File size in bytes
+  duration      Int?      // Duration in seconds (for video/audio)
+  width         Int?      // Image/video width in pixels
+  height        Int?      // Image/video height in pixels
+  
+  // Relationships
+  postId        Int       @map("post_id")
+  post          Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  
+  // Thumbnail/preview for videos
+  thumbnailUrl  String?   @map("thumbnail_url")
+  
+  // Metadata
+  isPublic      Boolean   @default(false) @map("is_public")
+  description   String?
+  tags          String[]  // Array of tags for search
+  
+  // Timestamps
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  deletedAt     DateTime? @map("deleted_at") // Soft delete
+  
+  @@map("media")
 }

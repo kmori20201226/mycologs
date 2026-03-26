@@ -14,10 +14,10 @@ export default async function (fastify: FastifyInstance) {
         }
     }, async (request, reply) => {
         const { name, email, password } = request.body as any
-        const password_hash = crypto
+        const password_hash = password ? crypto
             .createHash('sha256')
             .update(password)
-            .digest('hex')
+            .digest('hex') : null
 
         const user = await fastify.prisma.user.create({
             data: {

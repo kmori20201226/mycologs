@@ -16,7 +16,17 @@
     "test:clubs": "npx ts-node apps/api/test/clubs.test.ts",
     "test:roles": "npx ts-node apps/api/test/roles.test.ts",
     "test:oauth-accounts": "npx ts-node apps/api/test/oauth-accounts.test.ts",
-    "test": "npm run test:users && npm run test:clubs && npm run test:roles && npm run test:oauth-accounts"
+    "test:shapes": "npx ts-node apps/api/test/shapes.test.ts",
+    "test:families": "npx ts-node apps/api/test/families.test.ts",
+    "test:genera": "npx ts-node apps/api/test/genera.test.ts",
+    "test:species": "npx ts-node apps/api/test/species.test.ts",
+    "test:events": "npx ts-node apps/api/test/events.test.ts",
+    "test:posts": "npx ts-node apps/api/test/posts.test.ts",
+    "test:followups": "npx ts-node apps/api/test/followups.test.ts",
+    "test:identifications": "npx ts-node apps/api/test/identifications.test.ts",
+    "test:votes": "npx ts-node apps/api/test/votes.test.ts",
+    "test:media": "npx ts-node apps/api/test/media.test.ts",
+    "test": "npm run test:users && npm run test:clubs && npm run test:roles && npm run test:oauth-accounts && npm run test:shapes && npm run test:families && npm run test:genera && npm run test:species && npm run test:events && npm run test:posts && npm run test:followups && npm run test:identifications && npm run test:votes && npm run test:media"
   },
   "keywords": [],
   "author": "Kazuya Mori",
