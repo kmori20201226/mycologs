@@ -27,6 +27,7 @@ enum RoleType {
   DEVELOPER
   MODERATOR
   CLUBMEMBER
+  CLUBMANAGER
 }
 
 model Role {

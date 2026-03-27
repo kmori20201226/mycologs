@@ -1,6 +1,11 @@
-import 'dotenv/config'
+import dotenv from 'dotenv'
+import path from 'path'
+dotenv.config({ path: path.resolve(__dirname, '../../../.env') })
 import Fastify from 'fastify'
+import cors from '@fastify/cors'
 import dbPlugin from './plugins/db'
+import jwtPlugin from './plugins/jwt'
+import authRoutes from './routes/auth'
 import userRoutes from './routes/users'
 import clubRoutes from './routes/clubs'
 import roleRoutes from './routes/roles'
@@ -21,7 +26,13 @@ export async function buildApp() {
         logger: true
     })
 
+    await app.register(cors, {
+        origin: 'http://localhost:3001',
+        methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS']
+    })
     await app.register(dbPlugin)
+    await app.register(jwtPlugin)
+    await app.register(authRoutes)
     await app.register(userRoutes)
     await app.register(clubRoutes)
     await app.register(roleRoutes)

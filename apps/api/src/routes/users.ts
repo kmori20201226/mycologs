@@ -30,6 +30,14 @@ export default async function (fastify: FastifyInstance) {
         return reply.code(201).send(user)
     })
 
+    // LIST ALL
+    fastify.get('/users', async (request, reply) => {
+        const users = await fastify.prisma.user.findMany({
+            select: { id: true, name: true, email: true, createdAt: true }
+        })
+        return users
+    })
+
     // READ
     fastify.get('/users/:id', {
         schema: {
