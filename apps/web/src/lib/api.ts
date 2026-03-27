@@ -1,5 +1,15 @@
 import { User, Post, Identification, Vote, Species, Family, Genus, Shape } from '../../../packages/types/src';
 
+export interface Event {
+  id: number
+  clubId: number | null
+  name: string
+  description: string | null
+  startAt: string | null
+  endAt: string | null
+  createdAt: string
+}
+
 export interface AuthResponse {
   token: string;
   user: { id: number; name: string; email: string };
@@ -16,16 +26,25 @@ class ApiClient {
 
   async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const url = `${this.baseURL}${endpoint}`;
+
+    // Auto-attach JWT from cookie if present
+    let authHeader: Record<string, string> = {}
+    if (typeof document !== 'undefined') {
+      const match = document.cookie.match(/(?:^|; )token=([^;]*)/)
+      if (match) authHeader = { Authorization: `Bearer ${decodeURIComponent(match[1])}` }
+    }
+
     const response = await fetch(url, {
       headers: {
         ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+        ...authHeader,
         ...options.headers,
       },
       ...options,
     });
 
     if (!response.ok) {
-      throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+      throw new Error(`API request failed: ${url} => ${response.status} ${response.statusText}`);
     }
 
     return response.json();
@@ -76,6 +95,24 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify(data),
     });
+  }
+
+  // Events
+  async getEvents(clubId?: number): Promise<Event[]> {
+    const qs = clubId ? `?clubId=${clubId}` : ''
+    return this.request(`/events${qs}`)
+  }
+
+  async createEvent(data: { name: string; clubId?: number; description?: string; startAt?: string; endAt?: string }): Promise<Event> {
+    return this.request('/events', { method: 'POST', body: JSON.stringify(data) })
+  }
+
+  async updateEvent(id: number, data: { name?: string; description?: string; startAt?: string | null; endAt?: string | null }): Promise<Event> {
+    return this.request(`/events/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
+  }
+
+  async deleteEvent(id: number): Promise<void> {
+    return this.request(`/events/${id}`, { method: 'DELETE' })
   }
 
   // Clubs

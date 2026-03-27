@@ -15,7 +15,13 @@ export function removeToken() {
   document.cookie = 'token=; path=/; max-age=0'
 }
 
-export type UserRole = 'ADMIN' | 'DEVELOPER' | 'MODERATOR' | 'CLUBMEMBER'
+export type UserRole = 'ADMIN' | 'DEVELOPER' | 'MODERATOR' | 'CLUBMEMBER' | 'CLUBMANAGER'
+
+export interface ClubMembership {
+  id: number
+  name: string
+  role: string
+}
 
 export interface AuthUser {
   id: number
@@ -42,4 +48,35 @@ export function setStoredUser(user: AuthUser) {
 export function clearAuth() {
   removeToken()
   localStorage.removeItem('user')
+  localStorage.removeItem('selectedClubId')
+  localStorage.removeItem('clubs')
+}
+
+// Club selection — persisted in localStorage
+
+export function getStoredClubs(): ClubMembership[] {
+  if (typeof localStorage === 'undefined') return []
+  try {
+    return JSON.parse(localStorage.getItem('clubs') ?? '[]') as ClubMembership[]
+  } catch {
+    return []
+  }
+}
+
+export function setStoredClubs(clubs: ClubMembership[]) {
+  localStorage.setItem('clubs', JSON.stringify(clubs))
+}
+
+export function getSelectedClubId(): number | null {
+  if (typeof localStorage === 'undefined') return null
+  const raw = localStorage.getItem('selectedClubId')
+  return raw ? Number(raw) : null
+}
+
+export function setSelectedClubId(id: number | null) {
+  if (id === null) {
+    localStorage.removeItem('selectedClubId')
+  } else {
+    localStorage.setItem('selectedClubId', String(id))
+  }
 }

@@ -18,6 +18,7 @@ model Club {
   createdAt     DateTime @default(now()) @map("created_at")
 
   clubUsers     ClubUser[]
+  events        Event[]
 
   @@map("clubs")
 }
@@ -107,12 +108,14 @@ enum PublicityType {
 
 model Event {
   id                Int        @id @default(autoincrement())
+  clubId            Int?       @map("club_id")
   name              String
   description       String?
   startAt           DateTime?  @map("start_at")
   endAt             DateTime?  @map("end_at")
   createdAt         DateTime   @default(now()) @map("created_at")
 
+  club              Club?      @relation(fields: [clubId], references: [id])
   posts             Post[]
 }
 

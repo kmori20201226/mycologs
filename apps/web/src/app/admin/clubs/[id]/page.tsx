@@ -115,11 +115,22 @@ export default function ClubEditPage() {
     <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto px-4 py-8">
 
-        {/* Breadcrumb */}
-        <div className="mb-6 text-sm text-gray-500">
-          <Link href="/admin/clubs" className="hover:text-emerald-600 transition-colors">Clubs</Link>
-          <span className="mx-2">/</span>
-          <span className="text-gray-800 font-medium">{clubName}</span>
+        {/* Breadcrumb + Back */}
+        <div className="mb-6 flex items-center gap-4">
+          <Link
+            href="/admin/clubs"
+            className="flex items-center gap-1 text-sm text-gray-500 hover:text-emerald-600 transition-colors"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+            </svg>
+            Back
+          </Link>
+          <div className="text-sm text-gray-500">
+            <Link href="/admin/clubs" className="hover:text-emerald-600 transition-colors">Clubs</Link>
+            <span className="mx-2">/</span>
+            <span className="text-gray-800 font-medium">{clubName}</span>
+          </div>
         </div>
 
         {/* Rename */}
@@ -150,7 +161,7 @@ export default function ClubEditPage() {
             onDragOver={(e) => { e.preventDefault(); setDragOverPanel('users') }}
             onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverPanel(null) }}
             onDrop={onDropToUsers}
-            className={`bg-white rounded-xl shadow p-5 min-h-64 transition-colors ${
+            className={`bg-white rounded-xl shadow p-5 flex flex-col transition-colors ${
               dragOverPanel === 'users' ? 'ring-2 ring-emerald-400 bg-emerald-50' : ''
             }`}
           >
@@ -160,7 +171,7 @@ export default function ClubEditPage() {
             {nonMembers.length === 0 ? (
               <p className="text-sm text-gray-400 text-center py-8">All users are already members.</p>
             ) : (
-              <ul className="space-y-2">
+              <ul className="space-y-2 overflow-y-auto max-h-96">
                 {nonMembers.map((u) => (
                   <li
                     key={u.id}
@@ -184,7 +195,7 @@ export default function ClubEditPage() {
             onDragOver={(e) => { e.preventDefault(); setDragOverPanel('members') }}
             onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverPanel(null) }}
             onDrop={onDropToMembers}
-            className={`bg-white rounded-xl shadow p-5 min-h-64 transition-colors ${
+            className={`bg-white rounded-xl shadow p-5 flex flex-col transition-colors ${
               dragOverPanel === 'members' ? 'ring-2 ring-emerald-400 bg-emerald-50' : ''
             }`}
           >
@@ -194,7 +205,7 @@ export default function ClubEditPage() {
             {members.length === 0 ? (
               <p className="text-sm text-gray-400 text-center py-8">Drop users here to add them.</p>
             ) : (
-              <ul className="space-y-2">
+              <ul className="space-y-2 overflow-y-auto max-h-96">
                 {members.map((m) => {
                   const isManager = m.role.name === 'CLUBMANAGER'
                   return (

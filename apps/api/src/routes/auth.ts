@@ -110,4 +110,25 @@ export default async function (fastify: FastifyInstance) {
         })
     })
 
+    // GET /me/clubs — returns clubs the authenticated user belongs to
+    fastify.get('/me/clubs', {
+        preHandler: [fastify.authenticate]
+    }, async (request, reply) => {
+        const { id } = request.user as { id: number }
+
+        const memberships = await fastify.prisma.clubUser.findMany({
+            where: { userId: id },
+            include: {
+                club: { select: { id: true, name: true } },
+                role: { select: { name: true } }
+            }
+        })
+
+        return memberships.map((m) => ({
+            id: m.club.id,
+            name: m.club.name,
+            role: m.role.name
+        }))
+    })
+
 }

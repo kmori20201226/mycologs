@@ -5,6 +5,7 @@ export default async function (fastify: FastifyInstance) {
 
     // CREATE
     fastify.post('/events', {
+        preHandler: [fastify.authenticate],
         schema: {
             body: createEventSchema,
             response: {
@@ -12,12 +13,13 @@ export default async function (fastify: FastifyInstance) {
             }
         }
     }, async (request, reply) => {
-        const { name, description, startAt, endAt } = request.body as any
+        const { name, description, clubId, startAt, endAt } = request.body as any
 
         const event = await fastify.prisma.event.create({
             data: {
                 name,
                 description,
+                clubId: clubId ?? null,
                 startAt: startAt ? new Date(startAt) : null,
                 endAt: endAt ? new Date(endAt) : null
             }
@@ -71,7 +73,10 @@ export default async function (fastify: FastifyInstance) {
             }
         }
     }, async (request, reply) => {
+        const { clubId } = request.query as { clubId?: number }
+
         const events = await fastify.prisma.event.findMany({
+            ...(clubId ? { where: { clubId: Number(clubId) } } : {}),
             orderBy: { createdAt: 'desc' }
         })
 
@@ -80,6 +85,7 @@ export default async function (fastify: FastifyInstance) {
 
     // UPDATE
     fastify.patch('/events/:id', {
+        preHandler: [fastify.authenticate],
         schema: {
             params: {
                 type: 'object',
@@ -125,6 +131,7 @@ export default async function (fastify: FastifyInstance) {
 
     // DELETE
     fastify.delete('/events/:id', {
+        preHandler: [fastify.authenticate],
         schema: {
             params: {
                 type: 'object',

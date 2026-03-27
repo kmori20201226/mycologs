@@ -28,7 +28,8 @@ export async function buildApp() {
 
     await app.register(cors, {
         origin: 'http://localhost:3001',
-        methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS']
+        methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
+        allowedHeaders: ['Content-Type', 'Authorization']
     })
     await app.register(dbPlugin)
     await app.register(jwtPlugin)

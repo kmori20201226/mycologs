@@ -2,8 +2,15 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { getStoredUser, clearAuth, type AuthUser } from '@/lib/auth'
+import {
+  getStoredUser, clearAuth, type AuthUser,
+  getStoredClubs, setStoredClubs,
+  getSelectedClubId, setSelectedClubId,
+  getToken,
+  type ClubMembership
+} from '@/lib/auth'
 import { menuItems, type MenuVisibility } from '@/config/menu'
+import { apiClient } from '@/lib/api'
 
 function isVisible(visibleTo: MenuVisibility[], user: AuthUser | null): boolean {
   if (visibleTo.includes('public')) return true
@@ -14,11 +21,42 @@ function isVisible(visibleTo: MenuVisibility[], user: AuthUser | null): boolean 
 
 export default function Navigation() {
   const [user, setUser] = useState<AuthUser | null>(null)
+  const [clubs, setClubs] = useState<ClubMembership[]>([])
+  const [selectedClubId, _setSelectedClubId] = useState<number | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
 
   useEffect(() => {
-    setUser(getStoredUser())
+    const u = getStoredUser()
+    setUser(u)
+    if (!u) return
+
+    // Load clubs from cache first, then refresh from API
+    const cached = getStoredClubs()
+    setClubs(cached)
+    if (cached.length > 0) {
+      const saved = getSelectedClubId()
+      _setSelectedClubId(saved ?? cached[0].id)
+    }
+
+    const token = getToken()
+    if (!token) return
+
+    apiClient.request<ClubMembership[]>('/me/clubs', {
+      headers: { Authorization: `Bearer ${token}` }
+    }).then((fresh) => {
+      setStoredClubs(fresh)
+      setClubs(fresh)
+      const saved = getSelectedClubId()
+      const validId = fresh.find((c) => c.id === saved)?.id ?? fresh[0]?.id ?? null
+      _setSelectedClubId(validId)
+      setSelectedClubId(validId)
+    }).catch((err) => { console.error('Failed to fetch clubs:', err) })
   }, [])
+
+  function handleClubChange(id: number) {
+    _setSelectedClubId(id)
+    setSelectedClubId(id)
+  }
 
   function handleLogout() {
     clearAuth()
@@ -26,13 +64,14 @@ export default function Navigation() {
   }
 
   const visibleItems = menuItems.filter((item) => isVisible(item.visibleTo, user))
+  const selectedClub = clubs.find((c) => c.id === selectedClubId)
 
   return (
     <nav className="bg-white shadow-sm border-b relative">
       <div className="container mx-auto px-4">
         <div className="flex justify-between items-center h-16">
 
-          {/* Left side: hamburger + logo */}
+          {/* Left: hamburger + logo */}
           <div className="flex items-center space-x-3">
             <button
               onClick={() => setMenuOpen((prev) => !prev)}
@@ -49,7 +88,34 @@ export default function Navigation() {
             </Link>
           </div>
 
-          {/* Right side: auth */}
+          {/* Centre: club selector */}
+          {user && (
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-gray-400">Club:</span>
+              {clubs.length === 0 && (
+                <span className="text-gray-400 italic">—</span>
+              )}
+              {clubs.length === 1 && (
+                <span className="font-medium text-gray-700">{clubs[0].name}</span>
+              )}
+              {clubs.length > 1 && (
+                <select
+                  value={selectedClubId ?? ''}
+                  onChange={(e) => handleClubChange(Number(e.target.value))}
+                  className="border rounded-lg px-2 py-1 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                >
+                  {clubs.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              )}
+              {clubs.length === 1 && selectedClub && (
+                <span className="text-xs text-gray-400">({selectedClub.role})</span>
+              )}
+            </div>
+          )}
+
+          {/* Right: auth */}
           {user ? (
             <div className="flex items-center space-x-4">
               <span className="text-sm text-gray-600">Hi, {user.name}</span>
