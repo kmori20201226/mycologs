@@ -45,6 +45,9 @@ Thumbs.db
 # JetBrains
 .idea/
 
+# Workspace
+workspace/
+
 # =========================
 # Docker (optional)
 # =========================

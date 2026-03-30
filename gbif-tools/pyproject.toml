@@ -1,0 +1,25 @@
+# pyproject.toml
+
+[build-system]
+requires      = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name        = "gbif-tools"
+version     = "0.1.0"
+description = "Toolset for processing and storing GBIF occurrence data"
+readme      = "README.md"
+requires-python = ">=3.11"
+
+dependencies = [
+    "psycopg2-binary>=2.9",
+    "python-dotenv>=1.0",
+    "tqdm>=4.66",
+]
+
+[project.scripts]
+gbif = "gbif_tools.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["gbif_tools*"]

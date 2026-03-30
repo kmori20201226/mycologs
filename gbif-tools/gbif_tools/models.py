@@ -1,0 +1,57 @@
+from dataclasses import dataclass, field
+from typing import Optional
+
+@dataclass
+class TaxonRow:
+    taxon_key:             int
+    species_key:           Optional[int]
+    kingdom:               Optional[str]
+    phylum:                Optional[str]
+    class_:                Optional[str]
+    order:                 Optional[str]
+    family:                Optional[str]
+    genus:                 Optional[str]
+    species:               Optional[str]
+    infraspecific_epithet: Optional[str]
+    taxon_rank:            Optional[str]
+    scientific_name:       Optional[str]
+    taxonomic_status:      Optional[str]
+
+@dataclass
+class OccurrenceRow:
+    gbif_id:                              int
+    occurrence_id:                        Optional[str]
+    dataset_key:                          Optional[str]
+    taxon_key:                            Optional[int]
+    verbatim_scientific_name:             Optional[str]
+    verbatim_scientific_name_authorship:  Optional[str]
+    country_code:                         Optional[str]
+    state_province:                       Optional[str]
+    locality:                             Optional[str]
+    decimal_latitude:                     Optional[float]
+    decimal_longitude:                    Optional[float]
+    coordinate_uncertainty_m:             Optional[float]
+    coordinate_precision:                 Optional[float]
+    elevation_m:                          Optional[float]
+    elevation_accuracy_m:                 Optional[float]
+    event_date:                           Optional[str]
+    year:                                 Optional[int]
+    month:                                Optional[int]
+    day:                                  Optional[int]
+    occurrence_status:                    Optional[str]
+    individual_count:                     Optional[int]
+    basis_of_record:                      Optional[str]
+    identified_by:                        Optional[str]
+    date_identified:                      Optional[str]
+    recorded_by:                          Optional[str]
+    type_status:                          Optional[str]
+    establishment_means:                  Optional[str]
+    institution_code:                     Optional[str]
+    collection_code:                      Optional[str]
+    catalog_number:                       Optional[str]
+    record_number:                        Optional[str]
+    license:                              Optional[str]
+    rights_holder:                        Optional[str]
+    media_type:                           Optional[str]
+    issue:                                Optional[str]
+    last_interpreted:                     Optional[str]
