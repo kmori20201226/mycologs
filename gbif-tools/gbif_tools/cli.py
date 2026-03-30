@@ -1,6 +1,6 @@
 import argparse
 import sys
-
+from pathlib import Path
 
 def _cmd_import(args: argparse.Namespace) -> None:
     from .importer import import_file
@@ -20,6 +20,29 @@ def _cmd_create_schema(args: argparse.Namespace) -> None:
     with transaction() as cur:
         create_schema(cur)
 
+def _cmd_fill_shape(args: argparse.Namespace) -> None:
+    from .shape_mapper import fill_shape
+    print("Filling shape from taxonomy mapping ...")
+    fill_shape()
+
+def _cmd_import_katumoto(args: argparse.Namespace) -> None:
+    from .katumoto_name_importer import import_katumoto_names
+    import_katumoto_names(
+        xlsx_path=args.xlsx,
+        genus_fallback=args.genus_fallback,
+        overwrite=args.overwrite,
+    )
+
+def _cmd_import_supplement(args: argparse.Namespace) -> None:
+    from pathlib import Path
+    from .katumoto_supplement_importer import import_supplement_names
+    import_supplement_names(
+        xlsx_path=Path(args.xlsx),
+        genus_fallback=args.genus_fallback,
+        overwrite=args.overwrite,
+    )
+
+DATADIR = Path(__file__).parent / "data"
 
 def main() -> None:
     parser = argparse.ArgumentParser(
@@ -66,6 +89,55 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     ).set_defaults(func=_cmd_fill_japanese)
 
+    # ── gbif fill-shape ───────────────────────────────────────
+    subparsers.add_parser(
+        "fill-shape",
+        help="Fill shape and shape_ja on gbif.taxon from taxonomy mapping.",
+        description=(
+            "Infers fruiting body shape from order → family → genus, "
+            "in that priority order. Safe to re-run."
+        ),
+    ).set_defaults(func=_cmd_fill_shape)
+
+    # ── gbif import-katumoto ──────────────────────────────── 
+ 
+    k_parser = subparsers.add_parser(
+        "import-katumoto",
+        help="Import Japanese names from the MSJ Katumoto wamei Excel file.",
+        description=(
+            "Source: https://www.mycology-jp.org/html/checklist_wlist.html\n"
+            "License: CC BY 4.0 — 日本菌学会データベース委員会"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    k_parser.add_argument("--xlsx", metavar="<Katumoto-Wamei.xlsx>",
+        default=DATADIR / "Katumoto-Wamei.xlsx",
+        help="Path to the downloaded Excel file.")
+    k_parser.add_argument("--genus-fallback", action="store_true",
+        help="Also fill NULL rows where only genus matches.")
+    k_parser.add_argument("--overwrite", action="store_true",
+        help="Overwrite existing names (default: only fill NULL rows).")
+    k_parser.set_defaults(func=_cmd_import_katumoto)
+
+    # ── gbif import-katumoto-supplement ─────────────────────────
+
+    sup_parser = subparsers.add_parser(
+        "import-katumoto-supplement",
+        help="Import Japanese names from the MSJ post-2008 supplement Excel file.",
+        description=(
+            "Source: https://www.mycology-jp.org/html/checklist.html\n"
+            "License: CC BY 4.0 — 日本菌学会データベース委員会"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    sup_parser.add_argument("--xlsx", metavar="<DB20200311.xlsx>",
+        default=DATADIR / "DB20200311.xlsx",
+        help="Path to the supplement Excel file.")
+    sup_parser.add_argument("--genus-fallback", action="store_true",
+        help="Also fill NULL rows where only genus matches.")
+    sup_parser.add_argument("--overwrite", action="store_true",
+        help="Overwrite existing names (default: only fill NULL rows).")
+    sup_parser.set_defaults(func=_cmd_import_supplement)
     # ── parse ────────────────────────────────────────────────
     args = parser.parse_args()
 
