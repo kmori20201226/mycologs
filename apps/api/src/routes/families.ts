@@ -12,10 +12,10 @@ export default async function (fastify: FastifyInstance) {
             }
         }
     }, async (request, reply) => {
-        const { name, shapeId } = request.body as any
+        const { scientificName, japaneseName, shapeId } = request.body as any
 
         const family = await fastify.prisma.family.create({
-            data: { name, shapeId },
+            data: { scientificName, japaneseName, shapeId },
             include: { shape: true }
         })
 
@@ -70,7 +70,7 @@ export default async function (fastify: FastifyInstance) {
     }, async (request, reply) => {
         const families = await fastify.prisma.family.findMany({
             include: { shape: true },
-            orderBy: { name: 'asc' }
+            orderBy: { scientificName: 'asc' }
         })
 
         return families

@@ -12,10 +12,10 @@ export default async function (fastify: FastifyInstance) {
             }
         }
     }, async (request, reply) => {
-        const { name, genusId } = request.body as any
+        const { scientificName, japaneseName, gbifTaxonKey, edibility, genusId } = request.body as any
 
         const species = await fastify.prisma.species.create({
-            data: { name, genusId },
+            data: { scientificName, japaneseName, gbifTaxonKey, edibility, genusId },
             include: { genus: true }
         })
 
@@ -70,7 +70,8 @@ export default async function (fastify: FastifyInstance) {
     }, async (request, reply) => {
         const species = await fastify.prisma.species.findMany({
             include: { genus: true },
-            orderBy: { name: 'asc' }
+            where: { deletedAt: null },
+            orderBy: { scientificName: 'asc' }
         })
 
         return species
@@ -114,7 +115,7 @@ export default async function (fastify: FastifyInstance) {
         }
     })
 
-    // DELETE
+    // SOFT DELETE
     fastify.delete('/species/:id', {
         schema: {
             params: {
@@ -143,8 +144,9 @@ export default async function (fastify: FastifyInstance) {
         const { id } = request.params as any
 
         try {
-            await fastify.prisma.species.delete({
-                where: { id: Number(id) }
+            await fastify.prisma.species.update({
+                where: { id: Number(id) },
+                data: { deletedAt: new Date() }
             })
 
             return { message: 'Species deleted' }

@@ -12,10 +12,10 @@ export default async function (fastify: FastifyInstance) {
             }
         }
     }, async (request, reply) => {
-        const { name } = request.body as any
+        const { name, japaneseName } = request.body as any
 
         const shape = await fastify.prisma.shape.create({
-            data: { name }
+            data: { name, japaneseName }
         })
 
         return reply.code(201).send(shape)
@@ -71,6 +71,7 @@ export default async function (fastify: FastifyInstance) {
         })
 
         return shapes
+
     })
 
     // UPDATE

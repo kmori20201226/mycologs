@@ -2,7 +2,8 @@ export const genusSchema = {
     type: 'object',
     properties: {
         id: { type: 'number' },
-        name: { type: 'string' },
+        scientificName: { type: 'string' },
+        japaneseName: { type: 'string', nullable: true },
         familyId: { type: 'number' },
         createdAt: { type: 'string', format: 'date-time' },
         updatedAt: { type: 'string', format: 'date-time' },
@@ -10,7 +11,8 @@ export const genusSchema = {
             type: 'object',
             properties: {
                 id: { type: 'number' },
-                name: { type: 'string' }
+                scientificName: { type: 'string' },
+                japaneseName: { type: 'string', nullable: true }
             }
         }
     }
@@ -18,9 +20,10 @@ export const genusSchema = {
 
 export const createGenusSchema = {
     type: 'object',
-    required: ['name', 'familyId'],
+    required: ['scientificName', 'familyId'],
     properties: {
-        name: { type: 'string' },
+        scientificName: { type: 'string' },
+        japaneseName: { type: 'string', nullable: true },
         familyId: { type: 'number' }
     }
 }
@@ -28,7 +31,8 @@ export const createGenusSchema = {
 export const updateGenusSchema = {
     type: 'object',
     properties: {
-        name: { type: 'string' },
+        scientificName: { type: 'string' },
+        japaneseName: { type: 'string', nullable: true },
         familyId: { type: 'number' }
     }
 }

@@ -192,21 +192,25 @@ model Vote {
 }
 
 model Species {
-  id                Int       @id @default(autoincrement())
-  genusId           Int       @map("genus_id")
-  name              String    @unique
-  createdAt         DateTime  @default(now()) @map("created_at")
-  updatedAt         DateTime  @updatedAt @map("updated_at")
-  deletedAt         DateTime? @map("deleted_at") // Soft delete
+  id                Int        @id @default(autoincrement())
+  genusId           Int        @map("genus_id")
+  scientificName    String     @unique @map("scientific_name")
+  japaneseName      String?    @map("japanese_name")
+  gbifTaxonKey      Int?       @unique @map("gbif_taxon_key")
+  edibility         Edibility?
+  createdAt         DateTime   @default(now()) @map("created_at")
+  updatedAt         DateTime   @updatedAt @map("updated_at")
+  deletedAt         DateTime?  @map("deleted_at") // Soft delete
 
-  genus             Genus     @relation(fields: [genusId], references: [id], onDelete: Cascade)
+  genus             Genus      @relation(fields: [genusId], references: [id], onDelete: Cascade)
   identifications   Identification[]
 }
 
 model Genus {
   id                Int       @id @default(autoincrement())
   familyId          Int       @map("family_id")
-  name              String    @unique
+  scientificName    String    @unique @map("scientific_name")
+  japaneseName      String?   @map("japanese_name")
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @updatedAt @map("updated_at")
 
@@ -216,7 +220,8 @@ model Genus {
 
 model Family {
   id                Int       @id @default(autoincrement())
-  name              String    @unique
+  scientificName    String    @unique @map("scientific_name")
+  japaneseName      String?   @map("japanese_name")
   shapeId           Int       @map("shape_id")
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @updatedAt @map("updated_at")
@@ -225,9 +230,18 @@ model Family {
   genera            Genus[]
 }
 
+enum Edibility {
+  EDIBLE
+  INEDIBLE
+  TOXIC
+  DEADLY
+  UNKNOWN
+}
+
 model Shape {
   id                Int       @id @default(autoincrement())
   name              String    @unique
+  japaneseName      String?   @map("japanese_name")
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @updatedAt @map("updated_at")
 

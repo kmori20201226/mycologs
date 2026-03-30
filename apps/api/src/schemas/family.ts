@@ -2,7 +2,8 @@ export const familySchema = {
     type: 'object',
     properties: {
         id: { type: 'number' },
-        name: { type: 'string' },
+        scientificName: { type: 'string' },
+        japaneseName: { type: 'string', nullable: true },
         shapeId: { type: 'number' },
         createdAt: { type: 'string', format: 'date-time' },
         updatedAt: { type: 'string', format: 'date-time' },
@@ -10,7 +11,8 @@ export const familySchema = {
             type: 'object',
             properties: {
                 id: { type: 'number' },
-                name: { type: 'string' }
+                name: { type: 'string' },
+                japaneseName: { type: 'string', nullable: true }
             }
         }
     }
@@ -18,9 +20,10 @@ export const familySchema = {
 
 export const createFamilySchema = {
     type: 'object',
-    required: ['name', 'shapeId'],
+    required: ['scientificName', 'shapeId'],
     properties: {
-        name: { type: 'string' },
+        scientificName: { type: 'string' },
+        japaneseName: { type: 'string', nullable: true },
         shapeId: { type: 'number' }
     }
 }
@@ -28,7 +31,8 @@ export const createFamilySchema = {
 export const updateFamilySchema = {
     type: 'object',
     properties: {
-        name: { type: 'string' },
+        scientificName: { type: 'string' },
+        japaneseName: { type: 'string', nullable: true },
         shapeId: { type: 'number' }
     }
 }

@@ -1,8 +1,13 @@
+const edibilityEnum = ['EDIBLE', 'INEDIBLE', 'TOXIC', 'DEADLY', 'UNKNOWN']
+
 export const speciesSchema = {
     type: 'object',
     properties: {
         id: { type: 'number' },
-        name: { type: 'string' },
+        scientificName: { type: 'string' },
+        japaneseName: { type: 'string', nullable: true },
+        gbifTaxonKey: { type: 'number', nullable: true },
+        edibility: { type: 'string', enum: edibilityEnum, nullable: true },
         genusId: { type: 'number' },
         createdAt: { type: 'string', format: 'date-time' },
         updatedAt: { type: 'string', format: 'date-time' },
@@ -11,7 +16,8 @@ export const speciesSchema = {
             type: 'object',
             properties: {
                 id: { type: 'number' },
-                name: { type: 'string' }
+                scientificName: { type: 'string' },
+                japaneseName: { type: 'string', nullable: true }
             }
         }
     }
@@ -19,9 +25,12 @@ export const speciesSchema = {
 
 export const createSpeciesSchema = {
     type: 'object',
-    required: ['name', 'genusId'],
+    required: ['scientificName', 'genusId'],
     properties: {
-        name: { type: 'string' },
+        scientificName: { type: 'string' },
+        japaneseName: { type: 'string', nullable: true },
+        gbifTaxonKey: { type: 'number', nullable: true },
+        edibility: { type: 'string', enum: edibilityEnum, nullable: true },
         genusId: { type: 'number' }
     }
 }
@@ -29,7 +38,11 @@ export const createSpeciesSchema = {
 export const updateSpeciesSchema = {
     type: 'object',
     properties: {
-        name: { type: 'string' },
-        genusId: { type: 'number' }
+        scientificName: { type: 'string' },
+        japaneseName: { type: 'string', nullable: true },
+        gbifTaxonKey: { type: 'number', nullable: true },
+        edibility: { type: 'string', enum: edibilityEnum, nullable: true },
+        genusId: { type: 'number' },
+        deletedAt: { type: 'string', format: 'date-time', nullable: true }
     }
 }

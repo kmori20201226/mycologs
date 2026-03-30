@@ -3,33 +3,41 @@ import { User, Post, Identification, Vote, Species, Family, Genus, Shape } from 
 export interface TaxShape {
   id: number
   name: string
+  japaneseName: string | null
   createdAt: string
   updatedAt: string
 }
 
 export interface TaxFamily {
   id: number
-  name: string
+  scientificName: string
+  japaneseName: string | null
   shapeId: number
-  shape?: { id: number; name: string }
+  shape?: { id: number; name: string; japaneseName: string | null }
   createdAt: string
   updatedAt: string
 }
 
 export interface TaxGenus {
   id: number
-  name: string
+  scientificName: string
+  japaneseName: string | null
   familyId: number
-  family?: { id: number; name: string }
+  family?: { id: number; scientificName: string; japaneseName: string | null }
   createdAt: string
   updatedAt: string
 }
 
+export type Edibility = 'EDIBLE' | 'INEDIBLE' | 'TOXIC' | 'DEADLY' | 'UNKNOWN'
+
 export interface TaxSpecies {
   id: number
-  name: string
+  scientificName: string
+  japaneseName: string | null
+  gbifTaxonKey: number | null
+  edibility: Edibility | null
   genusId: number
-  genus?: { id: number; name: string }
+  genus?: { id: number; scientificName: string; japaneseName: string | null }
   deletedAt: string | null
   createdAt: string
   updatedAt: string
@@ -208,40 +216,40 @@ class ApiClient {
   async getSpecies(): Promise<TaxSpecies[]> { return this.request('/species') }
 
   // Taxonomy — write
-  async createShape(name: string): Promise<TaxShape> {
-    return this.request('/shapes', { method: 'POST', body: JSON.stringify({ name }) })
+  async createShape(data: { name: string; japaneseName?: string | null }): Promise<TaxShape> {
+    return this.request('/shapes', { method: 'POST', body: JSON.stringify(data) })
   }
-  async updateShape(id: number, name: string): Promise<TaxShape> {
-    return this.request(`/shapes/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) })
+  async updateShape(id: number, data: { name?: string; japaneseName?: string | null }): Promise<TaxShape> {
+    return this.request(`/shapes/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
   }
   async deleteShape(id: number): Promise<void> {
     return this.request(`/shapes/${id}`, { method: 'DELETE' })
   }
 
-  async createFamily(name: string, shapeId: number): Promise<TaxFamily> {
-    return this.request('/families', { method: 'POST', body: JSON.stringify({ name, shapeId }) })
+  async createFamily(data: { scientificName: string; japaneseName?: string | null; shapeId: number }): Promise<TaxFamily> {
+    return this.request('/families', { method: 'POST', body: JSON.stringify(data) })
   }
-  async updateFamily(id: number, data: { name?: string; shapeId?: number }): Promise<TaxFamily> {
+  async updateFamily(id: number, data: { scientificName?: string; japaneseName?: string | null; shapeId?: number }): Promise<TaxFamily> {
     return this.request(`/families/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
   }
   async deleteFamily(id: number): Promise<void> {
     return this.request(`/families/${id}`, { method: 'DELETE' })
   }
 
-  async createGenus(name: string, familyId: number): Promise<TaxGenus> {
-    return this.request('/genera', { method: 'POST', body: JSON.stringify({ name, familyId }) })
+  async createGenus(data: { scientificName: string; japaneseName?: string | null; familyId: number }): Promise<TaxGenus> {
+    return this.request('/genera', { method: 'POST', body: JSON.stringify(data) })
   }
-  async updateGenus(id: number, data: { name?: string; familyId?: number }): Promise<TaxGenus> {
+  async updateGenus(id: number, data: { scientificName?: string; japaneseName?: string | null; familyId?: number }): Promise<TaxGenus> {
     return this.request(`/genera/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
   }
   async deleteGenus(id: number): Promise<void> {
     return this.request(`/genera/${id}`, { method: 'DELETE' })
   }
 
-  async createSpecies(name: string, genusId: number): Promise<TaxSpecies> {
-    return this.request('/species', { method: 'POST', body: JSON.stringify({ name, genusId }) })
+  async createSpecies(data: { scientificName: string; japaneseName?: string | null; gbifTaxonKey?: number | null; edibility?: Edibility | null; genusId: number }): Promise<TaxSpecies> {
+    return this.request('/species', { method: 'POST', body: JSON.stringify(data) })
   }
-  async updateSpecies(id: number, data: { name?: string; genusId?: number }): Promise<TaxSpecies> {
+  async updateSpecies(id: number, data: { scientificName?: string; japaneseName?: string | null; gbifTaxonKey?: number | null; edibility?: Edibility | null; genusId?: number; deletedAt?: string | null }): Promise<TaxSpecies> {
     return this.request(`/species/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
   }
   async deleteSpecies(id: number): Promise<void> {

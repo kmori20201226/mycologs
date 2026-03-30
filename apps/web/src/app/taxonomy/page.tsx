@@ -68,7 +68,10 @@ export default function TaxonomyPage() {
           : species
     if (search.trim()) {
       const q = search.toLowerCase()
-      list = list.filter((s) => s.name.toLowerCase().includes(q))
+      list = list.filter((s) =>
+        s.scientificName.toLowerCase().includes(q) ||
+        (s.japaneseName ?? '').toLowerCase().includes(q)
+      )
     }
     return list
   }, [species, selectedGenus, selectedFamily, selectedShape, visibleGenera, search])
@@ -110,14 +113,16 @@ export default function TaxonomyPage() {
                   onClick={() => { selectFamily(selectedFamily); setSelectedGenus(null) }}
                   className={`font-medium ${selectedGenus ? 'text-emerald-600 hover:underline' : 'text-gray-800'}`}
                 >
-                  {selectedFamily.name}
+                  {selectedFamily.scientificName}
+                  {selectedFamily.japaneseName && <span className="ml-1 not-italic text-gray-500 text-xs">{selectedFamily.japaneseName}</span>}
                 </button>
               </>
             )}
             {selectedGenus && (
               <>
                 <span className="text-gray-400">/</span>
-                <span className="font-medium text-gray-800 italic">{selectedGenus.name}</span>
+                <span className="font-medium text-gray-800 italic">{selectedGenus.scientificName}</span>
+                {selectedGenus.japaneseName && <span className="text-gray-500 text-xs">{selectedGenus.japaneseName}</span>}
               </>
             )}
           </div>
@@ -143,6 +148,7 @@ export default function TaxonomyPage() {
                       return (
                         <DrillButton key={shape.id} onClick={() => selectShape(shape)}>
                           <p className="font-semibold text-gray-900">{shape.name}</p>
+                          {shape.japaneseName && <p className="text-xs text-gray-500">{shape.japaneseName}</p>}
                           <p className="text-xs text-gray-400 mt-0.5">{famCount} {famCount === 1 ? 'family' : 'families'}</p>
                         </DrillButton>
                       )
@@ -164,7 +170,8 @@ export default function TaxonomyPage() {
                       const genCount = genera.filter((g) => g.familyId === family.id).length
                       return (
                         <DrillButton key={family.id} onClick={() => selectFamily(family)}>
-                          <p className="font-semibold text-gray-900">{family.name}</p>
+                          <p className="font-semibold text-gray-900">{family.scientificName}</p>
+                          {family.japaneseName && <p className="text-xs text-gray-500">{family.japaneseName}</p>}
                           <p className="text-xs text-gray-400 mt-0.5">{genCount} {genCount === 1 ? 'genus' : 'genera'}</p>
                         </DrillButton>
                       )
@@ -178,7 +185,7 @@ export default function TaxonomyPage() {
             {selectedFamily && !selectedGenus && (
               <section>
                 <SectionHeading>
-                  Genera in <em className="text-emerald-600 not-italic">{selectedFamily.name}</em>
+                  Genera in <em className="text-emerald-600 not-italic">{selectedFamily.scientificName}</em>
                 </SectionHeading>
                 {visibleGenera.length === 0 ? <EmptyState label="No genera in this family." /> : (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
@@ -186,7 +193,8 @@ export default function TaxonomyPage() {
                       const spCount = species.filter((s) => s.genusId === genus.id).length
                       return (
                         <DrillButton key={genus.id} onClick={() => selectGenus(genus)}>
-                          <p className="font-semibold text-gray-900 italic">{genus.name}</p>
+                          <p className="font-semibold text-gray-900 italic">{genus.scientificName}</p>
+                          {genus.japaneseName && <p className="text-xs text-gray-500 not-italic">{genus.japaneseName}</p>}
                           <p className="text-xs text-gray-400 mt-0.5">{spCount} {spCount === 1 ? 'species' : 'species'}</p>
                         </DrillButton>
                       )
@@ -202,7 +210,7 @@ export default function TaxonomyPage() {
                 <div className="flex items-center justify-between mb-3">
                   <SectionHeading className="mb-0">
                     {selectedGenus
-                      ? <>Species in <em className="text-emerald-600 not-italic">{selectedGenus.name}</em></>
+                      ? <>Species in <em className="text-emerald-600 not-italic">{selectedGenus.scientificName}</em></>
                       : 'Search results'}
                   </SectionHeading>
                   <span className="text-xs text-gray-400">{visibleSpecies.length} found</span>
@@ -215,10 +223,16 @@ export default function TaxonomyPage() {
                       const shape = family ? shapes.find((s) => s.id === family.shapeId) : null
                       return (
                         <div key={sp.id} className="bg-white rounded-xl shadow px-4 py-3">
-                          <p className="font-semibold text-gray-900 italic">{sp.name}</p>
+                          <p className="font-semibold text-gray-900 italic">{sp.scientificName}</p>
+                          {sp.japaneseName && <p className="text-sm text-gray-700 not-italic">{sp.japaneseName}</p>}
                           <p className="text-xs text-gray-400 mt-0.5">
-                            {[genus?.name, family?.name, shape?.name].filter(Boolean).join(' · ')}
+                            {[genus?.scientificName, family?.scientificName, shape?.name].filter(Boolean).join(' · ')}
                           </p>
+                          {sp.edibility && (
+                            <span className={`inline-block mt-1 text-xs px-2 py-0.5 rounded-full font-medium ${edibilityStyle(sp.edibility)}`}>
+                              {sp.edibility}
+                            </span>
+                          )}
                         </div>
                       )
                     })}
@@ -234,7 +248,7 @@ export default function TaxonomyPage() {
                 type="search"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Type a species name…"
+                placeholder="Scientific or Japanese name…"
                 className="w-full max-w-sm border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
               />
             </section>
@@ -244,6 +258,16 @@ export default function TaxonomyPage() {
       </div>
     </div>
   )
+}
+
+function edibilityStyle(e: string) {
+  switch (e) {
+    case 'EDIBLE':   return 'bg-green-100 text-green-700'
+    case 'INEDIBLE': return 'bg-gray-100 text-gray-600'
+    case 'TOXIC':    return 'bg-orange-100 text-orange-700'
+    case 'DEADLY':   return 'bg-red-100 text-red-700'
+    default:         return 'bg-gray-100 text-gray-500'
+  }
 }
 
 function SectionHeading({ children, className = '' }: { children: React.ReactNode; className?: string }) {

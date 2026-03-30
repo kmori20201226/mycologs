@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { apiClient, type TaxShape, type TaxFamily, type TaxGenus, type TaxSpecies } from '@/lib/api'
+import { apiClient, type TaxShape, type TaxFamily, type TaxGenus, type TaxSpecies, type Edibility } from '@/lib/api'
 
 type Tab = 'shapes' | 'families' | 'genera' | 'species'
+
+const EDIBILITY_OPTIONS: Edibility[] = ['EDIBLE', 'INEDIBLE', 'TOXIC', 'DEADLY', 'UNKNOWN']
 
 export default function AdminTaxonomyPage() {
   const [tab, setTab] = useState<Tab>('shapes')
@@ -95,8 +97,10 @@ export default function AdminTaxonomyPage() {
 
 function ShapesTab({ shapes, reload }: { shapes: TaxShape[]; reload: () => void }) {
   const [newName, setNewName] = useState('')
+  const [newJa, setNewJa] = useState('')
   const [editId, setEditId] = useState<number | null>(null)
   const [editName, setEditName] = useState('')
+  const [editJa, setEditJa] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
@@ -104,7 +108,11 @@ function ShapesTab({ shapes, reload }: { shapes: TaxShape[]; reload: () => void 
     e.preventDefault()
     if (!newName.trim()) return
     setBusy(true); setError('')
-    try { await apiClient.createShape(newName.trim()); setNewName(''); await reload() }
+    try {
+      await apiClient.createShape({ name: newName.trim(), japaneseName: newJa.trim() || null })
+      setNewName(''); setNewJa('')
+      await reload()
+    }
     catch { setError('Failed to create shape.') }
     finally { setBusy(false) }
   }
@@ -112,7 +120,11 @@ function ShapesTab({ shapes, reload }: { shapes: TaxShape[]; reload: () => void 
   async function save(id: number) {
     if (!editName.trim()) return
     setBusy(true); setError('')
-    try { await apiClient.updateShape(id, editName.trim()); setEditId(null); await reload() }
+    try {
+      await apiClient.updateShape(id, { name: editName.trim(), japaneseName: editJa.trim() || null })
+      setEditId(null)
+      await reload()
+    }
     catch { setError('Failed to update shape.') }
     finally { setBusy(false) }
   }
@@ -127,12 +139,19 @@ function ShapesTab({ shapes, reload }: { shapes: TaxShape[]; reload: () => void 
 
   return (
     <div className="space-y-5">
-      <form onSubmit={create} className="flex gap-2">
+      <form onSubmit={create} className="flex gap-2 flex-wrap">
         <input
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
-          placeholder="New shape name"
-          className="flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          placeholder="Scientific name (e.g. Cap)"
+          className="flex-1 min-w-36 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          disabled={busy}
+        />
+        <input
+          value={newJa}
+          onChange={(e) => setNewJa(e.target.value)}
+          placeholder="Japanese name"
+          className="flex-1 min-w-32 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
           disabled={busy}
         />
         <button
@@ -156,13 +175,21 @@ function ShapesTab({ shapes, reload }: { shapes: TaxShape[]; reload: () => void 
                   disabled={busy}
                   autoFocus
                 />
+                <input
+                  value={editJa}
+                  onChange={(e) => setEditJa(e.target.value)}
+                  placeholder="Japanese"
+                  className="w-32 border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  disabled={busy}
+                />
                 <button onClick={() => save(shape.id)} disabled={busy} className="text-emerald-600 hover:text-emerald-700 text-sm font-medium">Save</button>
                 <button onClick={() => setEditId(null)} className="text-gray-400 hover:text-gray-600 text-sm">Cancel</button>
               </>
             ) : (
               <>
                 <span className="flex-1 text-gray-800">{shape.name}</span>
-                <button onClick={() => { setEditId(shape.id); setEditName(shape.name) }} className="text-gray-400 hover:text-emerald-600 transition-colors">
+                {shape.japaneseName && <span className="text-xs text-gray-500">{shape.japaneseName}</span>}
+                <button onClick={() => { setEditId(shape.id); setEditName(shape.name); setEditJa(shape.japaneseName ?? '') }} className="text-gray-400 hover:text-emerald-600 transition-colors">
                   <PencilIcon />
                 </button>
                 <button onClick={() => remove(shape.id)} disabled={busy} className="text-gray-400 hover:text-red-500 transition-colors">
@@ -181,10 +208,12 @@ function ShapesTab({ shapes, reload }: { shapes: TaxShape[]; reload: () => void 
 // ─── Families ────────────────────────────────────────────────────────────────
 
 function FamiliesTab({ families, shapes, reload }: { families: TaxFamily[]; shapes: TaxShape[]; reload: () => void }) {
-  const [newName, setNewName] = useState('')
+  const [newSci, setNewSci] = useState('')
+  const [newJa, setNewJa] = useState('')
   const [newShapeId, setNewShapeId] = useState<number | ''>(shapes[0]?.id ?? '')
   const [editId, setEditId] = useState<number | null>(null)
-  const [editName, setEditName] = useState('')
+  const [editSci, setEditSci] = useState('')
+  const [editJa, setEditJa] = useState('')
   const [editShapeId, setEditShapeId] = useState<number>(0)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -196,16 +225,24 @@ function FamiliesTab({ families, shapes, reload }: { families: TaxFamily[]; shap
 
   async function create(e: React.FormEvent) {
     e.preventDefault()
-    if (!newName.trim() || newShapeId === '') return
+    if (!newSci.trim() || newShapeId === '') return
     setBusy(true); setError('')
-    try { await apiClient.createFamily(newName.trim(), Number(newShapeId)); setNewName(''); await reload() }
+    try {
+      await apiClient.createFamily({ scientificName: newSci.trim(), japaneseName: newJa.trim() || null, shapeId: Number(newShapeId) })
+      setNewSci(''); setNewJa('')
+      await reload()
+    }
     catch { setError('Failed to create family.') }
     finally { setBusy(false) }
   }
 
   async function save(id: number) {
     setBusy(true); setError('')
-    try { await apiClient.updateFamily(id, { name: editName.trim(), shapeId: editShapeId }); setEditId(null); await reload() }
+    try {
+      await apiClient.updateFamily(id, { scientificName: editSci.trim(), japaneseName: editJa.trim() || null, shapeId: editShapeId })
+      setEditId(null)
+      await reload()
+    }
     catch { setError('Failed to update family.') }
     finally { setBusy(false) }
   }
@@ -222,10 +259,17 @@ function FamiliesTab({ families, shapes, reload }: { families: TaxFamily[]; shap
     <div className="space-y-5">
       <form onSubmit={create} className="flex gap-2 flex-wrap">
         <input
-          value={newName}
-          onChange={(e) => setNewName(e.target.value)}
-          placeholder="New family name"
+          value={newSci}
+          onChange={(e) => setNewSci(e.target.value)}
+          placeholder="Scientific name (e.g. Amanitaceae)"
           className="flex-1 min-w-40 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          disabled={busy}
+        />
+        <input
+          value={newJa}
+          onChange={(e) => setNewJa(e.target.value)}
+          placeholder="Japanese name"
+          className="w-36 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
           disabled={busy}
         />
         <select
@@ -238,7 +282,7 @@ function FamiliesTab({ families, shapes, reload }: { families: TaxFamily[]; shap
         </select>
         <button
           type="submit"
-          disabled={busy || !newName.trim() || newShapeId === ''}
+          disabled={busy || !newSci.trim() || newShapeId === ''}
           className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
         >
           Add
@@ -262,11 +306,18 @@ function FamiliesTab({ families, shapes, reload }: { families: TaxFamily[]; shap
             {editId === family.id ? (
               <>
                 <input
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
+                  value={editSci}
+                  onChange={(e) => setEditSci(e.target.value)}
                   className="flex-1 border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   disabled={busy}
                   autoFocus
+                />
+                <input
+                  value={editJa}
+                  onChange={(e) => setEditJa(e.target.value)}
+                  placeholder="Japanese"
+                  className="w-32 border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  disabled={busy}
                 />
                 <select
                   value={editShapeId}
@@ -281,11 +332,12 @@ function FamiliesTab({ families, shapes, reload }: { families: TaxFamily[]; shap
               </>
             ) : (
               <>
-                <span className="flex-1 text-gray-800">{family.name}</span>
+                <span className="flex-1 text-gray-800">{family.scientificName}</span>
+                {family.japaneseName && <span className="text-xs text-gray-500">{family.japaneseName}</span>}
                 <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
                   {shapes.find((s) => s.id === family.shapeId)?.name ?? '—'}
                 </span>
-                <button onClick={() => { setEditId(family.id); setEditName(family.name); setEditShapeId(family.shapeId) }} className="text-gray-400 hover:text-emerald-600 transition-colors">
+                <button onClick={() => { setEditId(family.id); setEditSci(family.scientificName); setEditJa(family.japaneseName ?? ''); setEditShapeId(family.shapeId) }} className="text-gray-400 hover:text-emerald-600 transition-colors">
                   <PencilIcon />
                 </button>
                 <button onClick={() => remove(family.id)} disabled={busy} className="text-gray-400 hover:text-red-500 transition-colors">
@@ -304,10 +356,12 @@ function FamiliesTab({ families, shapes, reload }: { families: TaxFamily[]; shap
 // ─── Genera ───────────────────────────────────────────────────────────────────
 
 function GeneraTab({ genera, families, reload }: { genera: TaxGenus[]; families: TaxFamily[]; reload: () => void }) {
-  const [newName, setNewName] = useState('')
+  const [newSci, setNewSci] = useState('')
+  const [newJa, setNewJa] = useState('')
   const [newFamilyId, setNewFamilyId] = useState<number | ''>(families[0]?.id ?? '')
   const [editId, setEditId] = useState<number | null>(null)
-  const [editName, setEditName] = useState('')
+  const [editSci, setEditSci] = useState('')
+  const [editJa, setEditJa] = useState('')
   const [editFamilyId, setEditFamilyId] = useState<number>(0)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -319,16 +373,24 @@ function GeneraTab({ genera, families, reload }: { genera: TaxGenus[]; families:
 
   async function create(e: React.FormEvent) {
     e.preventDefault()
-    if (!newName.trim() || newFamilyId === '') return
+    if (!newSci.trim() || newFamilyId === '') return
     setBusy(true); setError('')
-    try { await apiClient.createGenus(newName.trim(), Number(newFamilyId)); setNewName(''); await reload() }
+    try {
+      await apiClient.createGenus({ scientificName: newSci.trim(), japaneseName: newJa.trim() || null, familyId: Number(newFamilyId) })
+      setNewSci(''); setNewJa('')
+      await reload()
+    }
     catch { setError('Failed to create genus.') }
     finally { setBusy(false) }
   }
 
   async function save(id: number) {
     setBusy(true); setError('')
-    try { await apiClient.updateGenus(id, { name: editName.trim(), familyId: editFamilyId }); setEditId(null); await reload() }
+    try {
+      await apiClient.updateGenus(id, { scientificName: editSci.trim(), japaneseName: editJa.trim() || null, familyId: editFamilyId })
+      setEditId(null)
+      await reload()
+    }
     catch { setError('Failed to update genus.') }
     finally { setBusy(false) }
   }
@@ -345,10 +407,17 @@ function GeneraTab({ genera, families, reload }: { genera: TaxGenus[]; families:
     <div className="space-y-5">
       <form onSubmit={create} className="flex gap-2 flex-wrap">
         <input
-          value={newName}
-          onChange={(e) => setNewName(e.target.value)}
-          placeholder="New genus name"
+          value={newSci}
+          onChange={(e) => setNewSci(e.target.value)}
+          placeholder="Scientific name (e.g. Amanita)"
           className="flex-1 min-w-40 border rounded-lg px-3 py-2 text-sm italic focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          disabled={busy}
+        />
+        <input
+          value={newJa}
+          onChange={(e) => setNewJa(e.target.value)}
+          placeholder="Japanese name"
+          className="w-36 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
           disabled={busy}
         />
         <select
@@ -357,11 +426,11 @@ function GeneraTab({ genera, families, reload }: { genera: TaxGenus[]; families:
           className="border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
           disabled={busy}
         >
-          {families.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+          {families.map((f) => <option key={f.id} value={f.id}>{f.scientificName}</option>)}
         </select>
         <button
           type="submit"
-          disabled={busy || !newName.trim() || newFamilyId === ''}
+          disabled={busy || !newSci.trim() || newFamilyId === ''}
           className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
         >
           Add
@@ -376,7 +445,7 @@ function GeneraTab({ genera, families, reload }: { genera: TaxGenus[]; families:
           className="border rounded-lg px-2 py-1 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
         >
           <option value="">All</option>
-          {families.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+          {families.map((f) => <option key={f.id} value={f.id}>{f.scientificName}</option>)}
         </select>
       </div>
       <ul className="divide-y">
@@ -385,11 +454,18 @@ function GeneraTab({ genera, families, reload }: { genera: TaxGenus[]; families:
             {editId === genus.id ? (
               <>
                 <input
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
+                  value={editSci}
+                  onChange={(e) => setEditSci(e.target.value)}
                   className="flex-1 border rounded-lg px-3 py-1.5 text-sm italic focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   disabled={busy}
                   autoFocus
+                />
+                <input
+                  value={editJa}
+                  onChange={(e) => setEditJa(e.target.value)}
+                  placeholder="Japanese"
+                  className="w-32 border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  disabled={busy}
                 />
                 <select
                   value={editFamilyId}
@@ -397,18 +473,19 @@ function GeneraTab({ genera, families, reload }: { genera: TaxGenus[]; families:
                   className="border rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   disabled={busy}
                 >
-                  {families.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+                  {families.map((f) => <option key={f.id} value={f.id}>{f.scientificName}</option>)}
                 </select>
                 <button onClick={() => save(genus.id)} disabled={busy} className="text-emerald-600 hover:text-emerald-700 text-sm font-medium">Save</button>
                 <button onClick={() => setEditId(null)} className="text-gray-400 hover:text-gray-600 text-sm">Cancel</button>
               </>
             ) : (
               <>
-                <span className="flex-1 text-gray-800 italic">{genus.name}</span>
+                <span className="flex-1 text-gray-800 italic">{genus.scientificName}</span>
+                {genus.japaneseName && <span className="text-xs text-gray-500 not-italic">{genus.japaneseName}</span>}
                 <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
-                  {families.find((f) => f.id === genus.familyId)?.name ?? '—'}
+                  {families.find((f) => f.id === genus.familyId)?.scientificName ?? '—'}
                 </span>
-                <button onClick={() => { setEditId(genus.id); setEditName(genus.name); setEditFamilyId(genus.familyId) }} className="text-gray-400 hover:text-emerald-600 transition-colors">
+                <button onClick={() => { setEditId(genus.id); setEditSci(genus.scientificName); setEditJa(genus.japaneseName ?? ''); setEditFamilyId(genus.familyId) }} className="text-gray-400 hover:text-emerald-600 transition-colors">
                   <PencilIcon />
                 </button>
                 <button onClick={() => remove(genus.id)} disabled={busy} className="text-gray-400 hover:text-red-500 transition-colors">
@@ -427,10 +504,14 @@ function GeneraTab({ genera, families, reload }: { genera: TaxGenus[]; families:
 // ─── Species ─────────────────────────────────────────────────────────────────
 
 function SpeciesTab({ species, genera, reload }: { species: TaxSpecies[]; genera: TaxGenus[]; reload: () => void }) {
-  const [newName, setNewName] = useState('')
+  const [newSci, setNewSci] = useState('')
+  const [newJa, setNewJa] = useState('')
+  const [newEdibility, setNewEdibility] = useState<Edibility | ''>('')
   const [newGenusId, setNewGenusId] = useState<number | ''>(genera[0]?.id ?? '')
   const [editId, setEditId] = useState<number | null>(null)
-  const [editName, setEditName] = useState('')
+  const [editSci, setEditSci] = useState('')
+  const [editJa, setEditJa] = useState('')
+  const [editEdibility, setEditEdibility] = useState<Edibility | ''>('')
   const [editGenusId, setEditGenusId] = useState<number>(0)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -445,16 +526,34 @@ function SpeciesTab({ species, genera, reload }: { species: TaxSpecies[]; genera
 
   async function create(e: React.FormEvent) {
     e.preventDefault()
-    if (!newName.trim() || newGenusId === '') return
+    if (!newSci.trim() || newGenusId === '') return
     setBusy(true); setError('')
-    try { await apiClient.createSpecies(newName.trim(), Number(newGenusId)); setNewName(''); await reload() }
+    try {
+      await apiClient.createSpecies({
+        scientificName: newSci.trim(),
+        japaneseName: newJa.trim() || null,
+        edibility: newEdibility || null,
+        genusId: Number(newGenusId),
+      })
+      setNewSci(''); setNewJa(''); setNewEdibility('')
+      await reload()
+    }
     catch { setError('Failed to create species.') }
     finally { setBusy(false) }
   }
 
   async function save(id: number) {
     setBusy(true); setError('')
-    try { await apiClient.updateSpecies(id, { name: editName.trim(), genusId: editGenusId }); setEditId(null); await reload() }
+    try {
+      await apiClient.updateSpecies(id, {
+        scientificName: editSci.trim(),
+        japaneseName: editJa.trim() || null,
+        edibility: editEdibility || null,
+        genusId: editGenusId,
+      })
+      setEditId(null)
+      await reload()
+    }
     catch { setError('Failed to update species.') }
     finally { setBusy(false) }
   }
@@ -471,23 +570,39 @@ function SpeciesTab({ species, genera, reload }: { species: TaxSpecies[]; genera
     <div className="space-y-5">
       <form onSubmit={create} className="flex gap-2 flex-wrap">
         <input
-          value={newName}
-          onChange={(e) => setNewName(e.target.value)}
-          placeholder="New species name"
+          value={newSci}
+          onChange={(e) => setNewSci(e.target.value)}
+          placeholder="Scientific name"
           className="flex-1 min-w-40 border rounded-lg px-3 py-2 text-sm italic focus:outline-none focus:ring-2 focus:ring-emerald-500"
           disabled={busy}
         />
+        <input
+          value={newJa}
+          onChange={(e) => setNewJa(e.target.value)}
+          placeholder="Japanese name"
+          className="w-36 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          disabled={busy}
+        />
+        <select
+          value={newEdibility}
+          onChange={(e) => setNewEdibility(e.target.value as Edibility | '')}
+          className="border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          disabled={busy}
+        >
+          <option value="">Edibility?</option>
+          {EDIBILITY_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+        </select>
         <select
           value={newGenusId}
           onChange={(e) => setNewGenusId(Number(e.target.value))}
           className="border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
           disabled={busy}
         >
-          {genera.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+          {genera.map((g) => <option key={g.id} value={g.id}>{g.scientificName}</option>)}
         </select>
         <button
           type="submit"
-          disabled={busy || !newName.trim() || newGenusId === ''}
+          disabled={busy || !newSci.trim() || newGenusId === ''}
           className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
         >
           Add
@@ -503,7 +618,7 @@ function SpeciesTab({ species, genera, reload }: { species: TaxSpecies[]; genera
             className="border rounded-lg px-2 py-1 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
           >
             <option value="">All</option>
-            {genera.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+            {genera.map((g) => <option key={g.id} value={g.id}>{g.scientificName}</option>)}
           </select>
         </div>
         <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer">
@@ -517,35 +632,55 @@ function SpeciesTab({ species, genera, reload }: { species: TaxSpecies[]; genera
             {editId === sp.id ? (
               <>
                 <input
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
+                  value={editSci}
+                  onChange={(e) => setEditSci(e.target.value)}
                   className="flex-1 border rounded-lg px-3 py-1.5 text-sm italic focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   disabled={busy}
                   autoFocus
                 />
+                <input
+                  value={editJa}
+                  onChange={(e) => setEditJa(e.target.value)}
+                  placeholder="Japanese"
+                  className="w-28 border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  disabled={busy}
+                />
+                <select
+                  value={editEdibility}
+                  onChange={(e) => setEditEdibility(e.target.value as Edibility | '')}
+                  className="border rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  disabled={busy}
+                >
+                  <option value="">—</option>
+                  {EDIBILITY_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+                </select>
                 <select
                   value={editGenusId}
                   onChange={(e) => setEditGenusId(Number(e.target.value))}
                   className="border rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   disabled={busy}
                 >
-                  {genera.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+                  {genera.map((g) => <option key={g.id} value={g.id}>{g.scientificName}</option>)}
                 </select>
                 <button onClick={() => save(sp.id)} disabled={busy} className="text-emerald-600 hover:text-emerald-700 text-sm font-medium">Save</button>
                 <button onClick={() => setEditId(null)} className="text-gray-400 hover:text-gray-600 text-sm">Cancel</button>
               </>
             ) : (
               <>
-                <span className="flex-1 text-gray-800 italic">{sp.name}</span>
+                <span className="flex-1 text-gray-800 italic">{sp.scientificName}</span>
+                {sp.japaneseName && <span className="text-xs text-gray-600 not-italic">{sp.japaneseName}</span>}
+                {sp.edibility && (
+                  <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">{sp.edibility}</span>
+                )}
                 <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
-                  {genera.find((g) => g.id === sp.genusId)?.name ?? '—'}
+                  {genera.find((g) => g.id === sp.genusId)?.scientificName ?? '—'}
                 </span>
                 {sp.deletedAt && (
                   <span className="text-xs text-red-400 bg-red-50 px-2 py-0.5 rounded-full">deleted</span>
                 )}
                 {!sp.deletedAt && (
                   <>
-                    <button onClick={() => { setEditId(sp.id); setEditName(sp.name); setEditGenusId(sp.genusId) }} className="text-gray-400 hover:text-emerald-600 transition-colors">
+                    <button onClick={() => { setEditId(sp.id); setEditSci(sp.scientificName); setEditJa(sp.japaneseName ?? ''); setEditEdibility(sp.edibility ?? ''); setEditGenusId(sp.genusId) }} className="text-gray-400 hover:text-emerald-600 transition-colors">
                       <PencilIcon />
                     </button>
                     <button onClick={() => remove(sp.id)} disabled={busy} className="text-gray-400 hover:text-red-500 transition-colors">

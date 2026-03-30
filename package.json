@@ -15,6 +15,7 @@
     "do-migrate": "npx prisma migrate dev",
     "prisma:gen": "npx prisma generate",
     "set-user-role": "npx ts-node scripts/set-user-role.ts",
+    "import-gbif-taxonomy": "npx ts-node scripts/import-gbif-taxonomy.ts",
     "test:users": "npx ts-node apps/api/test/users.test.ts",
     "test:clubs": "npx ts-node apps/api/test/clubs.test.ts",
     "test:roles": "npx ts-node apps/api/test/roles.test.ts",

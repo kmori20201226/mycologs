@@ -12,10 +12,10 @@ export default async function (fastify: FastifyInstance) {
             }
         }
     }, async (request, reply) => {
-        const { name, familyId } = request.body as any
+        const { scientificName, japaneseName, familyId } = request.body as any
 
         const genus = await fastify.prisma.genus.create({
-            data: { name, familyId },
+            data: { scientificName, japaneseName, familyId },
             include: { family: true }
         })
 
@@ -70,7 +70,7 @@ export default async function (fastify: FastifyInstance) {
     }, async (request, reply) => {
         const genera = await fastify.prisma.genus.findMany({
             include: { family: true },
-            orderBy: { name: 'asc' }
+            orderBy: { scientificName: 'asc' }
         })
 
         return genera
