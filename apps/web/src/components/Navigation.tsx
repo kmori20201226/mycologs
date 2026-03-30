@@ -12,11 +12,19 @@ import {
 import { menuItems, type MenuVisibility } from '@/config/menu'
 import { apiClient } from '@/lib/api'
 
-function isVisible(visibleTo: MenuVisibility[], user: AuthUser | null): boolean {
+function isVisible(
+  visibleTo: MenuVisibility[],
+  user: AuthUser | null,
+  clubs: ClubMembership[],
+  selectedClubId: number | null
+): boolean {
   if (visibleTo.includes('public')) return true
   if (!user) return false
   if (visibleTo.includes('authenticated')) return true
-  return (user.roles ?? []).some((role) => visibleTo.includes(role))
+  if (user.role && visibleTo.includes(user.role)) return true
+  // Fall back to the role the user holds in the currently selected club
+  const clubRole = clubs.find((c) => c.id === selectedClubId)?.role
+  return clubRole ? visibleTo.includes(clubRole as MenuVisibility) : false
 }
 
 export default function Navigation() {
@@ -63,7 +71,7 @@ export default function Navigation() {
     window.location.href = '/'
   }
 
-  const visibleItems = menuItems.filter((item) => isVisible(item.visibleTo, user))
+  const visibleItems = menuItems.filter((item) => isVisible(item.visibleTo, user, clubs, selectedClubId))
   const selectedClub = clubs.find((c) => c.id === selectedClubId)
 
   return (

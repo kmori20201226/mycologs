@@ -15,7 +15,13 @@ export function removeToken() {
   document.cookie = 'token=; path=/; max-age=0'
 }
 
-export type UserRole = 'ADMIN' | 'DEVELOPER' | 'MODERATOR' | 'CLUBMEMBER' | 'CLUBMANAGER'
+// Roles that can be assigned to a user at the system level.
+// CLUBMEMBER and CLUBMANAGER are intentionally excluded — those are
+// club-membership roles expressed via ClubUser, not on the user directly.
+export type UserLevelRole = 'ADMIN' | 'DEVELOPER' | 'MODERATOR'
+
+// Full role union used for menu visibility checks (includes club roles).
+export type UserRole = UserLevelRole | 'CLUBMEMBER' | 'CLUBMANAGER'
 
 export interface ClubMembership {
   id: number
@@ -27,7 +33,7 @@ export interface AuthUser {
   id: number
   name: string
   email: string
-  roles: UserRole[]
+  role: UserLevelRole | null
 }
 
 export function getStoredUser(): AuthUser | null {

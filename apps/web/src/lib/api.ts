@@ -1,5 +1,55 @@
 import { User, Post, Identification, Vote, Species, Family, Genus, Shape } from '../../../packages/types/src';
 
+export interface TaxShape {
+  id: number
+  name: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface TaxFamily {
+  id: number
+  name: string
+  shapeId: number
+  shape?: { id: number; name: string }
+  createdAt: string
+  updatedAt: string
+}
+
+export interface TaxGenus {
+  id: number
+  name: string
+  familyId: number
+  family?: { id: number; name: string }
+  createdAt: string
+  updatedAt: string
+}
+
+export interface TaxSpecies {
+  id: number
+  name: string
+  genusId: number
+  genus?: { id: number; name: string }
+  deletedAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface MediaItem {
+  id: string
+  url: string
+  type: 'IMAGE' | 'VIDEO' | 'AUDIO' | 'DOCUMENT'
+  mimeType: string
+  originalName: string
+  description: string | null
+  thumbnailUrl: string | null
+  width: number | null
+  height: number | null
+  size: number
+  tags: string[]
+  createdAt: string
+}
+
 export interface Event {
   id: number
   clubId: number | null
@@ -12,7 +62,7 @@ export interface Event {
 
 export interface AuthResponse {
   token: string;
-  user: { id: number; name: string; email: string };
+  user: { id: number; name: string; email: string; role: import('@/lib/auth').UserLevelRole | null };
 }
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
@@ -151,21 +201,72 @@ class ApiClient {
     })
   }
 
-  // Taxonomy
-  async getShapes(): Promise<Shape[]> {
-    return this.request('/shapes');
+  // Taxonomy — read
+  async getShapes(): Promise<TaxShape[]> { return this.request('/shapes') }
+  async getFamilies(): Promise<TaxFamily[]> { return this.request('/families') }
+  async getGenera(): Promise<TaxGenus[]> { return this.request('/genera') }
+  async getSpecies(): Promise<TaxSpecies[]> { return this.request('/species') }
+
+  // Taxonomy — write
+  async createShape(name: string): Promise<TaxShape> {
+    return this.request('/shapes', { method: 'POST', body: JSON.stringify({ name }) })
+  }
+  async updateShape(id: number, name: string): Promise<TaxShape> {
+    return this.request(`/shapes/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) })
+  }
+  async deleteShape(id: number): Promise<void> {
+    return this.request(`/shapes/${id}`, { method: 'DELETE' })
   }
 
-  async getFamilies(): Promise<Family[]> {
-    return this.request('/families');
+  async createFamily(name: string, shapeId: number): Promise<TaxFamily> {
+    return this.request('/families', { method: 'POST', body: JSON.stringify({ name, shapeId }) })
+  }
+  async updateFamily(id: number, data: { name?: string; shapeId?: number }): Promise<TaxFamily> {
+    return this.request(`/families/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
+  }
+  async deleteFamily(id: number): Promise<void> {
+    return this.request(`/families/${id}`, { method: 'DELETE' })
   }
 
-  async getGenera(): Promise<Genus[]> {
-    return this.request('/genera');
+  async createGenus(name: string, familyId: number): Promise<TaxGenus> {
+    return this.request('/genera', { method: 'POST', body: JSON.stringify({ name, familyId }) })
+  }
+  async updateGenus(id: number, data: { name?: string; familyId?: number }): Promise<TaxGenus> {
+    return this.request(`/genera/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
+  }
+  async deleteGenus(id: number): Promise<void> {
+    return this.request(`/genera/${id}`, { method: 'DELETE' })
   }
 
-  async getSpecies(): Promise<Species[]> {
-    return this.request('/species');
+  async createSpecies(name: string, genusId: number): Promise<TaxSpecies> {
+    return this.request('/species', { method: 'POST', body: JSON.stringify({ name, genusId }) })
+  }
+  async updateSpecies(id: number, data: { name?: string; genusId?: number }): Promise<TaxSpecies> {
+    return this.request(`/species/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
+  }
+  async deleteSpecies(id: number): Promise<void> {
+    return this.request(`/species/${id}`, { method: 'DELETE' })
+  }
+
+  // Media
+  async getPostMedia(postId: number): Promise<MediaItem[]> {
+    return this.request(`/posts/${postId}/media`)
+  }
+
+  async uploadPostMedia(postId: number, file: File): Promise<MediaItem> {
+    const url = `${this.baseURL}/posts/${postId}/media/upload`
+    let authHeader: Record<string, string> = {}
+    if (typeof document !== 'undefined') {
+      const match = document.cookie.match(/(?:^|; )token=([^;]*)/)
+      if (match) authHeader = { Authorization: `Bearer ${decodeURIComponent(match[1])}` }
+    }
+    const body = new FormData()
+    body.append('file', file)
+    const response = await fetch(url, { method: 'POST', headers: authHeader, body })
+    if (!response.ok) {
+      throw new Error(`Upload failed: ${file.name} => ${response.status} ${response.statusText}`)
+    }
+    return response.json()
   }
 
   // Identifications

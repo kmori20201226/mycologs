@@ -3,6 +3,8 @@ import path from 'path'
 dotenv.config({ path: path.resolve(__dirname, '../../../.env') })
 import Fastify from 'fastify'
 import cors from '@fastify/cors'
+import multipart from '@fastify/multipart'
+import staticFiles from '@fastify/static'
 import dbPlugin from './plugins/db'
 import jwtPlugin from './plugins/jwt'
 import authRoutes from './routes/auth'
@@ -20,6 +22,9 @@ import followupRoutes from './routes/followups'
 import identificationRoutes from './routes/identifications'
 import voteRoutes from './routes/votes'
 import mediaRoutes from './routes/media'
+import uploadRoutes from './routes/upload'
+
+const UPLOADS_DIR = path.join(process.cwd(), 'uploads')
 
 export async function buildApp() {
     const app = Fastify({
@@ -30,6 +35,12 @@ export async function buildApp() {
         origin: 'http://localhost:3001',
         methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
         allowedHeaders: ['Content-Type', 'Authorization']
+    })
+    await app.register(multipart)
+    await app.register(staticFiles, {
+        root: UPLOADS_DIR,
+        prefix: '/uploads/',
+        decorateReply: false,
     })
     await app.register(dbPlugin)
     await app.register(jwtPlugin)
@@ -48,6 +59,7 @@ export async function buildApp() {
     await app.register(identificationRoutes)
     await app.register(voteRoutes)
     await app.register(mediaRoutes)
+    await app.register(uploadRoutes)
 
     return app
 }

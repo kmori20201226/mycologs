@@ -19,16 +19,6 @@ export const menuItems: MenuItem[] = [
     visibleTo: ['public'],
   },
   {
-    label: 'Posts',
-    href: '/posts',
-    visibleTo: ['public'],
-  },
-  {
-    label: 'Identify',
-    href: '/identify',
-    visibleTo: ['authenticated'],
-  },
-  {
     label: 'Field Guide',
     href: '/taxonomy',
     visibleTo: ['public'],
@@ -41,6 +31,11 @@ export const menuItems: MenuItem[] = [
   {
     label: 'Clubs',
     href: '/admin/clubs',
+    visibleTo: ['ADMIN', 'DEVELOPER', 'CLUBMANAGER'],
+  },
+  {
+    label: 'Taxonomy',
+    href: '/admin/taxonomy',
     visibleTo: ['ADMIN', 'DEVELOPER'],
   },
 ]

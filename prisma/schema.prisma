@@ -31,12 +31,22 @@ enum RoleType {
   CLUBMANAGER
 }
 
+// Role that can be assigned directly to a user (system-level).
+// Club-membership roles (CLUBMEMBER, CLUBMANAGER) are intentionally excluded here —
+// those are expressed via ClubUser, not on the user directly.
+enum UserRole {
+  ADMIN
+  DEVELOPER
+  MODERATOR
+}
+
 model Role {
   id            Int      @id @default(autoincrement())
   name          RoleType @unique
   createdAt     DateTime @default(now()) @map("created_at")
 
   clubUsers     ClubUser[]
+  users         User[]
 
   @@map("roles")
 }
@@ -66,9 +76,12 @@ model User {
   tel           String?
   line_id       String?
   meta          Json?
+  role          UserRole? @map("role")
+  roleId        Int?     @map("role_id")
   voteWeight    Int?     @map("vote_weight")
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
+  roleRef       Role?    @relation(fields: [roleId], references: [id])
 
   clubUsers     ClubUser[]
   oauthAccounts OAuthAccount[]

@@ -31,7 +31,8 @@ const authResponseSchema = {
             properties: {
                 id: { type: 'number' },
                 name: { type: 'string' },
-                email: { type: 'string' }
+                email: { type: 'string' },
+                role: { type: 'string', nullable: true }
             }
         }
     }
@@ -68,7 +69,7 @@ export default async function (fastify: FastifyInstance) {
 
         const user = await fastify.prisma.user.create({
             data: { name, email, password_hash },
-            select: { id: true, name: true, email: true }
+            select: { id: true, name: true, email: true, role: true }
         })
 
         const token = fastify.jwt.sign({ id: user.id, email: user.email })
@@ -90,7 +91,7 @@ export default async function (fastify: FastifyInstance) {
 
         const user = await fastify.prisma.user.findUnique({
             where: { email },
-            select: { id: true, name: true, email: true, password_hash: true }
+            select: { id: true, name: true, email: true, role: true, password_hash: true }
         })
 
         if (!user || !user.password_hash) {
@@ -106,7 +107,7 @@ export default async function (fastify: FastifyInstance) {
 
         return reply.send({
             token,
-            user: { id: user.id, name: user.name, email: user.email }
+            user: { id: user.id, name: user.name, email: user.email, role: user.role }
         })
     })
 

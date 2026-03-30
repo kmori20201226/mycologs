@@ -1,147 +1,270 @@
-import { apiClient } from '@/lib/api';
+'use client'
 
-interface Shape {
-  id: number;
-  name: string;
-}
+import { useEffect, useMemo, useState } from 'react'
+import { apiClient, type TaxShape, type TaxFamily, type TaxGenus, type TaxSpecies } from '@/lib/api'
 
-interface Family {
-  id: number;
-  name: string;
-  shapeId: number;
-}
+export default function TaxonomyPage() {
+  const [shapes, setShapes] = useState<TaxShape[]>([])
+  const [families, setFamilies] = useState<TaxFamily[]>([])
+  const [genera, setGenera] = useState<TaxGenus[]>([])
+  const [species, setSpecies] = useState<TaxSpecies[]>([])
+  const [loading, setLoading] = useState(true)
 
-interface Genus {
-  id: number;
-  name: string;
-  familyId: number;
-}
+  const [selectedShape, setSelectedShape] = useState<TaxShape | null>(null)
+  const [selectedFamily, setSelectedFamily] = useState<TaxFamily | null>(null)
+  const [selectedGenus, setSelectedGenus] = useState<TaxGenus | null>(null)
+  const [search, setSearch] = useState('')
 
-interface Species {
-  id: number;
-  name: string;
-  genusId: number;
-}
-
-async function getTaxonomyData() {
-  try {
-    const [shapes, families, genera, species] = await Promise.all([
+  useEffect(() => {
+    Promise.all([
       apiClient.getShapes(),
       apiClient.getFamilies(),
       apiClient.getGenera(),
       apiClient.getSpecies(),
-    ]);
+    ]).then(([s, f, g, sp]) => {
+      setShapes(s)
+      setFamilies(f)
+      setGenera(g)
+      setSpecies(sp.filter((x) => !x.deletedAt))
+      setLoading(false)
+    }).catch(() => setLoading(false))
+  }, [])
 
-    return { shapes, families, genera, species };
-  } catch (error) {
-    console.error('Failed to fetch taxonomy data:', error);
-    return { shapes: [], families: [], genera: [], species: [] };
+  function selectShape(shape: TaxShape | null) {
+    setSelectedShape(shape)
+    setSelectedFamily(null)
+    setSelectedGenus(null)
+    setSearch('')
   }
-}
+  function selectFamily(family: TaxFamily | null) {
+    setSelectedFamily(family)
+    setSelectedGenus(null)
+    setSearch('')
+  }
+  function selectGenus(genus: TaxGenus | null) {
+    setSelectedGenus(genus)
+    setSearch('')
+  }
 
-export default async function TaxonomyPage() {
-  const { shapes, families, genera, species } = await getTaxonomyData();
+  const visibleFamilies = useMemo(
+    () => selectedShape ? families.filter((f) => f.shapeId === selectedShape.id) : families,
+    [families, selectedShape]
+  )
+  const visibleGenera = useMemo(
+    () => selectedFamily
+      ? genera.filter((g) => g.familyId === selectedFamily.id)
+      : selectedShape
+        ? genera.filter((g) => visibleFamilies.some((f) => f.id === g.familyId))
+        : genera,
+    [genera, selectedFamily, selectedShape, visibleFamilies]
+  )
+  const visibleSpecies = useMemo(() => {
+    let list = selectedGenus
+      ? species.filter((s) => s.genusId === selectedGenus.id)
+      : selectedFamily
+        ? species.filter((s) => visibleGenera.some((g) => g.id === s.genusId))
+        : selectedShape
+          ? species.filter((s) => visibleGenera.some((g) => g.id === s.genusId))
+          : species
+    if (search.trim()) {
+      const q = search.toLowerCase()
+      list = list.filter((s) => s.name.toLowerCase().includes(q))
+    }
+    return list
+  }, [species, selectedGenus, selectedFamily, selectedShape, visibleGenera, search])
+
+  const isFiltered = selectedShape || selectedFamily || selectedGenus || search.trim()
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="container mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">Field Guide</h1>
-          <p className="text-xl text-gray-600">
-            Explore the mushroom classification hierarchy
-          </p>
+      <div className="container mx-auto px-4 py-8 max-w-5xl">
+
+        <div className="mb-8 flex items-end justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-1">Field Guide</h1>
+            <p className="text-gray-500">Browse taxonomy: Shape → Family → Genus → Species</p>
+          </div>
         </div>
 
-        <div className="grid gap-8">
-          {/* Shapes */}
-          <div className="bg-white rounded-lg shadow-lg p-6">
-            <h2 className="text-2xl font-semibold mb-4 text-emerald-700">🍄 Shapes</h2>
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {shapes.map((shape) => (
-                <div key={shape.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
-                  <h3 className="font-semibold text-lg">{shape.name}</h3>
-                  <p className="text-gray-600 text-sm">
-                    {families.filter(f => f.shapeId === shape.id).length} families
-                  </p>
+        {/* Breadcrumb filter trail */}
+        {isFiltered && (
+          <div className="flex flex-wrap items-center gap-2 mb-6 text-sm">
+            <button onClick={() => selectShape(null)} className="text-emerald-600 hover:underline font-medium">
+              All Shapes
+            </button>
+            {selectedShape && (
+              <>
+                <span className="text-gray-400">/</span>
+                <button
+                  onClick={() => { selectShape(selectedShape); setSelectedFamily(null); setSelectedGenus(null) }}
+                  className={`font-medium ${selectedFamily ? 'text-emerald-600 hover:underline' : 'text-gray-800'}`}
+                >
+                  {selectedShape.name}
+                </button>
+              </>
+            )}
+            {selectedFamily && (
+              <>
+                <span className="text-gray-400">/</span>
+                <button
+                  onClick={() => { selectFamily(selectedFamily); setSelectedGenus(null) }}
+                  className={`font-medium ${selectedGenus ? 'text-emerald-600 hover:underline' : 'text-gray-800'}`}
+                >
+                  {selectedFamily.name}
+                </button>
+              </>
+            )}
+            {selectedGenus && (
+              <>
+                <span className="text-gray-400">/</span>
+                <span className="font-medium text-gray-800 italic">{selectedGenus.name}</span>
+              </>
+            )}
+          </div>
+        )}
+
+        {loading ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="h-20 bg-white rounded-xl shadow animate-pulse" />
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-8">
+
+            {/* Shapes — shown when nothing is selected */}
+            {!selectedShape && (
+              <section>
+                <SectionHeading>Shapes</SectionHeading>
+                {shapes.length === 0 ? <EmptyState label="No shapes yet." /> : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                    {shapes.map((shape) => {
+                      const famCount = families.filter((f) => f.shapeId === shape.id).length
+                      return (
+                        <DrillButton key={shape.id} onClick={() => selectShape(shape)}>
+                          <p className="font-semibold text-gray-900">{shape.name}</p>
+                          <p className="text-xs text-gray-400 mt-0.5">{famCount} {famCount === 1 ? 'family' : 'families'}</p>
+                        </DrillButton>
+                      )
+                    })}
+                  </div>
+                )}
+              </section>
+            )}
+
+            {/* Families — shown when a shape is selected but no family yet */}
+            {selectedShape && !selectedFamily && (
+              <section>
+                <SectionHeading>
+                  Families in <em className="text-emerald-600 not-italic">{selectedShape.name}</em>
+                </SectionHeading>
+                {visibleFamilies.length === 0 ? <EmptyState label="No families in this shape." /> : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                    {visibleFamilies.map((family) => {
+                      const genCount = genera.filter((g) => g.familyId === family.id).length
+                      return (
+                        <DrillButton key={family.id} onClick={() => selectFamily(family)}>
+                          <p className="font-semibold text-gray-900">{family.name}</p>
+                          <p className="text-xs text-gray-400 mt-0.5">{genCount} {genCount === 1 ? 'genus' : 'genera'}</p>
+                        </DrillButton>
+                      )
+                    })}
+                  </div>
+                )}
+              </section>
+            )}
+
+            {/* Genera — shown when a family is selected but no genus yet */}
+            {selectedFamily && !selectedGenus && (
+              <section>
+                <SectionHeading>
+                  Genera in <em className="text-emerald-600 not-italic">{selectedFamily.name}</em>
+                </SectionHeading>
+                {visibleGenera.length === 0 ? <EmptyState label="No genera in this family." /> : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                    {visibleGenera.map((genus) => {
+                      const spCount = species.filter((s) => s.genusId === genus.id).length
+                      return (
+                        <DrillButton key={genus.id} onClick={() => selectGenus(genus)}>
+                          <p className="font-semibold text-gray-900 italic">{genus.name}</p>
+                          <p className="text-xs text-gray-400 mt-0.5">{spCount} {spCount === 1 ? 'species' : 'species'}</p>
+                        </DrillButton>
+                      )
+                    })}
+                  </div>
+                )}
+              </section>
+            )}
+
+            {/* Species — shown when a genus is selected OR a search is active */}
+            {(selectedGenus || search.trim()) && (
+              <section>
+                <div className="flex items-center justify-between mb-3">
+                  <SectionHeading className="mb-0">
+                    {selectedGenus
+                      ? <>Species in <em className="text-emerald-600 not-italic">{selectedGenus.name}</em></>
+                      : 'Search results'}
+                  </SectionHeading>
+                  <span className="text-xs text-gray-400">{visibleSpecies.length} found</span>
                 </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Families */}
-          <div className="bg-white rounded-lg shadow-lg p-6">
-            <h2 className="text-2xl font-semibold mb-4 text-emerald-700">🌿 Families</h2>
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-              {families.map((family) => {
-                const shape = shapes.find(s => s.id === family.shapeId);
-                return (
-                  <div key={family.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
-                    <h3 className="font-semibold">{family.name}</h3>
-                    <p className="text-gray-600 text-sm">
-                      Shape: {shape?.name || 'Unknown'}
-                    </p>
-                    <p className="text-gray-600 text-sm">
-                      {genera.filter(g => g.familyId === family.id).length} genera
-                    </p>
+                {visibleSpecies.length === 0 ? <EmptyState label="No species found." /> : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {visibleSpecies.map((sp) => {
+                      const genus = genera.find((g) => g.id === sp.genusId)
+                      const family = genus ? families.find((f) => f.id === genus.familyId) : null
+                      const shape = family ? shapes.find((s) => s.id === family.shapeId) : null
+                      return (
+                        <div key={sp.id} className="bg-white rounded-xl shadow px-4 py-3">
+                          <p className="font-semibold text-gray-900 italic">{sp.name}</p>
+                          <p className="text-xs text-gray-400 mt-0.5">
+                            {[genus?.name, family?.name, shape?.name].filter(Boolean).join(' · ')}
+                          </p>
+                        </div>
+                      )
+                    })}
                   </div>
-                );
-              })}
-            </div>
-          </div>
+                )}
+              </section>
+            )}
 
-          {/* Genera */}
-          <div className="bg-white rounded-lg shadow-lg p-6">
-            <h2 className="text-2xl font-semibold mb-4 text-emerald-700">🌱 Genera</h2>
-            <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-5">
-              {genera.map((genus) => {
-                const family = families.find(f => f.id === genus.familyId);
-                return (
-                  <div key={genus.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
-                    <h3 className="font-semibold">{genus.name}</h3>
-                    <p className="text-gray-600 text-sm">
-                      Family: {family?.name || 'Unknown'}
-                    </p>
-                    <p className="text-gray-600 text-sm">
-                      {species.filter(s => s.genusId === genus.id).length} species
-                    </p>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+            {/* Species search — always shown */}
+            <section>
+              <SectionHeading>Search species</SectionHeading>
+              <input
+                type="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Type a species name…"
+                className="w-full max-w-sm border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+            </section>
 
-          {/* Species */}
-          <div className="bg-white rounded-lg shadow-lg p-6">
-            <h2 className="text-2xl font-semibold mb-4 text-emerald-700">🍄 Species</h2>
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {species.map((specie) => {
-                const genus = genera.find(g => g.id === specie.genusId);
-                const family = genus ? families.find(f => f.id === genus.familyId) : null;
-                const shape = family ? shapes.find(s => s.id === family.shapeId) : null;
-
-                return (
-                  <div key={specie.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
-                    <h3 className="font-semibold text-lg">{specie.name}</h3>
-                    <div className="text-sm text-gray-600 space-y-1">
-                      <p>Genus: {genus?.name || 'Unknown'}</p>
-                      <p>Family: {family?.name || 'Unknown'}</p>
-                      <p>Shape: {shape?.name || 'Unknown'}</p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-
-        {shapes.length === 0 && (
-          <div className="text-center py-12">
-            <div className="text-6xl mb-4">🌱</div>
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">No taxonomy data yet</h3>
-            <p className="text-gray-600">The field guide is being populated with mushroom classifications.</p>
           </div>
         )}
       </div>
     </div>
-  );
+  )
+}
+
+function SectionHeading({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+  return (
+    <h2 className={`text-xs font-semibold text-gray-400 uppercase tracking-widest mb-3 ${className}`}>
+      {children}
+    </h2>
+  )
+}
+
+function DrillButton({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="text-left bg-white rounded-xl shadow p-4 hover:shadow-md hover:border-emerald-400 border border-transparent transition-all w-full"
+    >
+      {children}
+    </button>
+  )
+}
+
+function EmptyState({ label }: { label: string }) {
+  return <p className="text-gray-400 text-sm py-2">{label}</p>
 }
