@@ -42,6 +42,18 @@ def _cmd_import_supplement(args: argparse.Namespace) -> None:
         overwrite=args.overwrite,
     )
 
+def _cmd_identify(args: argparse.Namespace) -> None:
+    import json
+    from .vision import identify_mushroom
+    result = identify_mushroom(
+        image_paths=args.images,
+        lat=args.lat,
+        lon=args.lon,
+        model=args.model,
+    )
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+
+
 DATADIR = Path(__file__).parent / "data"
 
 def main() -> None:
@@ -138,7 +150,34 @@ def main() -> None:
     sup_parser.add_argument("--overwrite", action="store_true",
         help="Overwrite existing names (default: only fill NULL rows).")
     sup_parser.set_defaults(func=_cmd_import_supplement)
+
+    #
+    identify_parser = subparsers.add_parser(
+        "identify",
+        help="Identify a mushroom from a photo using Claude Vision.",
+    )
+    identify_parser.add_argument(
+        "images",
+        metavar="<image>",
+        nargs="+",
+        help="Path to mushroom images (JPEG, PNG, GIF, WebP).",
+    )
+    identify_parser.add_argument(
+        "--lat", type=float, default=None,
+        help="Latitude where photo was taken (improves accuracy).",
+    )
+    identify_parser.add_argument(
+        "--lon", type=float, default=None,
+        help="Longitude where photo was taken (improves accuracy).",
+    )
+    identify_parser.add_argument(
+        "--model", default="claude-sonnet-4-6",
+        help="Claude model to use (default: claude-sonnet-4-6).",
+    )
+    identify_parser.set_defaults(func=_cmd_identify)
+
     # ── parse ────────────────────────────────────────────────
+
     args = parser.parse_args()
 
     if args.command is None:

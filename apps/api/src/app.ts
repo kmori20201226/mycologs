@@ -23,6 +23,7 @@ import identificationRoutes from './routes/identifications'
 import voteRoutes from './routes/votes'
 import mediaRoutes from './routes/media'
 import uploadRoutes from './routes/upload'
+import aiIdentifyRoutes from './routes/ai-identify'
 
 const UPLOADS_DIR = path.join(process.cwd(), 'uploads')
 
@@ -60,6 +61,7 @@ export async function buildApp() {
     await app.register(voteRoutes)
     await app.register(mediaRoutes)
     await app.register(uploadRoutes)
+    await app.register(aiIdentifyRoutes)
 
     return app
 }

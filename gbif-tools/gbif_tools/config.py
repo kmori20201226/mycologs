@@ -17,7 +17,7 @@ def _find_and_load_env() -> Path | None:
 
     for path in candidates:
         if path.exists():
-            load_dotenv(path)
+            load_dotenv(path, override=True)
             return path
 
     return None
@@ -35,5 +35,13 @@ if "DATABASE_URL" not in os.environ:
         + "\n".join(f"  {p}" for p in searched)
     )
 
+if "ANTHROPIC_API_KEY" not in os.environ:
+    print(
+        "Warning: ANTHROPIC_API_KEY is not set. "
+        "Vision-related functions will not work. "
+        "Set ANTHROPIC_API_KEY in your .env file to use them."
+    )
 DATABASE_URL = os.environ["DATABASE_URL"]
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")  # Optional, only needed for vision.py
+
 BATCH_SIZE   = 500

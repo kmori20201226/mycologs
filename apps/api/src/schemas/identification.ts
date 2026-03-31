@@ -26,7 +26,7 @@ export const identificationSchema = {
             type: 'object',
             properties: {
                 id: { type: 'number' },
-                name: { type: 'string' }
+                scientificName: { type: 'string' }
             }
         }
     }

@@ -16,6 +16,8 @@ dependencies = [
     "python-dotenv>=1.0",
     "tqdm>=4.66",
     "openpyxl",
+    "anthropic>=0.30",
+    "Pillow",
 ]
 
 [project.scripts]

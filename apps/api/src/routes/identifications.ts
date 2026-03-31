@@ -40,7 +40,7 @@ export default async function (fastify: FastifyInstance) {
             include: {
                 user: { select: { id: true, name: true } },
                 post: { select: { id: true, contents: true } },
-                species: { select: { id: true, name: true } }
+                species: { select: { id: true, scientificName: true } }
             }
         })
 
@@ -82,7 +82,7 @@ export default async function (fastify: FastifyInstance) {
             include: {
                 user: { select: { id: true, name: true } },
                 post: { select: { id: true, contents: true } },
-                species: { select: { id: true, name: true } }
+                species: { select: { id: true, scientificName: true } }
             }
         })
 
@@ -111,7 +111,7 @@ export default async function (fastify: FastifyInstance) {
             include: {
                 user: { select: { id: true, name: true } },
                 post: { select: { id: true, contents: true } },
-                species: { select: { id: true, name: true } }
+                species: { select: { id: true, scientificName: true } }
             },
             orderBy: { createdAt: 'desc' }
         })
@@ -152,7 +152,7 @@ export default async function (fastify: FastifyInstance) {
             include: {
                 user: { select: { id: true, name: true } },
                 post: { select: { id: true, contents: true } },
-                species: { select: { id: true, name: true } }
+                species: { select: { id: true, scientificName: true } }
             },
             orderBy: { createdAt: 'desc' }
         })
@@ -200,7 +200,7 @@ export default async function (fastify: FastifyInstance) {
                 include: {
                     user: { select: { id: true, name: true } },
                     post: { select: { id: true, contents: true } },
-                    species: { select: { id: true, name: true } }
+                    species: { select: { id: true, scientificName: true } }
                 }
             })
 

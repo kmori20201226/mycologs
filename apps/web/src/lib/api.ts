@@ -43,6 +43,17 @@ export interface TaxSpecies {
   updatedAt: string
 }
 
+export interface AiIdentification {
+  scientific_name: string
+  japanese_name: string
+  confidence: 'high' | 'medium' | 'low'
+  shape: string
+  edibility: string
+  key_features: (string | Record<string, string>)[]
+  similar_species: (string | Record<string, string>)[]
+  disclaimer: string
+}
+
 export interface MediaItem {
   id: string
   url: string
@@ -254,6 +265,11 @@ class ApiClient {
   }
   async deleteSpecies(id: number): Promise<void> {
     return this.request(`/species/${id}`, { method: 'DELETE' })
+  }
+
+  // AI identification
+  async aiIdentify(postId: number): Promise<AiIdentification> {
+    return this.request(`/posts/${postId}/ai-identify`, { method: 'POST' })
   }
 
   // Media
