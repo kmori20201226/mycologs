@@ -74,6 +74,9 @@ export interface Event {
   clubId: number | null
   name: string
   description: string | null
+  place: string | null
+  longitude: number | null
+  latitude: number | null
   startAt: string | null
   endAt: string | null
   createdAt: string
@@ -176,8 +179,12 @@ class ApiClient {
     return this.request('/events', { method: 'POST', body: JSON.stringify(data) })
   }
 
-  async updateEvent(id: number, data: { name?: string; description?: string; startAt?: string | null; endAt?: string | null }): Promise<Event> {
+  async updateEvent(id: number, data: { name?: string; description?: string; place?: string | null; longitude?: number | null; latitude?: number | null; startAt?: string | null; endAt?: string | null }): Promise<Event> {
     return this.request(`/events/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
+  }
+
+  async geocodePlace(place: string): Promise<{ candidates: Array<{ name: string; longitude: number; latitude: number }> }> {
+    return this.request('/ai/geocode', { method: 'POST', body: JSON.stringify({ place }) })
   }
 
   async deleteEvent(id: number): Promise<void> {

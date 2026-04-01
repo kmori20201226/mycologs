@@ -124,6 +124,9 @@ model Event {
   clubId            Int?       @map("club_id")
   name              String
   description       String?
+  place             String?
+  longitude         Float?
+  latitude          Float?
   startAt           DateTime?  @map("start_at")
   endAt             DateTime?  @map("end_at")
   createdAt         DateTime   @default(now()) @map("created_at")

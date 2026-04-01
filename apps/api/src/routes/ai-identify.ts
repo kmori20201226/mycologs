@@ -82,6 +82,12 @@ export default async function (fastify: FastifyInstance) {
     }, async (request, reply) => {
         const { postId } = request.params as { postId: number }
 
+        // Fetch the post with its event (for location data)
+        const post = await fastify.prisma.post.findUnique({
+            where: { id: Number(postId) },
+            include: { event: true },
+        })
+
         // Fetch images attached to this post
         const images = await fastify.prisma.media.findMany({
             where: { postId: Number(postId), type: 'IMAGE', deletedAt: null },
@@ -109,11 +115,17 @@ export default async function (fastify: FastifyInstance) {
             })
         )
 
+        const event = post?.event
+        const hasCoords = event?.latitude != null && event?.longitude != null
+        const locationLine = hasCoords
+            ? `GPS: latitude ${event!.latitude}, longitude ${event!.longitude}.`
+            : 'No GPS provided. Assume somewhere in Japan.'
+
         const textBlock: Anthropic.TextBlockParam = {
             type: 'text',
             text: images.length > 1
-                ? 'No GPS provided. Assume somewhere in Japan.\n複数の画像を総合的に見て同定してください。'
-                : 'No GPS provided. Assume somewhere in Japan.',
+                ? `${locationLine}\n複数の画像を総合的に見て同定してください。`
+                : locationLine,
         }
 
         const response = await client.messages.create({
