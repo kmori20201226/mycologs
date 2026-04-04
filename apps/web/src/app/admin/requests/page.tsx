@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { apiClient, type UserRequestItem } from '@/lib/api'
-import { getStoredUser, getSelectedClubId, getStoredClubs } from '@/lib/auth'
+import { getStoredUser, getSelectedClubId, setSelectedClubId, getStoredClubs, setStoredClubs, type ClubMembership } from '@/lib/auth'
 
 interface RequestRow extends UserRequestItem {
   replyDraft: string
@@ -106,8 +106,7 @@ export default function ManagerRequestsPage() {
   const [loading, setLoading] = useState(false)
   const [showResolved, setShowResolved] = useState(false)
 
-  function loadForClub(clubId: number) {
-    const clubs = getStoredClubs()
+  function loadForClub(clubId: number, clubs: ClubMembership[]) {
     setClubName(clubs.find((c) => c.id === clubId)?.name ?? '')
     setLoading(true)
     apiClient.getUserRequests({ clubId })
@@ -120,19 +119,31 @@ export default function ManagerRequestsPage() {
     const user = getStoredUser()
     if (!user) { router.replace('/login'); return }
 
-    const clubs = getStoredClubs()
-    const managedClubs = clubs.filter((c) => c.role === 'CLUBMANAGER')
-    if (managedClubs.length === 0) return
+    // Fetch clubs from API directly to avoid race with Navigation's async storage
+    apiClient.request<ClubMembership[]>('/me/clubs').then((clubs) => {
+      setStoredClubs(clubs)
+      const managedClubs = clubs.filter((c) => c.role === 'CLUBMANAGER')
+      if (managedClubs.length === 0) return
 
-    const selectedId = getSelectedClubId()
-    const clubId = managedClubs.find((c) => c.id === selectedId)?.id ?? managedClubs[0].id
-    loadForClub(clubId)
+      const selectedId = getSelectedClubId()
+      const isSelectedManaged = managedClubs.some((c) => c.id === selectedId)
+      const clubId = isSelectedManaged ? selectedId! : managedClubs[0].id
+
+      // If selected club isn't managed, sync the header to the managed club
+      if (!isSelectedManaged) {
+        setSelectedClubId(clubId)
+        window.dispatchEvent(new CustomEvent('clubChanged', { detail: { clubId } }))
+      }
+
+      loadForClub(clubId, clubs)
+    }).catch(() => {})
 
     function onClubChanged(e: Event) {
       const { clubId: newId } = (e as CustomEvent).detail
-      const managed = getStoredClubs().filter((c) => c.role === 'CLUBMANAGER')
+      const allClubs = getStoredClubs()
+      const managed = allClubs.filter((c) => c.role === 'CLUBMANAGER')
       const target = managed.find((c) => c.id === newId)?.id ?? managed[0]?.id
-      if (target) loadForClub(target)
+      if (target) loadForClub(target, allClubs)
     }
     window.addEventListener('clubChanged', onClubChanged)
     return () => window.removeEventListener('clubChanged', onClubChanged)
