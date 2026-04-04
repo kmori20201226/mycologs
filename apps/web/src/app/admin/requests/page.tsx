@@ -16,6 +16,89 @@ function StatusBadge({ accepted }: { accepted: boolean | null }) {
   return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-600">Declined</span>
 }
 
+function RequestTypeBadge({ requestType }: { requestType: string | undefined }) {
+  if (requestType === 'LeaveFromMember') {
+    return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-700">Leave</span>
+  }
+  return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">Join</span>
+}
+
+function PendingCard({
+  row,
+  isLeave,
+  onAccept,
+  onDecline,
+  onUpdate,
+}: {
+  row: RequestRow
+  isLeave: boolean
+  onAccept: (row: RequestRow) => void
+  onDecline: (row: RequestRow) => void
+  onUpdate: (id: number, patch: Partial<RequestRow>) => void
+}) {
+  return (
+    <li className={`bg-white rounded-xl shadow p-5 border-l-4 ${isLeave ? 'border-orange-400' : 'border-blue-400'}`}>
+      <div className="flex items-start gap-3 mb-4">
+        <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${isLeave ? 'bg-orange-100 text-orange-700' : 'bg-emerald-100 text-emerald-700'}`}>
+          {row.requester.name[0].toUpperCase()}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-semibold text-gray-900 text-sm">{row.requester.name}</p>
+          <p className="text-xs text-gray-400">{row.requester.email}</p>
+          <p className="text-xs text-gray-400 mt-0.5">
+            {new Date(row.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+          </p>
+        </div>
+        <RequestTypeBadge requestType={row.request?.requestType} />
+      </div>
+
+      {row.request?.message && (
+        <div className="mb-4 bg-gray-50 rounded-lg px-4 py-3 text-sm text-gray-700 whitespace-pre-wrap border border-gray-100">
+          {row.request.message}
+        </div>
+      )}
+
+      <div className="mb-3">
+        <label className="block text-xs font-medium text-gray-500 mb-1">
+          Reply message <span className="font-normal">(optional)</span>
+        </label>
+        <textarea
+          value={row.replyDraft}
+          onChange={(e) => onUpdate(row.id, { replyDraft: e.target.value })}
+          placeholder="Write a message to the requester…"
+          rows={2}
+          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-emerald-400"
+        />
+      </div>
+
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => onAccept(row)}
+          disabled={row.resolving}
+          className={`flex items-center gap-1.5 px-4 py-1.5 disabled:opacity-50 text-white text-sm font-semibold rounded-lg transition-colors ${
+            isLeave ? 'bg-orange-500 hover:bg-orange-600' : 'bg-emerald-600 hover:bg-emerald-700'
+          }`}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+          </svg>
+          {isLeave ? 'Approve Leave' : 'Accept'}
+        </button>
+        <button
+          onClick={() => onDecline(row)}
+          disabled={row.resolving}
+          className="flex items-center gap-1.5 px-4 py-1.5 bg-white border border-red-400 hover:bg-red-50 disabled:opacity-50 text-red-500 text-sm font-semibold rounded-lg transition-colors"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+          </svg>
+          {isLeave ? 'Reject Leave' : 'Decline'}
+        </button>
+      </div>
+    </li>
+  )
+}
+
 export default function ManagerRequestsPage() {
   const router = useRouter()
   const [clubName, setClubName] = useState<string>('')
@@ -41,7 +124,6 @@ export default function ManagerRequestsPage() {
     const managedClubs = clubs.filter((c) => c.role === 'CLUBMANAGER')
     if (managedClubs.length === 0) return
 
-    // Use selected club only if user manages it, otherwise fall back to first managed club
     const selectedId = getSelectedClubId()
     const clubId = managedClubs.find((c) => c.id === selectedId)?.id ?? managedClubs[0].id
     loadForClub(clubId)
@@ -92,8 +174,10 @@ export default function ManagerRequestsPage() {
     }
   }
 
-  const pending = rows.filter((r) => r.accepted === null)
-  const resolved = rows.filter((r) => r.accepted !== null)
+  const pendingJoin  = rows.filter((r) => r.accepted === null && r.request?.requestType !== 'LeaveFromMember')
+  const pendingLeave = rows.filter((r) => r.accepted === null && r.request?.requestType === 'LeaveFromMember')
+  const resolved     = rows.filter((r) => r.accepted !== null)
+  const totalPending = pendingJoin.length + pendingLeave.length
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -104,14 +188,8 @@ export default function ManagerRequestsPage() {
           {clubName && <p className="text-sm text-gray-500 mt-1">{clubName}</p>}
         </div>
 
-        {/* Pending requests */}
-        <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
-          Pending
-          {pending.length > 0 && <span className="ml-2 text-yellow-600">{pending.length}</span>}
-        </h2>
-
         {loading ? (
-          <div className="space-y-3">
+          <div className="space-y-3 mb-8">
             {[1, 2].map((i) => (
               <div key={i} className="bg-white rounded-xl shadow p-5 animate-pulse">
                 <div className="h-4 bg-gray-200 rounded w-1/3 mb-2" />
@@ -119,70 +197,38 @@ export default function ManagerRequestsPage() {
               </div>
             ))}
           </div>
-        ) : pending.length === 0 ? (
+        ) : totalPending === 0 ? (
           <p className="text-sm text-gray-400 mb-8">No pending requests.</p>
-        ) : (
-          <ul className="space-y-4 mb-8">
-            {pending.map((row) => (
-              <li key={row.id} className="bg-white rounded-xl shadow p-5">
-                <div className="flex items-start gap-3 mb-4">
-                  <div className="w-9 h-9 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-sm font-bold shrink-0">
-                    {row.requester.name[0].toUpperCase()}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-gray-900 text-sm">{row.requester.name}</p>
-                    <p className="text-xs text-gray-400">{row.requester.email}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      Requested {new Date(row.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
-                    </p>
-                  </div>
-                  <StatusBadge accepted={row.accepted} />
-                </div>
+        ) : null}
 
-                {row.request?.message && (
-                  <div className="mb-4 bg-gray-50 rounded-lg px-4 py-3 text-sm text-gray-700 whitespace-pre-wrap border border-gray-100">
-                    {row.request.message}
-                  </div>
-                )}
+        {/* Pending join requests */}
+        {!loading && pendingJoin.length > 0 && (
+          <div className="mb-8">
+            <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
+              Join Requests
+              <span className="ml-2 text-blue-600">{pendingJoin.length}</span>
+            </h2>
+            <ul className="space-y-4">
+              {pendingJoin.map((row) => (
+                <PendingCard key={row.id} row={row} isLeave={false} onAccept={handleAccept} onDecline={handleDecline} onUpdate={updateRow} />
+              ))}
+            </ul>
+          </div>
+        )}
 
-                <div className="mb-3">
-                  <label className="block text-xs font-medium text-gray-500 mb-1">
-                    Reply message <span className="font-normal">(optional)</span>
-                  </label>
-                  <textarea
-                    value={row.replyDraft}
-                    onChange={(e) => updateRow(row.id, { replyDraft: e.target.value })}
-                    placeholder="Write a message to the requester…"
-                    rows={2}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-emerald-400"
-                  />
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => handleAccept(row)}
-                    disabled={row.resolving}
-                    className="flex items-center gap-1.5 px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-sm font-semibold rounded-lg transition-colors"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                    </svg>
-                    Accept
-                  </button>
-                  <button
-                    onClick={() => handleDecline(row)}
-                    disabled={row.resolving}
-                    className="flex items-center gap-1.5 px-4 py-1.5 bg-white border border-red-400 hover:bg-red-50 disabled:opacity-50 text-red-500 text-sm font-semibold rounded-lg transition-colors"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                    </svg>
-                    Decline
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
+        {/* Pending leave requests */}
+        {!loading && pendingLeave.length > 0 && (
+          <div className="mb-8">
+            <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
+              Leave Requests
+              <span className="ml-2 text-orange-600">{pendingLeave.length}</span>
+            </h2>
+            <ul className="space-y-4">
+              {pendingLeave.map((row) => (
+                <PendingCard key={row.id} row={row} isLeave={true} onAccept={handleAccept} onDecline={handleDecline} onUpdate={updateRow} />
+              ))}
+            </ul>
+          </div>
         )}
 
         {/* Resolved requests (collapsible) */}
@@ -214,7 +260,10 @@ export default function ManagerRequestsPage() {
                         <p className="text-sm font-medium text-gray-800">{row.requester.name}</p>
                         <p className="text-xs text-gray-400">{row.requester.email}</p>
                       </div>
-                      <StatusBadge accepted={row.accepted} />
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <RequestTypeBadge requestType={row.request?.requestType} />
+                        <StatusBadge accepted={row.accepted} />
+                      </div>
                     </div>
                     {row.request?.message && (
                       <p className="mt-2 text-xs text-gray-500 bg-gray-50 rounded px-3 py-2 whitespace-pre-wrap">{row.request.message}</p>

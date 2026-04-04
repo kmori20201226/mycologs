@@ -110,16 +110,23 @@ export default async function (fastify: FastifyInstance) {
         if (!target) return reply.code(404).send({ message: 'Not found' })
         if (target.accepted !== null) return reply.code(409).send({ message: 'Request already resolved' })
 
-        // Find the CLUBMEMBER role
-        const memberRole = await fastify.prisma.role.findUnique({ where: { name: 'CLUBMEMBER' } })
-        if (!memberRole) return reply.code(500).send({ message: 'CLUBMEMBER role not found' })
+        const requestType = (target.request as any)?.requestType
 
-        // Add to club (ignore if already a member)
-        await fastify.prisma.clubUser.upsert({
-            where: { clubId_userId: { clubId: target.clubId!, userId: target.requesterId } },
-            create: { clubId: target.clubId!, userId: target.requesterId, roleId: memberRole.id },
-            update: {}
-        })
+        if (requestType === 'LeaveFromMember') {
+            // Remove from club
+            await fastify.prisma.clubUser.deleteMany({
+                where: { clubId: target.clubId!, userId: target.requesterId }
+            })
+        } else {
+            // JoinToMember — add to club (ignore if already a member)
+            const memberRole = await fastify.prisma.role.findUnique({ where: { name: 'CLUBMEMBER' } })
+            if (!memberRole) return reply.code(500).send({ message: 'CLUBMEMBER role not found' })
+            await fastify.prisma.clubUser.upsert({
+                where: { clubId_userId: { clubId: target.clubId!, userId: target.requesterId } },
+                create: { clubId: target.clubId!, userId: target.requesterId, roleId: memberRole.id },
+                update: {}
+            })
+        }
 
         const updated = await fastify.prisma.userRequest.update({
             where: { id: Number(id) },

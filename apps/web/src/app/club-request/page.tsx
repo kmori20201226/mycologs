@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { apiClient, type UserRequestItem } from '@/lib/api'
-import { getStoredUser } from '@/lib/auth'
+import { getStoredUser, getStoredClubs } from '@/lib/auth'
 
 interface Club {
   id: number
@@ -11,18 +11,22 @@ interface Club {
 }
 
 function StatusBadge({ accepted }: { accepted: boolean | null }) {
-  if (accepted === null) {
-    return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">Pending</span>
-  }
-  if (accepted) {
-    return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">Accepted</span>
-  }
+  if (accepted === null) return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">Pending</span>
+  if (accepted) return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">Accepted</span>
   return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-600">Declined</span>
+}
+
+function RequestTypeBadge({ requestType }: { requestType: string | undefined }) {
+  if (requestType === 'LeaveFromMember') {
+    return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-700">Leave</span>
+  }
+  return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">Join</span>
 }
 
 export default function ClubRequestPage() {
   const router = useRouter()
   const [clubs, setClubs] = useState<Club[]>([])
+  const [memberClubIds, setMemberClubIds] = useState<Set<number>>(new Set())
   const [requests, setRequests] = useState<UserRequestItem[]>([])
   const [selectedClubId, setSelectedClubId] = useState<string>('')
   const [message, setMessage] = useState('')
@@ -34,11 +38,17 @@ export default function ClubRequestPage() {
     const user = getStoredUser()
     if (!user) { router.replace('/login'); return }
 
+    // Build set of clubs the user currently belongs to
+    const myClubs = getStoredClubs()
+    setMemberClubIds(new Set(myClubs.map((c) => c.id)))
+
     apiClient.getClubs().then(setClubs).catch(() => {})
     apiClient.getUserRequests({ requesterId: user.id })
       .then(setRequests)
       .catch(() => {})
   }, [router])
+
+  const isLeave = selectedClubId ? memberClubIds.has(Number(selectedClubId)) : false
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -48,17 +58,20 @@ export default function ClubRequestPage() {
     if (!user) return
     if (!selectedClubId) { setError('Please select a club.'); return }
 
+    const requestType = isLeave ? 'LeaveFromMember' : 'JoinToMember'
     setSubmitting(true)
     try {
       const created = await apiClient.createUserRequest({
         requesterId: user.id,
         clubId: Number(selectedClubId),
-        request: { requestType: 'JoinToMember', message: message.trim() },
+        request: { requestType, message: message.trim() },
       })
       setRequests((prev) => [created, ...prev])
       setSelectedClubId('')
       setMessage('')
-      setSuccess('Your request has been sent to the club manager.')
+      setSuccess(isLeave
+        ? 'Your leave request has been sent to the club manager.'
+        : 'Your join request has been sent to the club manager.')
     } catch (err: any) {
       const msg = err?.message ?? ''
       if (msg.includes('409')) {
@@ -80,7 +93,7 @@ export default function ClubRequestPage() {
     <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto px-4 py-8 max-w-2xl">
 
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">Request to Join a Club</h1>
+        <h1 className="text-2xl font-bold text-gray-900 mb-6">Club Membership</h1>
 
         {/* Request form */}
         <div className="bg-white rounded-xl shadow p-6 mb-8">
@@ -90,7 +103,7 @@ export default function ClubRequestPage() {
               <label className="block text-sm font-medium text-gray-700 mb-1">Club</label>
               <select
                 value={selectedClubId}
-                onChange={(e) => setSelectedClubId(e.target.value)}
+                onChange={(e) => { setSelectedClubId(e.target.value); setError(''); setSuccess('') }}
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white"
               >
                 <option value="">— Select a club —</option>
@@ -98,6 +111,11 @@ export default function ClubRequestPage() {
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
+              {selectedClubId && (
+                <p className="mt-1 text-xs text-gray-400">
+                  {isLeave ? 'You are currently a member of this club.' : 'You are not a member of this club.'}
+                </p>
+              )}
             </div>
 
             <div>
@@ -108,8 +126,8 @@ export default function ClubRequestPage() {
               <textarea
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
-                placeholder="Introduce yourself or explain why you want to join…"
-                rows={4}
+                placeholder={isLeave ? 'Reason for leaving…' : 'Introduce yourself or explain why you want to join…'}
+                rows={3}
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-emerald-400"
               />
             </div>
@@ -125,9 +143,13 @@ export default function ClubRequestPage() {
               <button
                 type="submit"
                 disabled={submitting || !selectedClubId}
-                className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-sm font-semibold rounded-lg transition-colors"
+                className={`px-5 py-2 disabled:opacity-50 text-white text-sm font-semibold rounded-lg transition-colors ${
+                  isLeave
+                    ? 'bg-red-500 hover:bg-red-600'
+                    : 'bg-emerald-600 hover:bg-emerald-700'
+                }`}
               >
-                {submitting ? 'Sending…' : 'Send Request'}
+                {submitting ? 'Sending…' : isLeave ? 'Leave' : 'Join'}
               </button>
             </div>
           </form>
@@ -147,8 +169,9 @@ export default function ClubRequestPage() {
               <li key={req.id} className="bg-white rounded-xl shadow p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
                       <span className="font-medium text-gray-900 text-sm">{req.club?.name ?? '—'}</span>
+                      <RequestTypeBadge requestType={req.request?.requestType} />
                       <StatusBadge accepted={req.accepted} />
                     </div>
                     <p className="text-xs text-gray-400">
