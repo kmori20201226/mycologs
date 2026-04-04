@@ -71,3 +71,8 @@ tmp/
 temp/
 
 /generated/prisma
+
+# =========================
+# User uploads
+# =========================
+/data/uploads/

@@ -27,7 +27,7 @@ import aiIdentifyRoutes from './routes/ai-identify'
 import aiGeocodeRoutes from './routes/ai-geocode'
 import userRequestRoutes from './routes/user-requests'
 
-const UPLOADS_DIR = path.join(process.cwd(), 'uploads')
+const UPLOADS_DIR = path.join(process.cwd(), '../../data/uploads')
 
 export async function buildApp() {
     const app = Fastify({
