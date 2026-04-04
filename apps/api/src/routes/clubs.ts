@@ -55,10 +55,22 @@ export default async function (fastify: FastifyInstance) {
         return club
     })
 
-    // LIST ALL
+    // LIST ALL — optional ?managerId=X filters to clubs where user has CLUBMANAGER role
     fastify.get('/clubs', async (request, reply) => {
-        const clubs = await fastify.prisma.club.findMany()
-        return clubs
+        const { managerId } = request.query as any
+
+        if (managerId) {
+            const managerRole = await fastify.prisma.role.findUnique({ where: { name: 'CLUBMANAGER' } })
+            if (!managerRole) return []
+
+            const clubUsers = await fastify.prisma.clubUser.findMany({
+                where: { userId: Number(managerId), roleId: managerRole.id },
+                include: { club: true }
+            })
+            return clubUsers.map((cu) => cu.club)
+        }
+
+        return fastify.prisma.club.findMany()
     })
 
     // UPDATE

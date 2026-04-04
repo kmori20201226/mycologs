@@ -25,6 +25,7 @@ import mediaRoutes from './routes/media'
 import uploadRoutes from './routes/upload'
 import aiIdentifyRoutes from './routes/ai-identify'
 import aiGeocodeRoutes from './routes/ai-geocode'
+import userRequestRoutes from './routes/user-requests'
 
 const UPLOADS_DIR = path.join(process.cwd(), 'uploads')
 
@@ -64,6 +65,7 @@ export async function buildApp() {
     await app.register(uploadRoutes)
     await app.register(aiIdentifyRoutes)
     await app.register(aiGeocodeRoutes)
+    await app.register(userRequestRoutes)
 
     return app
 }

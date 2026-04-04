@@ -83,6 +83,21 @@ export interface Event {
   createdAt: string
 }
 
+export interface UserRequestItem {
+  id: number
+  requesterId: number
+  clubId: number | null
+  request: { requestType: string; message: string } | null
+  reply: Record<string, unknown> | null
+  replierId: number | null
+  accepted: boolean | null
+  createdAt: string
+  repliedAt: string | null
+  requester: { id: number; name: string; email: string }
+  club: { id: number; name: string } | null
+  replier: { id: number; name: string } | null
+}
+
 export interface AuthResponse {
   token: string;
   user: { id: number; name: string; email: string; role: import('@/lib/auth').UserLevelRole | null };
@@ -154,6 +169,14 @@ class ApiClient {
     });
   }
 
+  async getUserProfile(id: number): Promise<{
+    id: number; name: string; email: string; createdAt: string;
+    postCount: number; identificationCount: number; followupCount: number;
+    recentPosts: { id: number; contents: string; createdAt: string; event: { id: number; name: string } | null; _count: { media: number; identifications: number } }[]
+  }> {
+    return this.request(`/users/${id}/profile`)
+  }
+
   // Posts
   async getPosts(): Promise<Post[]> {
     return this.request('/posts');
@@ -196,8 +219,11 @@ class ApiClient {
   }
 
   // Clubs
-  async getClubs(): Promise<{ id: number; name: string; createdAt: string }[]> {
-    return this.request('/clubs')
+  async getClubs(filter?: { managerId?: number }): Promise<{ id: number; name: string; createdAt: string }[]> {
+    const params = new URLSearchParams()
+    if (filter?.managerId) params.set('managerId', String(filter.managerId))
+    const qs = params.toString() ? `?${params.toString()}` : ''
+    return this.request(`/clubs${qs}`)
   }
 
   async createClub(data: { name: string }): Promise<{ id: number; name: string }> {
@@ -352,6 +378,32 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify(data),
     });
+  }
+
+  // User Requests
+  async getUserRequests(filter?: { requesterId?: number; clubId?: number; pending?: boolean }): Promise<UserRequestItem[]> {
+    const params = new URLSearchParams()
+    if (filter?.requesterId) params.set('requesterId', String(filter.requesterId))
+    if (filter?.clubId) params.set('clubId', String(filter.clubId))
+    if (filter?.pending) params.set('pending', 'true')
+    const qs = params.toString() ? `?${params.toString()}` : ''
+    return this.request(`/user-requests${qs}`)
+  }
+
+  async createUserRequest(data: { requesterId: number; clubId: number; request: Record<string, unknown> }): Promise<UserRequestItem> {
+    return this.request('/user-requests', { method: 'POST', body: JSON.stringify(data) })
+  }
+
+  async acceptUserRequest(id: number, data: { replierId: number; reply?: Record<string, unknown> | null }): Promise<UserRequestItem> {
+    return this.request(`/user-requests/${id}/accept`, { method: 'POST', body: JSON.stringify(data) })
+  }
+
+  async declineUserRequest(id: number, data: { replierId: number; reply?: Record<string, unknown> | null }): Promise<UserRequestItem> {
+    return this.request(`/user-requests/${id}/decline`, { method: 'POST', body: JSON.stringify(data) })
+  }
+
+  async deleteUserRequest(id: number): Promise<void> {
+    return this.request(`/user-requests/${id}`, { method: 'DELETE' })
   }
 
   // Followups (comments)

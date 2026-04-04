@@ -19,6 +19,7 @@ model Club {
 
   clubUsers     ClubUser[]
   events        Event[]
+  userRequests  UserRequest[]
 
   @@map("clubs")
 }
@@ -90,8 +91,28 @@ model User {
   identifications Identification[]
   votes         Vote[]
   events        Event[]
+  userRequests  UserRequest[] @relation("UserRequestRequester")
+  repliedRequests UserRequest[] @relation("UserRequestReplier")
 
   @@map("users")
+}
+
+model UserRequest {
+  id                Int       @id @default(autoincrement())
+  requesterId       Int       @map("requester_id")
+  clubId            Int?      @map("club_id")
+  request           Json?
+  reply             Json?
+  replierId         Int?      @map("replier_id")
+  accepted          Boolean?
+  createdAt         DateTime  @default(now()) @map("created_at")
+  repliedAt         DateTime? @map("replied_at")
+
+  requester         User      @relation("UserRequestRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  replier           User?     @relation("UserRequestReplier", fields: [replierId], references: [id], onDelete: SetNull)
+  club              Club?     @relation(fields: [clubId], references: [id], onDelete: SetNull)
+
+  @@map("user_requests")
 }
 
 model OAuthAccount {

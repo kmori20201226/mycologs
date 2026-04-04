@@ -32,6 +32,7 @@ export default function Navigation() {
   const [clubs, setClubs] = useState<ClubMembership[]>([])
   const [selectedClubId, _setSelectedClubId] = useState<number | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [pendingRequestCount, setPendingRequestCount] = useState(0)
 
   useEffect(() => {
     const u = getStoredUser()
@@ -49,6 +50,11 @@ export default function Navigation() {
     const token = getToken()
     if (!token) return
 
+    function onResolved() {
+      setPendingRequestCount((n) => Math.max(0, n - 1))
+    }
+    window.addEventListener('pendingRequestResolved', onResolved)
+
     apiClient.request<ClubMembership[]>('/me/clubs', {
       headers: { Authorization: `Bearer ${token}` }
     }).then((fresh) => {
@@ -58,12 +64,29 @@ export default function Navigation() {
       const validId = fresh.find((c) => c.id === saved)?.id ?? fresh[0]?.id ?? null
       _setSelectedClubId(validId)
       setSelectedClubId(validId)
+      if (validId) fetchPendingCount(validId, fresh)
     }).catch((err) => { console.error('Failed to fetch clubs:', err) })
+
+    return () => window.removeEventListener('pendingRequestResolved', onResolved)
   }, [])
+
+  function fetchPendingCount(_id: number, clubList: ClubMembership[]) {
+    const managedClubs = clubList.filter((c) => c.role === 'CLUBMANAGER')
+    if (managedClubs.length === 0) { setPendingRequestCount(0); return }
+    Promise.all(
+      managedClubs.map((c) =>
+        apiClient.request<{ id: number }[]>(`/user-requests?clubId=${c.id}&pending=true`)
+          .then((items) => items.length)
+          .catch(() => 0)
+      )
+    ).then((counts) => setPendingRequestCount(counts.reduce((a, b) => a + b, 0)))
+  }
 
   function handleClubChange(id: number) {
     _setSelectedClubId(id)
     setSelectedClubId(id)
+    window.dispatchEvent(new CustomEvent('clubChanged', { detail: { clubId: id } }))
+    fetchPendingCount(id, clubs)
   }
 
   function handleLogout() {
@@ -83,12 +106,17 @@ export default function Navigation() {
           <div className="flex items-center space-x-3">
             <button
               onClick={() => setMenuOpen((prev) => !prev)}
-              className="text-gray-700 hover:text-emerald-600 transition-colors p-1"
+              className="relative text-gray-700 hover:text-emerald-600 transition-colors p-1"
               aria-label="Toggle menu"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
               </svg>
+              {pendingRequestCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                  {pendingRequestCount > 9 ? '9+' : pendingRequestCount}
+                </span>
+              )}
             </button>
 
             <Link href="/" className="text-2xl font-bold text-emerald-600">
@@ -158,9 +186,14 @@ export default function Navigation() {
               key={item.href}
               href={item.href}
               onClick={() => setMenuOpen(false)}
-              className="block px-4 py-3 text-gray-700 hover:bg-emerald-50 hover:text-emerald-600 font-medium transition-colors"
+              className="flex items-center justify-between px-4 py-3 text-gray-700 hover:bg-emerald-50 hover:text-emerald-600 font-medium transition-colors"
             >
               {item.label}
+              {item.href === '/admin/requests' && pendingRequestCount > 0 && (
+                <span className="ml-2 inline-flex items-center justify-center w-5 h-5 rounded-full bg-red-500 text-white text-xs font-bold">
+                  {pendingRequestCount > 99 ? '99+' : pendingRequestCount}
+                </span>
+              )}
             </Link>
           ))}
         </div>

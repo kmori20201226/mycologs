@@ -78,6 +78,90 @@ export default async function (fastify: FastifyInstance) {
         return user
     })
 
+    // PROFILE — user info + activity stats + recent posts
+    fastify.get('/users/:id/profile', {
+        schema: {
+            params: {
+                type: 'object',
+                properties: { id: { type: 'integer' } },
+                required: ['id']
+            },
+            response: {
+                200: {
+                    type: 'object',
+                    properties: {
+                        id: { type: 'number' },
+                        name: { type: 'string' },
+                        email: { type: 'string' },
+                        createdAt: { type: 'string', format: 'date-time' },
+                        postCount: { type: 'number' },
+                        identificationCount: { type: 'number' },
+                        followupCount: { type: 'number' },
+                        recentPosts: {
+                            type: 'array',
+                            items: {
+                                type: 'object',
+                                properties: {
+                                    id: { type: 'number' },
+                                    contents: { type: 'string' },
+                                    createdAt: { type: 'string', format: 'date-time' },
+                                    event: {
+                                        type: 'object',
+                                        nullable: true,
+                                        properties: {
+                                            id: { type: 'number' },
+                                            name: { type: 'string' }
+                                        }
+                                    },
+                                    _count: {
+                                        type: 'object',
+                                        properties: {
+                                            media: { type: 'number' },
+                                            identifications: { type: 'number' }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                404: {
+                    type: 'object',
+                    properties: { message: { type: 'string' } }
+                }
+            }
+        }
+    }, async (request, reply) => {
+        const { id } = request.params as any
+        const uid = Number(id)
+
+        const user = await fastify.prisma.user.findUnique({
+            where: { id: uid },
+            select: { id: true, name: true, email: true, createdAt: true }
+        })
+        if (!user) return reply.code(404).send({ message: 'Not found' })
+
+        const [postCount, identificationCount, followupCount, recentPosts] = await Promise.all([
+            fastify.prisma.post.count({ where: { userId: uid } }),
+            fastify.prisma.identification.count({ where: { userId: uid } }),
+            fastify.prisma.followup.count({ where: { userId: uid } }),
+            fastify.prisma.post.findMany({
+                where: { userId: uid },
+                orderBy: { createdAt: 'desc' },
+                take: 10,
+                select: {
+                    id: true,
+                    contents: true,
+                    createdAt: true,
+                    event: { select: { id: true, name: true } },
+                    _count: { select: { media: true, identifications: true } }
+                }
+            })
+        ])
+
+        return { ...user, postCount, identificationCount, followupCount, recentPosts }
+    })
+
     // DELETE /users/:id
     fastify.delete('/users/:id', async (request, reply) => {
         const { id } = request.params as { id: string }
