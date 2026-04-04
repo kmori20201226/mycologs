@@ -103,7 +103,7 @@ export default function ManagerRequestsPage() {
   const router = useRouter()
   const [clubName, setClubName] = useState<string>('')
   const [rows, setRows] = useState<RequestRow[]>([])
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [showResolved, setShowResolved] = useState(false)
 
   function loadForClub(clubId: number, clubs: ClubMembership[]) {
@@ -123,7 +123,7 @@ export default function ManagerRequestsPage() {
     apiClient.request<ClubMembership[]>('/me/clubs').then((clubs) => {
       setStoredClubs(clubs)
       const managedClubs = clubs.filter((c) => c.role === 'CLUBMANAGER')
-      if (managedClubs.length === 0) return
+      if (managedClubs.length === 0) { setLoading(false); return }
 
       const selectedId = getSelectedClubId()
       const isSelectedManaged = managedClubs.some((c) => c.id === selectedId)
@@ -136,7 +136,7 @@ export default function ManagerRequestsPage() {
       }
 
       loadForClub(clubId, clubs)
-    }).catch(() => {})
+    }).catch(() => { setLoading(false) })
 
     function onClubChanged(e: Event) {
       const { clubId: newId } = (e as CustomEvent).detail
