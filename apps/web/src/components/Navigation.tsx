@@ -53,7 +53,11 @@ export default function Navigation() {
     function onResolved() {
       setPendingRequestCount((n) => Math.max(0, n - 1))
     }
+    function onCreated() {
+      setPendingRequestCount((n) => n + 1)
+    }
     window.addEventListener('pendingRequestResolved', onResolved)
+    window.addEventListener('pendingRequestCreated', onCreated)
 
     apiClient.request<ClubMembership[]>('/me/clubs', {
       headers: { Authorization: `Bearer ${token}` }
@@ -67,7 +71,10 @@ export default function Navigation() {
       if (validId) fetchPendingCount(validId, fresh)
     }).catch((err) => { console.error('Failed to fetch clubs:', err) })
 
-    return () => window.removeEventListener('pendingRequestResolved', onResolved)
+    return () => {
+      window.removeEventListener('pendingRequestResolved', onResolved)
+      window.removeEventListener('pendingRequestCreated', onCreated)
+    }
   }, [])
 
   function fetchPendingCount(_id: number, clubList: ClubMembership[]) {

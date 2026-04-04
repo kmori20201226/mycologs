@@ -69,6 +69,7 @@ export default function ClubRequestPage() {
       setRequests((prev) => [created, ...prev])
       setSelectedClubId('')
       setMessage('')
+      window.dispatchEvent(new CustomEvent('pendingRequestCreated'))
       setSuccess(isLeave
         ? 'Your leave request has been sent to the club manager.'
         : 'Your join request has been sent to the club manager.')
