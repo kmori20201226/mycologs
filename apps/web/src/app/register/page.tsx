@@ -18,7 +18,7 @@ export default function RegisterPage() {
     setError('')
 
     if (password !== confirm) {
-      setError('Passwords do not match.')
+      setError('パスワードが一致しません。')
       return
     }
 
@@ -31,9 +31,9 @@ export default function RegisterPage() {
       window.location.href = '/'
     } catch (err: unknown) {
       if (err instanceof Error && err.message.includes('409')) {
-        setError('That email is already registered.')
+        setError('このメールアドレスはすでに登録されています。')
       } else {
-        setError('Something went wrong. Please try again.')
+        setError('エラーが発生しました。もう一度お試しください。')
       }
     } finally {
       setLoading(false)
@@ -43,12 +43,12 @@ export default function RegisterPage() {
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center">
       <div className="bg-white rounded-xl shadow-lg p-8 w-full max-w-md">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">Create account</h1>
+        <h1 className="text-2xl font-bold text-gray-900 mb-6">新規登録</h1>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Name
+              名前
             </label>
             <input
               type="text"
@@ -61,7 +61,7 @@ export default function RegisterPage() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Email
+              メールアドレス
             </label>
             <input
               type="email"
@@ -74,7 +74,7 @@ export default function RegisterPage() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Password <span className="text-gray-400 font-normal">(min. 8 characters)</span>
+              パスワード <span className="text-gray-400 font-normal">（8文字以上）</span>
             </label>
             <input
               type="password"
@@ -88,7 +88,7 @@ export default function RegisterPage() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Confirm password
+              パスワード（確認）
             </label>
             <input
               type="password"
@@ -101,7 +101,7 @@ export default function RegisterPage() {
               required
             />
             {confirm && confirm !== password && (
-              <p className="text-red-500 text-xs mt-1">Passwords do not match.</p>
+              <p className="text-red-500 text-xs mt-1">パスワードが一致しません。</p>
             )}
           </div>
 
@@ -114,14 +114,14 @@ export default function RegisterPage() {
             disabled={loading}
             className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white py-2 rounded-lg font-semibold transition-colors"
           >
-            {loading ? 'Creating account…' : 'Create account'}
+            {loading ? '登録中…' : 'アカウントを作成'}
           </button>
         </form>
 
         <p className="mt-4 text-sm text-gray-600 text-center">
-          Already have an account?{' '}
+          すでにアカウントをお持ちの方は{' '}
           <Link href="/login" className="text-emerald-600 hover:underline font-medium">
-            Log in
+            ログイン
           </Link>
         </p>
       </div>

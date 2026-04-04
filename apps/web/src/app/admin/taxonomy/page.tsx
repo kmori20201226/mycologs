@@ -32,10 +32,10 @@ export default function AdminTaxonomyPage() {
   useEffect(() => { reload() }, [])
 
   const tabs: { key: Tab; label: string; count: number }[] = [
-    { key: 'shapes', label: 'Shapes', count: shapes.length },
-    { key: 'families', label: 'Families', count: families.length },
-    { key: 'genera', label: 'Genera', count: genera.length },
-    { key: 'species', label: 'Species', count: species.filter((s) => !s.deletedAt).length },
+    { key: 'shapes', label: '形状', count: shapes.length },
+    { key: 'families', label: '科', count: families.length },
+    { key: 'genera', label: '属', count: genera.length },
+    { key: 'species', label: '種', count: species.filter((s) => !s.deletedAt).length },
   ]
 
   return (
@@ -48,9 +48,9 @@ export default function AdminTaxonomyPage() {
             <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
             </svg>
-            Back
+            戻る
           </Link>
-          <span className="text-sm font-semibold text-gray-800">Manage Taxonomy</span>
+          <span className="text-sm font-semibold text-gray-800">分類管理</span>
         </div>
 
         {/* Tabs */}
@@ -113,7 +113,7 @@ function ShapesTab({ shapes, reload }: { shapes: TaxShape[]; reload: () => void 
       setNewName(''); setNewJa('')
       await reload()
     }
-    catch { setError('Failed to create shape.') }
+    catch { setError('形状の作成に失敗しました。') }
     finally { setBusy(false) }
   }
 
@@ -125,15 +125,15 @@ function ShapesTab({ shapes, reload }: { shapes: TaxShape[]; reload: () => void 
       setEditId(null)
       await reload()
     }
-    catch { setError('Failed to update shape.') }
+    catch { setError('形状の更新に失敗しました。') }
     finally { setBusy(false) }
   }
 
   async function remove(id: number) {
-    if (!confirm('Delete this shape? All families, genera, and species beneath it will also be deleted.')) return
+    if (!confirm('この形状を削除しますか？配下の科・属・種もすべて削除されます。')) return
     setBusy(true); setError('')
     try { await apiClient.deleteShape(id); await reload() }
-    catch { setError('Failed to delete shape.') }
+    catch { setError('形状の削除に失敗しました。') }
     finally { setBusy(false) }
   }
 
@@ -143,14 +143,14 @@ function ShapesTab({ shapes, reload }: { shapes: TaxShape[]; reload: () => void 
         <input
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
-          placeholder="Scientific name (e.g. Cap)"
+          placeholder="名称（例: キャップ）"
           className="flex-1 min-w-36 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
           disabled={busy}
         />
         <input
           value={newJa}
           onChange={(e) => setNewJa(e.target.value)}
-          placeholder="Japanese name"
+          placeholder="日本語名"
           className="flex-1 min-w-32 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
           disabled={busy}
         />
@@ -159,7 +159,7 @@ function ShapesTab({ shapes, reload }: { shapes: TaxShape[]; reload: () => void 
           disabled={busy || !newName.trim()}
           className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
         >
-          Add
+          追加
         </button>
       </form>
       {error && <p className="text-red-500 text-sm">{error}</p>}
@@ -178,12 +178,12 @@ function ShapesTab({ shapes, reload }: { shapes: TaxShape[]; reload: () => void 
                 <input
                   value={editJa}
                   onChange={(e) => setEditJa(e.target.value)}
-                  placeholder="Japanese"
+                  placeholder="日本語名"
                   className="w-32 border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   disabled={busy}
                 />
-                <button onClick={() => save(shape.id)} disabled={busy} className="text-emerald-600 hover:text-emerald-700 text-sm font-medium">Save</button>
-                <button onClick={() => setEditId(null)} className="text-gray-400 hover:text-gray-600 text-sm">Cancel</button>
+                <button onClick={() => save(shape.id)} disabled={busy} className="text-emerald-600 hover:text-emerald-700 text-sm font-medium">保存</button>
+                <button onClick={() => setEditId(null)} className="text-gray-400 hover:text-gray-600 text-sm">キャンセル</button>
               </>
             ) : (
               <>
@@ -199,7 +199,7 @@ function ShapesTab({ shapes, reload }: { shapes: TaxShape[]; reload: () => void 
             )}
           </li>
         ))}
-        {shapes.length === 0 && <li className="text-gray-400 text-sm py-4">No shapes yet.</li>}
+        {shapes.length === 0 && <li className="text-gray-400 text-sm py-4">まだ形状がありません。</li>}
       </ul>
     </div>
   )
@@ -232,7 +232,7 @@ function FamiliesTab({ families, shapes, reload }: { families: TaxFamily[]; shap
       setNewSci(''); setNewJa('')
       await reload()
     }
-    catch { setError('Failed to create family.') }
+    catch { setError('科の作成に失敗しました。') }
     finally { setBusy(false) }
   }
 
@@ -243,15 +243,15 @@ function FamiliesTab({ families, shapes, reload }: { families: TaxFamily[]; shap
       setEditId(null)
       await reload()
     }
-    catch { setError('Failed to update family.') }
+    catch { setError('科の更新に失敗しました。') }
     finally { setBusy(false) }
   }
 
   async function remove(id: number) {
-    if (!confirm('Delete this family? All genera and species beneath it will also be deleted.')) return
+    if (!confirm('この科を削除しますか？配下の属・種もすべて削除されます。')) return
     setBusy(true); setError('')
     try { await apiClient.deleteFamily(id); await reload() }
-    catch { setError('Failed to delete family.') }
+    catch { setError('科の削除に失敗しました。') }
     finally { setBusy(false) }
   }
 
@@ -261,14 +261,14 @@ function FamiliesTab({ families, shapes, reload }: { families: TaxFamily[]; shap
         <input
           value={newSci}
           onChange={(e) => setNewSci(e.target.value)}
-          placeholder="Scientific name (e.g. Amanitaceae)"
+          placeholder="学名（例: Amanitaceae）"
           className="flex-1 min-w-40 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
           disabled={busy}
         />
         <input
           value={newJa}
           onChange={(e) => setNewJa(e.target.value)}
-          placeholder="Japanese name"
+          placeholder="日本語名"
           className="w-36 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
           disabled={busy}
         />
@@ -285,18 +285,18 @@ function FamiliesTab({ families, shapes, reload }: { families: TaxFamily[]; shap
           disabled={busy || !newSci.trim() || newShapeId === ''}
           className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
         >
-          Add
+          追加
         </button>
       </form>
       {error && <p className="text-red-500 text-sm">{error}</p>}
       <div className="flex items-center gap-2">
-        <label className="text-xs text-gray-500">Filter by shape:</label>
+        <label className="text-xs text-gray-500">形状で絞り込み:</label>
         <select
           value={filterShapeId}
           onChange={(e) => setFilterShapeId(e.target.value === '' ? '' : Number(e.target.value))}
           className="border rounded-lg px-2 py-1 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
         >
-          <option value="">All</option>
+          <option value="">すべて</option>
           {shapes.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
         </select>
       </div>
@@ -315,7 +315,7 @@ function FamiliesTab({ families, shapes, reload }: { families: TaxFamily[]; shap
                 <input
                   value={editJa}
                   onChange={(e) => setEditJa(e.target.value)}
-                  placeholder="Japanese"
+                  placeholder="日本語名"
                   className="w-32 border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   disabled={busy}
                 />
@@ -327,8 +327,8 @@ function FamiliesTab({ families, shapes, reload }: { families: TaxFamily[]; shap
                 >
                   {shapes.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
-                <button onClick={() => save(family.id)} disabled={busy} className="text-emerald-600 hover:text-emerald-700 text-sm font-medium">Save</button>
-                <button onClick={() => setEditId(null)} className="text-gray-400 hover:text-gray-600 text-sm">Cancel</button>
+                <button onClick={() => save(family.id)} disabled={busy} className="text-emerald-600 hover:text-emerald-700 text-sm font-medium">保存</button>
+                <button onClick={() => setEditId(null)} className="text-gray-400 hover:text-gray-600 text-sm">キャンセル</button>
               </>
             ) : (
               <>
@@ -347,7 +347,7 @@ function FamiliesTab({ families, shapes, reload }: { families: TaxFamily[]; shap
             )}
           </li>
         ))}
-        {visible.length === 0 && <li className="text-gray-400 text-sm py-4">No families yet.</li>}
+        {visible.length === 0 && <li className="text-gray-400 text-sm py-4">まだ科がありません。</li>}
       </ul>
     </div>
   )
@@ -380,7 +380,7 @@ function GeneraTab({ genera, families, reload }: { genera: TaxGenus[]; families:
       setNewSci(''); setNewJa('')
       await reload()
     }
-    catch { setError('Failed to create genus.') }
+    catch { setError('属の作成に失敗しました。') }
     finally { setBusy(false) }
   }
 
@@ -391,15 +391,15 @@ function GeneraTab({ genera, families, reload }: { genera: TaxGenus[]; families:
       setEditId(null)
       await reload()
     }
-    catch { setError('Failed to update genus.') }
+    catch { setError('属の更新に失敗しました。') }
     finally { setBusy(false) }
   }
 
   async function remove(id: number) {
-    if (!confirm('Delete this genus? All species beneath it will also be deleted.')) return
+    if (!confirm('この属を削除しますか？配下の種もすべて削除されます。')) return
     setBusy(true); setError('')
     try { await apiClient.deleteGenus(id); await reload() }
-    catch { setError('Failed to delete genus.') }
+    catch { setError('属の削除に失敗しました。') }
     finally { setBusy(false) }
   }
 
@@ -409,14 +409,14 @@ function GeneraTab({ genera, families, reload }: { genera: TaxGenus[]; families:
         <input
           value={newSci}
           onChange={(e) => setNewSci(e.target.value)}
-          placeholder="Scientific name (e.g. Amanita)"
+          placeholder="学名（例: Amanita）"
           className="flex-1 min-w-40 border rounded-lg px-3 py-2 text-sm italic focus:outline-none focus:ring-2 focus:ring-emerald-500"
           disabled={busy}
         />
         <input
           value={newJa}
           onChange={(e) => setNewJa(e.target.value)}
-          placeholder="Japanese name"
+          placeholder="日本語名"
           className="w-36 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
           disabled={busy}
         />
@@ -433,18 +433,18 @@ function GeneraTab({ genera, families, reload }: { genera: TaxGenus[]; families:
           disabled={busy || !newSci.trim() || newFamilyId === ''}
           className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
         >
-          Add
+          追加
         </button>
       </form>
       {error && <p className="text-red-500 text-sm">{error}</p>}
       <div className="flex items-center gap-2">
-        <label className="text-xs text-gray-500">Filter by family:</label>
+        <label className="text-xs text-gray-500">科で絞り込み:</label>
         <select
           value={filterFamilyId}
           onChange={(e) => setFilterFamilyId(e.target.value === '' ? '' : Number(e.target.value))}
           className="border rounded-lg px-2 py-1 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
         >
-          <option value="">All</option>
+          <option value="">すべて</option>
           {families.map((f) => <option key={f.id} value={f.id}>{f.scientificName}</option>)}
         </select>
       </div>
@@ -463,7 +463,7 @@ function GeneraTab({ genera, families, reload }: { genera: TaxGenus[]; families:
                 <input
                   value={editJa}
                   onChange={(e) => setEditJa(e.target.value)}
-                  placeholder="Japanese"
+                  placeholder="日本語名"
                   className="w-32 border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   disabled={busy}
                 />
@@ -475,8 +475,8 @@ function GeneraTab({ genera, families, reload }: { genera: TaxGenus[]; families:
                 >
                   {families.map((f) => <option key={f.id} value={f.id}>{f.scientificName}</option>)}
                 </select>
-                <button onClick={() => save(genus.id)} disabled={busy} className="text-emerald-600 hover:text-emerald-700 text-sm font-medium">Save</button>
-                <button onClick={() => setEditId(null)} className="text-gray-400 hover:text-gray-600 text-sm">Cancel</button>
+                <button onClick={() => save(genus.id)} disabled={busy} className="text-emerald-600 hover:text-emerald-700 text-sm font-medium">保存</button>
+                <button onClick={() => setEditId(null)} className="text-gray-400 hover:text-gray-600 text-sm">キャンセル</button>
               </>
             ) : (
               <>
@@ -495,7 +495,7 @@ function GeneraTab({ genera, families, reload }: { genera: TaxGenus[]; families:
             )}
           </li>
         ))}
-        {visible.length === 0 && <li className="text-gray-400 text-sm py-4">No genera yet.</li>}
+        {visible.length === 0 && <li className="text-gray-400 text-sm py-4">まだ属がありません。</li>}
       </ul>
     </div>
   )
@@ -538,7 +538,7 @@ function SpeciesTab({ species, genera, reload }: { species: TaxSpecies[]; genera
       setNewSci(''); setNewJa(''); setNewEdibility('')
       await reload()
     }
-    catch { setError('Failed to create species.') }
+    catch { setError('種の作成に失敗しました。') }
     finally { setBusy(false) }
   }
 
@@ -554,15 +554,15 @@ function SpeciesTab({ species, genera, reload }: { species: TaxSpecies[]; genera
       setEditId(null)
       await reload()
     }
-    catch { setError('Failed to update species.') }
+    catch { setError('種の更新に失敗しました。') }
     finally { setBusy(false) }
   }
 
   async function remove(id: number) {
-    if (!confirm('Delete this species? This will soft-delete it.')) return
+    if (!confirm('この種を削除しますか？（論理削除されます）')) return
     setBusy(true); setError('')
     try { await apiClient.deleteSpecies(id); await reload() }
-    catch { setError('Failed to delete species.') }
+    catch { setError('種の削除に失敗しました。') }
     finally { setBusy(false) }
   }
 
@@ -572,14 +572,14 @@ function SpeciesTab({ species, genera, reload }: { species: TaxSpecies[]; genera
         <input
           value={newSci}
           onChange={(e) => setNewSci(e.target.value)}
-          placeholder="Scientific name"
+          placeholder="学名"
           className="flex-1 min-w-40 border rounded-lg px-3 py-2 text-sm italic focus:outline-none focus:ring-2 focus:ring-emerald-500"
           disabled={busy}
         />
         <input
           value={newJa}
           onChange={(e) => setNewJa(e.target.value)}
-          placeholder="Japanese name"
+          placeholder="日本語名"
           className="w-36 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
           disabled={busy}
         />
@@ -589,7 +589,7 @@ function SpeciesTab({ species, genera, reload }: { species: TaxSpecies[]; genera
           className="border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
           disabled={busy}
         >
-          <option value="">Edibility?</option>
+          <option value="">食用区分</option>
           {EDIBILITY_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
         </select>
         <select
@@ -605,25 +605,25 @@ function SpeciesTab({ species, genera, reload }: { species: TaxSpecies[]; genera
           disabled={busy || !newSci.trim() || newGenusId === ''}
           className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
         >
-          Add
+          追加
         </button>
       </form>
       {error && <p className="text-red-500 text-sm">{error}</p>}
       <div className="flex items-center gap-4 flex-wrap">
         <div className="flex items-center gap-2">
-          <label className="text-xs text-gray-500">Filter by genus:</label>
+          <label className="text-xs text-gray-500">属で絞り込み:</label>
           <select
             value={filterGenusId}
             onChange={(e) => setFilterGenusId(e.target.value === '' ? '' : Number(e.target.value))}
             className="border rounded-lg px-2 py-1 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
           >
-            <option value="">All</option>
+            <option value="">すべて</option>
             {genera.map((g) => <option key={g.id} value={g.id}>{g.scientificName}</option>)}
           </select>
         </div>
         <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer">
           <input type="checkbox" checked={showDeleted} onChange={(e) => setShowDeleted(e.target.checked)} />
-          Show deleted
+          削除済みを表示
         </label>
       </div>
       <ul className="divide-y">
@@ -641,7 +641,7 @@ function SpeciesTab({ species, genera, reload }: { species: TaxSpecies[]; genera
                 <input
                   value={editJa}
                   onChange={(e) => setEditJa(e.target.value)}
-                  placeholder="Japanese"
+                  placeholder="日本語名"
                   className="w-28 border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   disabled={busy}
                 />
@@ -662,8 +662,8 @@ function SpeciesTab({ species, genera, reload }: { species: TaxSpecies[]; genera
                 >
                   {genera.map((g) => <option key={g.id} value={g.id}>{g.scientificName}</option>)}
                 </select>
-                <button onClick={() => save(sp.id)} disabled={busy} className="text-emerald-600 hover:text-emerald-700 text-sm font-medium">Save</button>
-                <button onClick={() => setEditId(null)} className="text-gray-400 hover:text-gray-600 text-sm">Cancel</button>
+                <button onClick={() => save(sp.id)} disabled={busy} className="text-emerald-600 hover:text-emerald-700 text-sm font-medium">保存</button>
+                <button onClick={() => setEditId(null)} className="text-gray-400 hover:text-gray-600 text-sm">キャンセル</button>
               </>
             ) : (
               <>
@@ -676,7 +676,7 @@ function SpeciesTab({ species, genera, reload }: { species: TaxSpecies[]; genera
                   {genera.find((g) => g.id === sp.genusId)?.scientificName ?? '—'}
                 </span>
                 {sp.deletedAt && (
-                  <span className="text-xs text-red-400 bg-red-50 px-2 py-0.5 rounded-full">deleted</span>
+                  <span className="text-xs text-red-400 bg-red-50 px-2 py-0.5 rounded-full">削除済み</span>
                 )}
                 {!sp.deletedAt && (
                   <>
@@ -692,7 +692,7 @@ function SpeciesTab({ species, genera, reload }: { species: TaxSpecies[]; genera
             )}
           </li>
         ))}
-        {visible.length === 0 && <li className="text-gray-400 text-sm py-4">No species yet.</li>}
+        {visible.length === 0 && <li className="text-gray-400 text-sm py-4">まだ種がありません。</li>}
       </ul>
     </div>
   )

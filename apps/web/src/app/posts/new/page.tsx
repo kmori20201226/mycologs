@@ -118,7 +118,7 @@ export default function NewPostPage() {
       })
       postId = post.id
     } catch {
-      setError('Failed to create post. Please try again.')
+      setError('投稿の作成に失敗しました。もう一度お試しください。')
       setPhase('idle')
       return
     }
@@ -152,17 +152,17 @@ export default function NewPostPage() {
   const submitting = phase !== 'idle'
 
   const submitLabel = () => {
-    if (phase === 'creating') return 'Creating post…'
-    if (phase === 'uploading') return `Uploading ${uploadProgress.done}/${uploadProgress.total}…`
-    return 'Post'
+    if (phase === 'creating') return '投稿作成中…'
+    if (phase === 'uploading') return `アップロード中 ${uploadProgress.done}/${uploadProgress.total}…`
+    return '投稿'
   }
 
   if (notAuthed) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <p className="text-gray-500 mb-4">You must be logged in to create a post.</p>
-          <Link href="/login" className="text-emerald-600 hover:underline">Log in</Link>
+          <p className="text-gray-500 mb-4">投稿するにはログインが必要です。</p>
+          <Link href="/login" className="text-emerald-600 hover:underline">ログイン</Link>
         </div>
       </div>
     )
@@ -184,30 +184,30 @@ export default function NewPostPage() {
             <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
             </svg>
-            Back
+            戻る
           </Link>
           <div className="text-sm text-gray-500">
-            <Link href="/posts" className="hover:text-emerald-600 transition-colors">Posts</Link>
+            <Link href="/posts" className="hover:text-emerald-600 transition-colors">投稿一覧</Link>
             <span className="mx-2">/</span>
-            <span className="text-gray-800 font-medium">New Post</span>
+            <span className="text-gray-800 font-medium">新規投稿</span>
           </div>
         </div>
 
         <div className="bg-white rounded-xl shadow p-6">
-          <h1 className="text-lg font-semibold text-gray-900 mb-5">New Post</h1>
+          <h1 className="text-lg font-semibold text-gray-900 mb-5">新規投稿</h1>
 
           <form onSubmit={handleSubmit} className="space-y-5">
 
             {/* Contents */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                What did you find?
+                何を見つけましたか？
               </label>
               <textarea
                 value={contents}
                 onChange={(e) => setContents(e.target.value)}
                 rows={5}
-                placeholder="Describe the mushroom, where you found it, any notable features…"
+                placeholder="きのこの特徴、見つけた場所、気になる点などを記述してください…"
                 className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
                 required
                 disabled={submitting}
@@ -218,7 +218,7 @@ export default function NewPostPage() {
             {events.length > 0 && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Event <span className="text-gray-400 font-normal">(optional)</span>
+                  イベント <span className="text-gray-400 font-normal">（任意）</span>
                 </label>
                 <select
                   value={eventId}
@@ -226,7 +226,7 @@ export default function NewPostPage() {
                   className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
                   disabled={submitting}
                 >
-                  <option value="">No event</option>
+                  <option value="">イベントなし</option>
                   {events.map((ev) => (
                     <option key={ev.id} value={ev.id}>{ev.name}</option>
                   ))}
@@ -237,7 +237,7 @@ export default function NewPostPage() {
             {/* Drop zone */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Photos & files <span className="text-gray-400 font-normal">(optional)</span>
+                写真・ファイル <span className="text-gray-400 font-normal">（任意）</span>
               </label>
 
               <div
@@ -256,9 +256,9 @@ export default function NewPostPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                 </svg>
                 <p className="text-sm text-gray-500">
-                  Drop files here or <span className="text-emerald-600 font-medium">browse</span>
+                  ファイルをドロップ、または<span className="text-emerald-600 font-medium">選択</span>
                 </p>
-                <p className="text-xs text-gray-400 mt-1">Images, videos, audio, documents — up to 50 MB each</p>
+                <p className="text-xs text-gray-400 mt-1">画像、動画、音声、ドキュメント — 各50MBまで</p>
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -326,7 +326,7 @@ export default function NewPostPage() {
             {phase === 'uploading' && (
               <div>
                 <div className="flex justify-between text-xs text-gray-500 mb-1">
-                  <span>Uploading files…</span>
+                  <span>アップロード中…</span>
                   <span>{uploadProgress.done}/{uploadProgress.total}</span>
                 </div>
                 <div className="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden">
@@ -348,7 +348,7 @@ export default function NewPostPage() {
               </button>
               {!submitting && (
                 <Link href="/posts" className="text-sm text-gray-500 hover:text-gray-700">
-                  Cancel
+                  キャンセル
                 </Link>
               )}
             </div>

@@ -41,16 +41,16 @@ export default function ClubListPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto px-4 py-8 max-w-2xl">
-        <h1 className="text-3xl font-bold text-gray-900 mb-8">Clubs</h1>
+        <h1 className="text-3xl font-bold text-gray-900 mb-8">クラブ</h1>
 
         {/* Create form */}
         <div className="bg-white rounded-xl shadow p-6 mb-6">
-          <h2 className="font-semibold text-gray-700 mb-3">New Club</h2>
+          <h2 className="font-semibold text-gray-700 mb-3">新規クラブ</h2>
           <form onSubmit={handleCreate} className="flex gap-2">
             <input
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
-              placeholder="Club name"
+              placeholder="クラブ名"
               className="flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
               required
             />
@@ -58,7 +58,7 @@ export default function ClubListPage() {
               type="submit"
               className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
             >
-              Add
+              追加
             </button>
           </form>
         </div>
@@ -66,7 +66,7 @@ export default function ClubListPage() {
         {/* Club list */}
         <div className="bg-white rounded-xl shadow divide-y">
           {clubs.length === 0 && (
-            <p className="px-4 py-8 text-sm text-gray-400 text-center">No clubs yet.</p>
+            <p className="px-4 py-8 text-sm text-gray-400 text-center">まだクラブがありません。</p>
           )}
           {clubs.map((club) => (
             <div key={club.id} className="flex items-center justify-between px-4 py-3">
@@ -77,23 +77,23 @@ export default function ClubListPage() {
                   onClick={() => router.push(`/admin/clubs/${club.id}`)}
                   className="text-sm text-emerald-600 hover:text-emerald-700 font-medium transition-colors"
                 >
-                  Edit
+                  編集
                 </button>
 
                 {confirmDeleteId === club.id ? (
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-500">Sure?</span>
+                    <span className="text-xs text-gray-500">本当に？</span>
                     <button
                       onClick={() => handleDelete(club.id)}
                       className="text-xs bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded font-semibold transition-colors"
                     >
-                      Yes
+                      はい
                     </button>
                     <button
                       onClick={() => setConfirmDeleteId(null)}
                       className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
                     >
-                      No
+                      いいえ
                     </button>
                   </div>
                 ) : (
@@ -101,7 +101,7 @@ export default function ClubListPage() {
                     onClick={() => setConfirmDeleteId(club.id)}
                     className="text-sm text-red-400 hover:text-red-600 font-medium transition-colors"
                   >
-                    Delete
+                    削除
                   </button>
                 )}
               </div>

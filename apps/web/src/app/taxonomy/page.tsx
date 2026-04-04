@@ -84,8 +84,8 @@ export default function TaxonomyPage() {
 
         <div className="mb-8 flex items-end justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-1">Field Guide</h1>
-            <p className="text-gray-500">Browse taxonomy: Shape → Family → Genus → Species</p>
+            <h1 className="text-3xl font-bold text-gray-900 mb-1">フィールドガイド</h1>
+            <p className="text-gray-500">分類を探す：形状 → 科 → 属 → 種</p>
           </div>
         </div>
 
@@ -93,7 +93,7 @@ export default function TaxonomyPage() {
         {isFiltered && (
           <div className="flex flex-wrap items-center gap-2 mb-6 text-sm">
             <button onClick={() => selectShape(null)} className="text-emerald-600 hover:underline font-medium">
-              All Shapes
+              すべての形状
             </button>
             {selectedShape && (
               <>
@@ -140,8 +140,8 @@ export default function TaxonomyPage() {
             {/* Shapes — shown when nothing is selected */}
             {!selectedShape && (
               <section>
-                <SectionHeading>Shapes</SectionHeading>
-                {shapes.length === 0 ? <EmptyState label="No shapes yet." /> : (
+                <SectionHeading>形状</SectionHeading>
+                {shapes.length === 0 ? <EmptyState label="まだ形状がありません。" /> : (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                     {shapes.map((shape) => {
                       const famCount = families.filter((f) => f.shapeId === shape.id).length
@@ -149,7 +149,7 @@ export default function TaxonomyPage() {
                         <DrillButton key={shape.id} onClick={() => selectShape(shape)}>
                           <p className="font-semibold text-gray-900">{shape.name}</p>
                           {shape.japaneseName && <p className="text-xs text-gray-500">{shape.japaneseName}</p>}
-                          <p className="text-xs text-gray-400 mt-0.5">{famCount} {famCount === 1 ? 'family' : 'families'}</p>
+                          <p className="text-xs text-gray-400 mt-0.5">{famCount}科</p>
                         </DrillButton>
                       )
                     })}
@@ -162,9 +162,9 @@ export default function TaxonomyPage() {
             {selectedShape && !selectedFamily && (
               <section>
                 <SectionHeading>
-                  Families in <em className="text-emerald-600 not-italic">{selectedShape.name}</em>
+                  <em className="text-emerald-600 not-italic">{selectedShape.name}</em>の科
                 </SectionHeading>
-                {visibleFamilies.length === 0 ? <EmptyState label="No families in this shape." /> : (
+                {visibleFamilies.length === 0 ? <EmptyState label="この形状に科がありません。" /> : (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                     {visibleFamilies.map((family) => {
                       const genCount = genera.filter((g) => g.familyId === family.id).length
@@ -172,7 +172,7 @@ export default function TaxonomyPage() {
                         <DrillButton key={family.id} onClick={() => selectFamily(family)}>
                           <p className="font-semibold text-gray-900">{family.scientificName}</p>
                           {family.japaneseName && <p className="text-xs text-gray-500">{family.japaneseName}</p>}
-                          <p className="text-xs text-gray-400 mt-0.5">{genCount} {genCount === 1 ? 'genus' : 'genera'}</p>
+                          <p className="text-xs text-gray-400 mt-0.5">{genCount}属</p>
                         </DrillButton>
                       )
                     })}
@@ -185,9 +185,9 @@ export default function TaxonomyPage() {
             {selectedFamily && !selectedGenus && (
               <section>
                 <SectionHeading>
-                  Genera in <em className="text-emerald-600 not-italic">{selectedFamily.scientificName}</em>
+                  <em className="text-emerald-600 not-italic">{selectedFamily.scientificName}</em>の属
                 </SectionHeading>
-                {visibleGenera.length === 0 ? <EmptyState label="No genera in this family." /> : (
+                {visibleGenera.length === 0 ? <EmptyState label="この科に属がありません。" /> : (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                     {visibleGenera.map((genus) => {
                       const spCount = species.filter((s) => s.genusId === genus.id).length
@@ -195,7 +195,7 @@ export default function TaxonomyPage() {
                         <DrillButton key={genus.id} onClick={() => selectGenus(genus)}>
                           <p className="font-semibold text-gray-900 italic">{genus.scientificName}</p>
                           {genus.japaneseName && <p className="text-xs text-gray-500 not-italic">{genus.japaneseName}</p>}
-                          <p className="text-xs text-gray-400 mt-0.5">{spCount} {spCount === 1 ? 'species' : 'species'}</p>
+                          <p className="text-xs text-gray-400 mt-0.5">{spCount}種</p>
                         </DrillButton>
                       )
                     })}
@@ -210,12 +210,12 @@ export default function TaxonomyPage() {
                 <div className="flex items-center justify-between mb-3">
                   <SectionHeading className="mb-0">
                     {selectedGenus
-                      ? <>Species in <em className="text-emerald-600 not-italic">{selectedGenus.scientificName}</em></>
-                      : 'Search results'}
+                      ? <><em className="text-emerald-600 not-italic">{selectedGenus.scientificName}</em>の種</>
+                      : '検索結果'}
                   </SectionHeading>
-                  <span className="text-xs text-gray-400">{visibleSpecies.length} found</span>
+                  <span className="text-xs text-gray-400">{visibleSpecies.length}件</span>
                 </div>
-                {visibleSpecies.length === 0 ? <EmptyState label="No species found." /> : (
+                {visibleSpecies.length === 0 ? <EmptyState label="種が見つかりません。" /> : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {visibleSpecies.map((sp) => {
                       const genus = genera.find((g) => g.id === sp.genusId)
@@ -243,12 +243,12 @@ export default function TaxonomyPage() {
 
             {/* Species search — always shown */}
             <section>
-              <SectionHeading>Search species</SectionHeading>
+              <SectionHeading>種を検索</SectionHeading>
               <input
                 type="search"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Scientific or Japanese name…"
+                placeholder="学名または日本語名…"
                 className="w-full max-w-sm border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
               />
             </section>

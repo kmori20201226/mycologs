@@ -14,47 +14,47 @@ export interface MenuItem {
 
 export const menuItems: MenuItem[] = [
   {
-    label: 'Home',
+    label: 'ホーム',
     href: '/',
     visibleTo: ['public'],
   },
   {
-    label: 'Field Guide',
+    label: 'フィールドガイド',
     href: '/taxonomy',
     visibleTo: ['public'],
   },
   {
-    label: 'Club Events',
+    label: 'クラブイベント',
     href: '/admin/events',
     visibleTo: ['ADMIN', 'DEVELOPER', 'CLUBMANAGER'],
   },
   {
-    label: 'Member Requests',
+    label: 'メンバー申請',
     href: '/admin/requests',
     visibleTo: ['ADMIN', 'DEVELOPER', 'CLUBMANAGER'],
   },
   {
-    label: 'User Events',
+    label: 'マイイベント',
     href: '/events',
     visibleTo: ['authenticated'],
   },
   {
-    label: 'Join Club',
+    label: 'クラブに参加',
     href: '/club-request',
     visibleTo: ['authenticated'],
   },
   {
-    label: 'Profile',
+    label: 'プロフィール',
     href: '/profile',
     visibleTo: ['authenticated'],
   },
   {
-    label: 'Clubs',
+    label: 'クラブ',
     href: '/admin/clubs',
     visibleTo: ['ADMIN', 'DEVELOPER', 'CLUBMANAGER'],
   },
   {
-    label: 'Taxonomy',
+    label: '分類管理',
     href: '/admin/taxonomy',
     visibleTo: ['ADMIN', 'DEVELOPER'],
   },

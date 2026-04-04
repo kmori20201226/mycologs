@@ -54,7 +54,7 @@ export default function UserEventListPage() {
     <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto px-4 py-8 max-w-4xl">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">My Events</h1>
+          <h1 className="text-3xl font-bold text-gray-900">マイイベント</h1>
           {userName && (
             <p className="text-sm text-gray-500 mt-1">{userName}</p>
           )}
@@ -62,12 +62,12 @@ export default function UserEventListPage() {
 
         {/* Create form */}
         <div className="bg-white rounded-xl shadow p-6 mb-6">
-          <h2 className="font-semibold text-gray-700 mb-3">New Event</h2>
+          <h2 className="font-semibold text-gray-700 mb-3">新規イベント</h2>
           <form onSubmit={handleCreate} className="flex gap-2">
             <input
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
-              placeholder="Event name"
+              placeholder="イベント名"
               className="flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
               required
             />
@@ -75,7 +75,7 @@ export default function UserEventListPage() {
               type="submit"
               className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
             >
-              Add
+              追加
             </button>
           </form>
         </div>
@@ -83,14 +83,14 @@ export default function UserEventListPage() {
         {/* Event table */}
         <div className="bg-white rounded-xl shadow overflow-hidden">
           {events.length === 0 ? (
-            <p className="px-6 py-10 text-sm text-gray-400 text-center">No events yet.</p>
+            <p className="px-6 py-10 text-sm text-gray-400 text-center">まだイベントがありません。</p>
           ) : (
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b">
                 <tr>
-                  <th className="text-left px-6 py-3 font-semibold text-gray-600">Name</th>
-                  <th className="text-left px-6 py-3 font-semibold text-gray-600">Start</th>
-                  <th className="text-left px-6 py-3 font-semibold text-gray-600">End</th>
+                  <th className="text-left px-6 py-3 font-semibold text-gray-600">名前</th>
+                  <th className="text-left px-6 py-3 font-semibold text-gray-600">開始</th>
+                  <th className="text-left px-6 py-3 font-semibold text-gray-600">終了</th>
                   <th className="px-6 py-3" />
                 </tr>
               </thead>
@@ -106,23 +106,23 @@ export default function UserEventListPage() {
                           onClick={() => router.push(`/events/${ev.id}`)}
                           className="text-emerald-600 hover:text-emerald-700 font-medium transition-colors"
                         >
-                          Edit
+                          編集
                         </button>
 
                         {confirmDeleteId === ev.id ? (
                           <div className="flex items-center gap-2">
-                            <span className="text-gray-400">Sure?</span>
+                            <span className="text-gray-400">本当に？</span>
                             <button
                               onClick={() => handleDelete(ev.id)}
                               className="text-xs bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded font-semibold transition-colors"
                             >
-                              Yes
+                              はい
                             </button>
                             <button
                               onClick={() => setConfirmDeleteId(null)}
                               className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
                             >
-                              No
+                              いいえ
                             </button>
                           </div>
                         ) : (
@@ -130,7 +130,7 @@ export default function UserEventListPage() {
                             onClick={() => setConfirmDeleteId(ev.id)}
                             className="text-red-400 hover:text-red-600 font-medium transition-colors"
                           >
-                            Delete
+                            削除
                           </button>
                         )}
                       </div>

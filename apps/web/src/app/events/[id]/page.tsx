@@ -58,7 +58,7 @@ export default function UserEventEditPage() {
   }, [eventId])
 
   const dateError = startAt && endAt && endAt < startAt
-    ? 'End date must be after start date.'
+    ? '終了日は開始日より後にしてください。'
     : ''
 
   const isDirty = original !== null && (
@@ -84,7 +84,7 @@ export default function UserEventEditPage() {
     try {
       const result = await apiClient.geocodePlace(place.trim())
       if (result.candidates.length === 0) {
-        showToast('No location found for this place name.')
+        showToast('この場所名の位置情報が見つかりませんでした。')
       } else if (result.candidates.length === 1) {
         setLongitude(String(result.candidates[0].longitude))
         setLatitude(String(result.candidates[0].latitude))
@@ -92,7 +92,7 @@ export default function UserEventEditPage() {
         setCandidates(result.candidates)
       }
     } catch {
-      showToast('Failed to guess coordinates.')
+      showToast('座標の取得に失敗しました。')
     } finally {
       setGeocoding(false)
     }
@@ -139,8 +139,8 @@ export default function UserEventEditPage() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <p className="text-gray-500 mb-4">Event not found.</p>
-          <Link href="/events" className="text-emerald-600 hover:underline">Back to my events</Link>
+          <p className="text-gray-500 mb-4">イベントが見つかりません。</p>
+          <Link href="/events" className="text-emerald-600 hover:underline">マイイベントへ戻る</Link>
         </div>
       </div>
     )
@@ -158,10 +158,10 @@ export default function UserEventEditPage() {
             <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
             </svg>
-            Back
+            戻る
           </Link>
           <div className="text-sm text-gray-500">
-            <Link href="/events" className="hover:text-emerald-600 transition-colors">My Events</Link>
+            <Link href="/events" className="hover:text-emerald-600 transition-colors">マイイベント</Link>
             <span className="mx-2">/</span>
             <span className="text-gray-800 font-medium">{original?.name ?? '…'}</span>
           </div>
@@ -171,7 +171,7 @@ export default function UserEventEditPage() {
           <form onSubmit={handleSubmit} className="space-y-5">
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">名前</label>
               <input
                 type="text"
                 value={name}
@@ -182,7 +182,7 @@ export default function UserEventEditPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">説明</label>
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
@@ -192,7 +192,7 @@ export default function UserEventEditPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Place</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">場所</label>
               <div className="flex gap-2">
                 <input
                   type="text"
@@ -208,7 +208,7 @@ export default function UserEventEditPage() {
                     disabled={geocoding}
                     className="shrink-0 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors"
                   >
-                    {geocoding ? 'Guessing…' : 'Guess coords'}
+                    {geocoding ? '取得中…' : '座標を取得'}
                   </button>
                 )}
               </div>
@@ -216,13 +216,13 @@ export default function UserEventEditPage() {
 
             {candidates.length > 1 && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Select location</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">場所を選択</label>
                 <select
                   defaultValue="-1"
                   onChange={handleCandidateSelect}
                   className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 >
-                  <option value="-1" disabled>— choose a candidate —</option>
+                  <option value="-1" disabled>— 候補を選択 —</option>
                   {candidates.map((c, i) => (
                     <option key={i} value={i}>
                       {c.name} ({c.latitude.toFixed(4)}, {c.longitude.toFixed(4)})
@@ -234,7 +234,7 @@ export default function UserEventEditPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Longitude</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">経度</label>
                 <input
                   type="number"
                   step="any"
@@ -245,7 +245,7 @@ export default function UserEventEditPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Latitude</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">緯度</label>
                 <input
                   type="number"
                   step="any"
@@ -259,7 +259,7 @@ export default function UserEventEditPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Start</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">開始</label>
                 <input
                   type="datetime-local"
                   value={startAt}
@@ -268,7 +268,7 @@ export default function UserEventEditPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">End</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">終了</label>
                 <input
                   type="datetime-local"
                   value={endAt}
@@ -288,9 +288,9 @@ export default function UserEventEditPage() {
                 disabled={!isDirty || !!dateError}
                 className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white px-5 py-2 rounded-lg text-sm font-semibold transition-colors"
               >
-                Save
+                保存
               </button>
-              {saved && <span className="text-emerald-600 text-sm">Saved!</span>}
+              {saved && <span className="text-emerald-600 text-sm">保存しました！</span>}
             </div>
 
           </form>

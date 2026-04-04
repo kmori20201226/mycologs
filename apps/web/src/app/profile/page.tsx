@@ -42,7 +42,7 @@ export default function ProfilePage() {
   if (notFound) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <p className="text-gray-500">Profile not found.</p>
+        <p className="text-gray-500">プロフィールが見つかりません。</p>
       </div>
     )
   }
@@ -73,7 +73,7 @@ export default function ProfilePage() {
             <h1 className="text-xl font-bold text-gray-900">{profile.name}</h1>
             <p className="text-sm text-gray-500 truncate">{profile.email}</p>
             <p className="text-xs text-gray-400 mt-1">
-              Member since {new Date(profile.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long' })}
+              {new Date(profile.createdAt).toLocaleDateString('ja-JP', { year: 'numeric', month: 'long' })}から参加
             </p>
           </div>
         </div>
@@ -87,25 +87,25 @@ export default function ProfilePage() {
             <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
             </svg>
-            Request to Join a Club
+            クラブへの参加申請
           </Link>
         </div>
 
         {/* Stats */}
         <div className="grid grid-cols-3 gap-4 mb-6">
-          <StatCard label="Posts" value={profile.postCount} />
-          <StatCard label="Identifications" value={profile.identificationCount} />
-          <StatCard label="Comments" value={profile.followupCount} />
+          <StatCard label="投稿" value={profile.postCount} />
+          <StatCard label="同定" value={profile.identificationCount} />
+          <StatCard label="コメント" value={profile.followupCount} />
         </div>
 
         {/* Recent posts */}
         <div className="bg-white rounded-xl shadow p-6">
           <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-4">
-            Recent Posts
+            最近の投稿
           </h2>
 
           {profile.recentPosts.length === 0 ? (
-            <p className="text-sm text-gray-400">No posts yet.</p>
+            <p className="text-sm text-gray-400">まだ投稿がありません。</p>
           ) : (
             <ul className="divide-y divide-gray-100">
               {profile.recentPosts.map((post) => (
@@ -153,7 +153,7 @@ export default function ProfilePage() {
               href="/posts"
               className="mt-4 block text-center text-sm text-emerald-600 hover:underline"
             >
-              View all posts →
+              すべての投稿を見る →
             </Link>
           )}
         </div>

@@ -11,16 +11,16 @@ interface Club {
 }
 
 function StatusBadge({ accepted }: { accepted: boolean | null }) {
-  if (accepted === null) return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">Pending</span>
-  if (accepted) return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">Accepted</span>
-  return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-600">Declined</span>
+  if (accepted === null) return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">審査中</span>
+  if (accepted) return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">承認済み</span>
+  return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-600">否認</span>
 }
 
 function RequestTypeBadge({ requestType }: { requestType: string | undefined }) {
   if (requestType === 'LeaveFromMember') {
-    return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-700">Leave</span>
+    return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-700">退会</span>
   }
-  return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">Join</span>
+  return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">参加</span>
 }
 
 export default function ClubRequestPage() {
@@ -56,7 +56,7 @@ export default function ClubRequestPage() {
     setSuccess('')
     const user = getStoredUser()
     if (!user) return
-    if (!selectedClubId) { setError('Please select a club.'); return }
+    if (!selectedClubId) { setError('クラブを選択してください。'); return }
 
     const requestType = isLeave ? 'LeaveFromMember' : 'JoinToMember'
     setSubmitting(true)
@@ -71,14 +71,14 @@ export default function ClubRequestPage() {
       setMessage('')
       window.dispatchEvent(new CustomEvent('pendingRequestCreated'))
       setSuccess(isLeave
-        ? 'Your leave request has been sent to the club manager.'
-        : 'Your join request has been sent to the club manager.')
+        ? '退会申請がクラブ管理者に送信されました。'
+        : '参加申請がクラブ管理者に送信されました。')
     } catch (err: any) {
       const msg = err?.message ?? ''
       if (msg.includes('409')) {
-        setError('You already have a pending request for this club.')
+        setError('このクラブへの申請が既に存在します。')
       } else {
-        setError('Failed to send request. Please try again.')
+        setError('申請の送信に失敗しました。もう一度お試しください。')
       }
     } finally {
       setSubmitting(false)
@@ -94,40 +94,40 @@ export default function ClubRequestPage() {
     <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto px-4 py-8 max-w-2xl">
 
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">Club Membership</h1>
+        <h1 className="text-2xl font-bold text-gray-900 mb-6">クラブメンバーシップ</h1>
 
         {/* Request form */}
         <div className="bg-white rounded-xl shadow p-6 mb-8">
           <form onSubmit={handleSubmit} className="space-y-4">
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Club</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">クラブ</label>
               <select
                 value={selectedClubId}
                 onChange={(e) => { setSelectedClubId(e.target.value); setError(''); setSuccess('') }}
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white"
               >
-                <option value="">— Select a club —</option>
+                <option value="">— クラブを選択 —</option>
                 {clubs.map((c) => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
               {selectedClubId && (
                 <p className="mt-1 text-xs text-gray-400">
-                  {isLeave ? 'You are currently a member of this club.' : 'You are not a member of this club.'}
+                  {isLeave ? '現在このクラブのメンバーです。' : 'このクラブのメンバーではありません。'}
                 </p>
               )}
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Message to the club manager
-                <span className="text-gray-400 font-normal ml-1">(optional)</span>
+                クラブ管理者へのメッセージ
+                <span className="text-gray-400 font-normal ml-1">（任意）</span>
               </label>
               <textarea
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
-                placeholder={isLeave ? 'Reason for leaving…' : 'Introduce yourself or explain why you want to join…'}
+                placeholder={isLeave ? '退会理由を入力…' : '自己紹介や参加を希望する理由を入力…'}
                 rows={3}
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-emerald-400"
               />
@@ -150,7 +150,7 @@ export default function ClubRequestPage() {
                     : 'bg-emerald-600 hover:bg-emerald-700'
                 }`}
               >
-                {submitting ? 'Sending…' : isLeave ? 'Leave' : 'Join'}
+                {submitting ? '送信中…' : isLeave ? '退会する' : '参加申請'}
               </button>
             </div>
           </form>
@@ -158,12 +158,12 @@ export default function ClubRequestPage() {
 
         {/* Past requests */}
         <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
-          Your Requests
+          申請履歴
           {requests.length > 0 && <span className="ml-2 text-emerald-600">{requests.length}</span>}
         </h2>
 
         {requests.length === 0 ? (
-          <p className="text-sm text-gray-400">No requests yet.</p>
+          <p className="text-sm text-gray-400">まだ申請がありません。</p>
         ) : (
           <ul className="space-y-3">
             {requests.map((req) => (
@@ -176,7 +176,7 @@ export default function ClubRequestPage() {
                       <StatusBadge accepted={req.accepted} />
                     </div>
                     <p className="text-xs text-gray-400">
-                      Submitted {new Date(req.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+                      {new Date(req.createdAt).toLocaleDateString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric' })}に申請
                     </p>
                     {req.request?.message && (
                       <p className="mt-2 text-sm text-gray-600 bg-gray-50 rounded-lg px-3 py-2 whitespace-pre-wrap">
@@ -186,7 +186,7 @@ export default function ClubRequestPage() {
                     {req.reply && Object.keys(req.reply).length > 0 && (
                       <div className={`mt-2 text-sm rounded-lg px-3 py-2 ${req.accepted ? 'bg-emerald-50 text-emerald-800' : 'bg-red-50 text-red-700'}`}>
                         <p className="text-xs font-semibold mb-0.5">
-                          Reply from {req.replier?.name ?? 'manager'}
+                          {req.replier?.name ?? '管理者'}からの返信
                           {req.repliedAt && <span className="font-normal text-gray-400 ml-1">· {new Date(req.repliedAt).toLocaleDateString()}</span>}
                         </p>
                         <p className="whitespace-pre-wrap">{(req.reply as any).message ?? JSON.stringify(req.reply)}</p>

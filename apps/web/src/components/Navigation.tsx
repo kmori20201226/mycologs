@@ -119,7 +119,7 @@ export default function Navigation() {
             <button
               onClick={() => setMenuOpen((prev) => !prev)}
               className="relative text-gray-700 hover:text-emerald-600 transition-colors p-1"
-              aria-label="Toggle menu"
+              aria-label="メニューを開閉"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
@@ -139,7 +139,7 @@ export default function Navigation() {
           {/* Centre: club selector */}
           {user && (
             <div className="flex items-center gap-2 text-sm">
-              <span className="text-gray-400">Club:</span>
+              <span className="text-gray-400">クラブ：</span>
               {clubs.length === 0 && (
                 <span className="text-gray-400 italic">—</span>
               )}
@@ -166,24 +166,24 @@ export default function Navigation() {
           {/* Right: auth */}
           {user ? (
             <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-600">Hi, {user.name}</span>
+              <span className="text-sm text-gray-600">こんにちは、{user.name}</span>
               <button
                 onClick={handleLogout}
                 className="text-sm text-gray-700 hover:text-red-600 font-medium transition-colors"
               >
-                Log out
+                ログアウト
               </button>
             </div>
           ) : (
             <div className="flex items-center space-x-4">
               <Link href="/login" className="text-gray-700 hover:text-emerald-600 font-medium transition-colors">
-                Log in
+                ログイン
               </Link>
               <Link
                 href="/register"
                 className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
               >
-                Register
+                新規登録
               </Link>
             </div>
           )}

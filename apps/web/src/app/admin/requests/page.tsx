@@ -11,16 +11,16 @@ interface RequestRow extends UserRequestItem {
 }
 
 function StatusBadge({ accepted }: { accepted: boolean | null }) {
-  if (accepted === null) return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">Pending</span>
-  if (accepted) return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">Accepted</span>
-  return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-600">Declined</span>
+  if (accepted === null) return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">審査中</span>
+  if (accepted) return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">承認済み</span>
+  return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-600">否認</span>
 }
 
 function RequestTypeBadge({ requestType }: { requestType: string | undefined }) {
   if (requestType === 'LeaveFromMember') {
-    return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-700">Leave</span>
+    return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-700">退会</span>
   }
-  return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">Join</span>
+  return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">参加</span>
 }
 
 function PendingCard({
@@ -60,12 +60,12 @@ function PendingCard({
 
       <div className="mb-3">
         <label className="block text-xs font-medium text-gray-500 mb-1">
-          Reply message <span className="font-normal">(optional)</span>
+          返信メッセージ <span className="font-normal">（任意）</span>
         </label>
         <textarea
           value={row.replyDraft}
           onChange={(e) => onUpdate(row.id, { replyDraft: e.target.value })}
-          placeholder="Write a message to the requester…"
+          placeholder="申請者へのメッセージを入力…"
           rows={2}
           className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-emerald-400"
         />
@@ -82,7 +82,7 @@ function PendingCard({
           <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
             <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
           </svg>
-          {isLeave ? 'Approve Leave' : 'Accept'}
+          {isLeave ? '退会承認' : '承認'}
         </button>
         <button
           onClick={() => onDecline(row)}
@@ -92,7 +92,7 @@ function PendingCard({
           <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
             <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
           </svg>
-          {isLeave ? 'Reject Leave' : 'Decline'}
+          {isLeave ? '退会却下' : '却下'}
         </button>
       </div>
     </li>
@@ -193,7 +193,7 @@ export default function ManagerRequestsPage() {
       <div className="container mx-auto px-4 py-8 max-w-3xl">
 
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Member Requests</h1>
+          <h1 className="text-2xl font-bold text-gray-900">メンバー申請</h1>
           {clubName && <p className="text-sm text-gray-500 mt-1">{clubName}</p>}
         </div>
 
@@ -207,14 +207,14 @@ export default function ManagerRequestsPage() {
             ))}
           </div>
         ) : totalPending === 0 ? (
-          <p className="text-sm text-gray-400 mb-8">No pending requests.</p>
+          <p className="text-sm text-gray-400 mb-8">保留中の申請はありません。</p>
         ) : null}
 
         {/* Pending join requests */}
         {!loading && pendingJoin.length > 0 && (
           <div className="mb-8">
             <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
-              Join Requests
+              参加申請
               <span className="ml-2 text-blue-600">{pendingJoin.length}</span>
             </h2>
             <ul className="space-y-4">
@@ -229,7 +229,7 @@ export default function ManagerRequestsPage() {
         {!loading && pendingLeave.length > 0 && (
           <div className="mb-8">
             <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
-              Leave Requests
+              退会申請
               <span className="ml-2 text-orange-600">{pendingLeave.length}</span>
             </h2>
             <ul className="space-y-4">
@@ -254,7 +254,7 @@ export default function ManagerRequestsPage() {
               >
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
               </svg>
-              Resolved ({resolved.length})
+              処理済み（{resolved.length}件）
             </button>
 
             {showResolved && (
@@ -278,7 +278,7 @@ export default function ManagerRequestsPage() {
                       <p className="mt-2 text-xs text-gray-500 bg-gray-50 rounded px-3 py-2 whitespace-pre-wrap">{row.request.message}</p>
                     )}
                     {(row.reply as any)?.message && (
-                      <p className="mt-1 text-xs text-gray-400 italic">Reply: {(row.reply as any).message}</p>
+                      <p className="mt-1 text-xs text-gray-400 italic">返信: {(row.reply as any).message}</p>
                     )}
                   </li>
                 ))}

@@ -4,7 +4,7 @@ import fs from 'fs'
 import path from 'path'
 import sharp from 'sharp'
 
-const UPLOADS_DIR = path.join(process.cwd(), '../../data/uploads')
+const UPLOADS_DIR = path.resolve(__dirname, '../../../../data/uploads')
 
 const SYSTEM_PROMPT = `\
 You are a mycologist specialising in Japanese fungi.

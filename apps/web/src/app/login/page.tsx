@@ -22,7 +22,7 @@ export default function LoginPage() {
       setStoredUser(user)
       window.location.href = '/'
     } catch {
-      setError('Invalid email or password.')
+      setError('メールアドレスまたはパスワードが正しくありません。')
     } finally {
       setLoading(false)
     }
@@ -31,12 +31,12 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center">
       <div className="bg-white rounded-xl shadow-lg p-8 w-full max-w-md">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">Log in</h1>
+        <h1 className="text-2xl font-bold text-gray-900 mb-6">ログイン</h1>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Email
+              メールアドレス
             </label>
             <input
               type="email"
@@ -49,7 +49,7 @@ export default function LoginPage() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Password
+              パスワード
             </label>
             <input
               type="password"
@@ -69,14 +69,14 @@ export default function LoginPage() {
             disabled={loading}
             className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white py-2 rounded-lg font-semibold transition-colors"
           >
-            {loading ? 'Logging in…' : 'Log in'}
+            {loading ? 'ログイン中…' : 'ログイン'}
           </button>
         </form>
 
         <p className="mt-4 text-sm text-gray-600 text-center">
-          No account?{' '}
+          アカウントをお持ちでない方は{' '}
           <Link href="/register" className="text-emerald-600 hover:underline font-medium">
-            Register
+            新規登録
           </Link>
         </p>
       </div>

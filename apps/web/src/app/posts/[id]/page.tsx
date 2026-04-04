@@ -139,7 +139,7 @@ export default function PostPage() {
   async function handleAiIdentify() {
     const images = media.filter((m) => m.type === 'IMAGE')
     if (images.length === 0) {
-      showToast('Need some pictures to identify mushroom')
+      showToast('きのこを同定するには写真が必要です')
       return
     }
     setAiLoading(true)
@@ -151,7 +151,7 @@ export default function PostPage() {
       // Scroll to identification section
       setTimeout(() => identSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
     } catch {
-      setAiError('Identification failed. Please try again.')
+      setAiError('同定に失敗しました。もう一度お試しください。')
     } finally {
       setAiLoading(false)
     }
@@ -161,8 +161,8 @@ export default function PostPage() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <p className="text-gray-500 mb-4">Post not found.</p>
-          <Link href="/posts" className="text-emerald-600 hover:underline">Back to posts</Link>
+          <p className="text-gray-500 mb-4">投稿が見つかりません。</p>
+          <Link href="/posts" className="text-emerald-600 hover:underline">投稿一覧へ戻る</Link>
         </div>
       </div>
     )
@@ -184,12 +184,12 @@ export default function PostPage() {
             <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
             </svg>
-            Back
+            戻る
           </Link>
           <div className="text-sm text-gray-500">
-            <Link href="/posts" className="hover:text-emerald-600 transition-colors">Posts</Link>
+            <Link href="/posts" className="hover:text-emerald-600 transition-colors">投稿一覧</Link>
             <span className="mx-2">/</span>
-            <span className="text-gray-800 font-medium">Post #{postId}</span>
+            <span className="text-gray-800 font-medium">投稿 #{postId}</span>
           </div>
         </div>
 
@@ -197,9 +197,9 @@ export default function PostPage() {
           <div className="mb-4 flex items-center justify-between gap-3 bg-yellow-50 border border-yellow-200 text-yellow-800 text-sm px-4 py-3 rounded-lg">
             <span>
               {uploadErrors === 1
-                ? '1 file failed to upload.'
-                : `${uploadErrors} files failed to upload.`}
-              {' '}The post was created successfully.
+                ? '1件のファイルのアップロードに失敗しました。'
+                : `${uploadErrors}件のファイルのアップロードに失敗しました。`}
+              {' '}投稿は正常に作成されました。
             </span>
             <button onClick={() => setErrorDismissed(true)} className="text-yellow-600 hover:text-yellow-800 shrink-0" aria-label="Dismiss">
               <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -230,10 +230,10 @@ export default function PostPage() {
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
                       </svg>
-                      Identifying…
+                      同定中…
                     </>
                   ) : (
-                    'Help Identify'
+                    '同定を依頼'
                   )}
                 </button>}
               </div>
@@ -253,7 +253,7 @@ export default function PostPage() {
             {/* Media gallery */}
             {images.length > 0 && (
               <div className="bg-white rounded-xl shadow p-6 mb-6">
-                <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-4">Photos</h2>
+                <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-4">写真</h2>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   {images.map((img) => (
                     <button
@@ -285,7 +285,7 @@ export default function PostPage() {
                     <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-emerald-600" viewBox="0 0 20 20" fill="currentColor">
                       <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                     </svg>
-                    <span className="text-sm font-semibold text-emerald-700 uppercase tracking-wide">Accepted Identification</span>
+                    <span className="text-sm font-semibold text-emerald-700 uppercase tracking-wide">確定済み同定</span>
                     {aiAccepted && (
                       <span className="text-xs font-medium text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full">AI</span>
                     )}
@@ -296,7 +296,7 @@ export default function PostPage() {
                     {japaneseName && <p className="text-base text-gray-700">{japaneseName}</p>}
                     {acceptedDbIdent && (
                       <p className="text-sm text-gray-500 mt-1">
-                        Proposed by {acceptedDbIdent.user.name} · {new Date(acceptedDbIdent.createdAt).toLocaleDateString()}
+                        {acceptedDbIdent.user.name} が提案 · {new Date(acceptedDbIdent.createdAt).toLocaleDateString('ja-JP')}
                       </p>
                     )}
                   </div>
@@ -357,7 +357,7 @@ export default function PostPage() {
 
             {otherMedia.length > 0 && (
               <div className="bg-white rounded-xl shadow p-6 mb-6">
-                <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-4">Attachments</h2>
+                <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-4">添付ファイル</h2>
                 <ul className="space-y-2">
                   {otherMedia.map((m) => (
                     <li key={m.id}>
@@ -381,7 +381,7 @@ export default function PostPage() {
             {!acceptedId && !aiAccepted && <div ref={identSectionRef} className="bg-white rounded-xl shadow p-6 mb-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
-                  Identifications
+                  同定
                   {identifications.length > 0 && (
                     <span className="ml-2 text-emerald-600">{identifications.length}</span>
                   )}
@@ -396,7 +396,7 @@ export default function PostPage() {
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
                   </svg>
-                  Analysing {images.length} photo{images.length > 1 ? 's' : ''} with Claude AI…
+                  Claude AIで{images.length}枚の写真を分析中…
                 </div>
               )}
 
@@ -500,7 +500,7 @@ export default function PostPage() {
                       <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
                         <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                       </svg>
-                      {aiAccepted ? 'Accepted' : 'Accept'}
+                      {aiAccepted ? '確定済み' : '確定する'}
                     </button>
                     <button
                       onClick={handleDeclineAi}
@@ -509,7 +509,7 @@ export default function PostPage() {
                       <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
                         <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
                       </svg>
-                      Decline
+                      却下
                     </button>
                   </div>
                 </div>
@@ -518,8 +518,8 @@ export default function PostPage() {
               {/* Human identifications */}
               {identifications.length === 0 && !aiResult ? (
                 <div className="text-center py-8">
-                  <p className="text-gray-500 text-sm mb-3">No identifications yet.</p>
-                  <p className="text-gray-400 text-sm">Click <strong>Help Identify</strong> to use AI, or propose your own.</p>
+                  <p className="text-gray-500 text-sm mb-3">まだ同定がありません。</p>
+                  <p className="text-gray-400 text-sm"><strong>同定を依頼</strong>をクリックしてAIを使うか、自分で提案してください。</p>
                 </div>
               ) : identifications.length > 0 ? (
                 <ul className="space-y-3">
@@ -538,7 +538,7 @@ export default function PostPage() {
                               {ident.species?.scientificName ?? (ident.description as any)?.scientific_name ?? '—'}
                             </p>
                             <p className="text-xs text-gray-500">
-                              Proposed by {ident.user.name} · {new Date(ident.createdAt).toLocaleDateString()}
+                              {ident.user.name} が提案 · {new Date(ident.createdAt).toLocaleDateString('ja-JP')}
                             </p>
                           </div>
                           <ConfidenceBadge confidence={ident.confidence} />
@@ -555,7 +555,7 @@ export default function PostPage() {
                             <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
                               <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                             </svg>
-                            {isAccepted ? 'Accepted' : 'Accept'}
+                            {isAccepted ? '確定済み' : '確定する'}
                           </button>
                           <button
                             onClick={() => handleDecline(ident.id)}
@@ -564,7 +564,7 @@ export default function PostPage() {
                             <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
                               <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
                             </svg>
-                            Decline
+                            却下
                           </button>
                         </div>
                       </li>
@@ -580,14 +580,14 @@ export default function PostPage() {
               return (
                 <div className="bg-white rounded-xl shadow p-6">
                   <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-4">
-                    Comments
+                    コメント
                     {followups.length > 0 && (
                       <span className="ml-2 text-emerald-600">{followups.length}</span>
                     )}
                   </h2>
 
                   {followups.length === 0 && (
-                    <p className="text-sm text-gray-400 mb-4">No comments yet.</p>
+                    <p className="text-sm text-gray-400 mb-4">まだコメントがありません。</p>
                   )}
 
                   {followups.length > 0 && (
@@ -614,7 +614,7 @@ export default function PostPage() {
                       <textarea
                         value={commentText}
                         onChange={(e) => setCommentText(e.target.value)}
-                        placeholder="Add a comment…"
+                        placeholder="コメントを追加…"
                         rows={3}
                         className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-emerald-400"
                       />
@@ -624,13 +624,13 @@ export default function PostPage() {
                           disabled={commentSubmitting || !commentText.trim()}
                           className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-sm font-semibold rounded-lg transition-colors"
                         >
-                          {commentSubmitting ? 'Posting…' : 'Post Comment'}
+                          {commentSubmitting ? '投稿中…' : 'コメントを投稿'}
                         </button>
                       </div>
                     </form>
                   ) : (
                     <p className="text-sm text-gray-400">
-                      <Link href="/login" className="text-emerald-600 hover:underline">Sign in</Link> to leave a comment.
+                      <Link href="/login" className="text-emerald-600 hover:underline">サインイン</Link>してコメントを投稿。
                     </p>
                   )}
                 </div>

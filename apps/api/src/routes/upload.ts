@@ -5,7 +5,7 @@ import crypto from 'crypto'
 import { pipeline } from 'stream/promises'
 import imageSize from 'image-size'
 
-const UPLOADS_DIR = path.join(process.cwd(), '../../data/uploads')
+const UPLOADS_DIR = path.resolve(__dirname, '../../../../data/uploads')
 
 function mimeToMediaType(mime: string): 'IMAGE' | 'VIDEO' | 'AUDIO' | 'DOCUMENT' {
     if (mime.startsWith('image/')) return 'IMAGE'

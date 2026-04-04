@@ -104,8 +104,8 @@ export default function ClubEditPage() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <p className="text-gray-500 mb-4">Club not found.</p>
-          <Link href="/admin/clubs" className="text-emerald-600 hover:underline">Back to clubs</Link>
+          <p className="text-gray-500 mb-4">クラブが見つかりません。</p>
+          <Link href="/admin/clubs" className="text-emerald-600 hover:underline">クラブ一覧へ戻る</Link>
         </div>
       </div>
     )
@@ -124,10 +124,10 @@ export default function ClubEditPage() {
             <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
             </svg>
-            Back
+            戻る
           </Link>
           <div className="text-sm text-gray-500">
-            <Link href="/admin/clubs" className="hover:text-emerald-600 transition-colors">Clubs</Link>
+            <Link href="/admin/clubs" className="hover:text-emerald-600 transition-colors">クラブ</Link>
             <span className="mx-2">/</span>
             <span className="text-gray-800 font-medium">{clubName}</span>
           </div>
@@ -135,7 +135,7 @@ export default function ClubEditPage() {
 
         {/* Rename */}
         <div className="bg-white rounded-xl shadow p-5 mb-6 max-w-lg">
-          <h2 className="font-semibold text-gray-700 mb-3">Club Name</h2>
+          <h2 className="font-semibold text-gray-700 mb-3">クラブ名</h2>
           <form onSubmit={handleRename} className="flex gap-2">
             <input
               value={editName}
@@ -148,7 +148,7 @@ export default function ClubEditPage() {
               disabled={editName === clubName}
               className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
             >
-              Save
+              保存
             </button>
           </form>
         </div>
@@ -165,11 +165,11 @@ export default function ClubEditPage() {
               dragOverPanel === 'users' ? 'ring-2 ring-emerald-400 bg-emerald-50' : ''
             }`}
           >
-            <h2 className="font-semibold text-gray-700 mb-1">All Users</h2>
-            <p className="text-xs text-gray-400 mb-4">Drag a user to the right panel to add them.</p>
+            <h2 className="font-semibold text-gray-700 mb-1">全ユーザー</h2>
+            <p className="text-xs text-gray-400 mb-4">右パネルにドラッグして追加できます。</p>
 
             {nonMembers.length === 0 ? (
-              <p className="text-sm text-gray-400 text-center py-8">All users are already members.</p>
+              <p className="text-sm text-gray-400 text-center py-8">全ユーザーがメンバーです。</p>
             ) : (
               <ul className="space-y-2 overflow-y-auto max-h-96">
                 {nonMembers.map((u) => (
@@ -199,11 +199,11 @@ export default function ClubEditPage() {
               dragOverPanel === 'members' ? 'ring-2 ring-emerald-400 bg-emerald-50' : ''
             }`}
           >
-            <h2 className="font-semibold text-gray-700 mb-1">Members</h2>
-            <p className="text-xs text-gray-400 mb-4">Drag a member back to remove. Check box = Club Manager.</p>
+            <h2 className="font-semibold text-gray-700 mb-1">メンバー</h2>
+            <p className="text-xs text-gray-400 mb-4">左に戻してドロップで削除。チェック = クラブマネージャー。</p>
 
             {members.length === 0 ? (
-              <p className="text-sm text-gray-400 text-center py-8">Drop users here to add them.</p>
+              <p className="text-sm text-gray-400 text-center py-8">ここにユーザーをドロップして追加。</p>
             ) : (
               <ul className="space-y-2 overflow-y-auto max-h-96">
                 {members.map((m) => {
@@ -230,7 +230,7 @@ export default function ClubEditPage() {
                           onChange={(e) => handleManagerToggle(m.user.id, e.target.checked)}
                           className="w-4 h-4 accent-emerald-600"
                         />
-                        <span className="text-xs text-gray-500 whitespace-nowrap">Manager</span>
+                        <span className="text-xs text-gray-500 whitespace-nowrap">マネージャー</span>
                       </label>
                     </li>
                   )
