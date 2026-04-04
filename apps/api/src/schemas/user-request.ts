@@ -4,8 +4,19 @@ export const userRequestSchema = {
         id: { type: 'number' },
         requesterId: { type: 'number' },
         clubId: { type: 'number', nullable: true },
-        request: { type: 'object', nullable: true, additionalProperties: true },
-        reply: { type: 'object', nullable: true, additionalProperties: true },
+        request: {
+            type: 'object', nullable: true,
+            properties: {
+                requestType: { type: 'string' },
+                message: { type: 'string' }
+            },
+            additionalProperties: true
+        },
+        reply: {
+            type: 'object', nullable: true,
+            properties: { message: { type: 'string' } },
+            additionalProperties: true
+        },
         replierId: { type: 'number', nullable: true },
         accepted: { type: 'boolean', nullable: true },
         createdAt: { type: 'string', format: 'date-time' },
