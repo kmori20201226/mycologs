@@ -56,8 +56,15 @@ export default function Navigation() {
     function onCreated() {
       setPendingRequestCount((n) => n + 1)
     }
+    function onClubChanged(e: Event) {
+      const { clubId: newId } = (e as CustomEvent).detail
+      _setSelectedClubId(newId)
+      setSelectedClubId(newId)
+      fetchPendingCount(newId, getStoredClubs())
+    }
     window.addEventListener('pendingRequestResolved', onResolved)
     window.addEventListener('pendingRequestCreated', onCreated)
+    window.addEventListener('clubChanged', onClubChanged)
 
     apiClient.request<ClubMembership[]>('/me/clubs', {
       headers: { Authorization: `Bearer ${token}` }
@@ -74,6 +81,7 @@ export default function Navigation() {
     return () => {
       window.removeEventListener('pendingRequestResolved', onResolved)
       window.removeEventListener('pendingRequestCreated', onCreated)
+      window.removeEventListener('clubChanged', onClubChanged)
     }
   }, [])
 
@@ -90,10 +98,7 @@ export default function Navigation() {
   }
 
   function handleClubChange(id: number) {
-    _setSelectedClubId(id)
-    setSelectedClubId(id)
     window.dispatchEvent(new CustomEvent('clubChanged', { detail: { clubId: id } }))
-    fetchPendingCount(id, clubs)
   }
 
   function handleLogout() {
