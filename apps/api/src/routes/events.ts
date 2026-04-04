@@ -13,13 +13,14 @@ export default async function (fastify: FastifyInstance) {
             }
         }
     }, async (request, reply) => {
-        const { name, description, clubId, place, longitude, latitude, startAt, endAt } = request.body as any
+        const { name, description, clubId, userId, place, longitude, latitude, startAt, endAt } = request.body as any
 
         const event = await fastify.prisma.event.create({
             data: {
                 name,
                 description,
                 clubId: clubId ?? null,
+                userId: userId ?? null,
                 place: place ?? null,
                 longitude: longitude ?? null,
                 latitude: latitude ?? null,
@@ -76,10 +77,13 @@ export default async function (fastify: FastifyInstance) {
             }
         }
     }, async (request, reply) => {
-        const { clubId } = request.query as { clubId?: number }
+        const { clubId, userId } = request.query as { clubId?: number; userId?: number }
 
         const events = await fastify.prisma.event.findMany({
-            ...(clubId ? { where: { clubId: Number(clubId) } } : {}),
+            where: {
+                ...(clubId ? { clubId: Number(clubId) } : {}),
+                ...(userId ? { userId: Number(userId) } : {})
+            },
             orderBy: { createdAt: 'desc' }
         })
 

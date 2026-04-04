@@ -89,6 +89,7 @@ model User {
   followups     Followup[]
   identifications Identification[]
   votes         Vote[]
+  events        Event[]
 
   @@map("users")
 }
@@ -122,6 +123,7 @@ enum PublicityType {
 model Event {
   id                Int        @id @default(autoincrement())
   clubId            Int?       @map("club_id")
+  userId            Int?       @map("user_id")
   name              String
   description       String?
   place             String?
@@ -132,6 +134,7 @@ model Event {
   createdAt         DateTime   @default(now()) @map("created_at")
 
   club              Club?      @relation(fields: [clubId], references: [id])
+  user              User?      @relation(fields: [userId], references: [id])
   posts             Post[]
 }
 
@@ -168,6 +171,7 @@ model Identification {
   postId            Int       @map("post_id")
   userId            Int       @map("user_id")
   specieId          Int       @map("specie_id")
+  description       Json?     @map("description")
   confidence        Float?    // Calculated at query time
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @updatedAt @map("updated_at")

@@ -29,13 +29,14 @@ export default async function (fastify: FastifyInstance) {
             }
         }
     }, async (request, reply) => {
-        const { postId, userId, specieId } = request.body as any
+        const { postId, userId, specieId, description } = request.body as any
 
         const identification = await fastify.prisma.identification.create({
             data: {
                 postId,
                 userId,
-                specieId
+                specieId,
+                description: description ?? null
             },
             include: {
                 user: { select: { id: true, name: true } },

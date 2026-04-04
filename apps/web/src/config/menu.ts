@@ -24,9 +24,14 @@ export const menuItems: MenuItem[] = [
     visibleTo: ['public'],
   },
   {
-    label: 'Events',
+    label: 'Club Events',
     href: '/admin/events',
     visibleTo: ['ADMIN', 'DEVELOPER', 'CLUBMANAGER'],
+  },
+  {
+    label: 'User Events',
+    href: '/events',
+    visibleTo: ['authenticated'],
   },
   {
     label: 'Clubs',

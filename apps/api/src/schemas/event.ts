@@ -3,6 +3,7 @@ export const eventSchema = {
     properties: {
         id: { type: 'number' },
         clubId: { type: 'number', nullable: true },
+        userId: { type: 'number', nullable: true },
         name: { type: 'string' },
         description: { type: 'string', nullable: true },
         place: { type: 'string', nullable: true },
@@ -19,6 +20,7 @@ export const createEventSchema = {
     required: ['name'],
     properties: {
         clubId: { type: 'number', nullable: true },
+        userId: { type: 'number', nullable: true },
         name: { type: 'string' },
         description: { type: 'string' },
         place: { type: 'string' },
@@ -33,6 +35,7 @@ export const updateEventSchema = {
     type: 'object',
     properties: {
         clubId: { type: 'number', nullable: true },
+        userId: { type: 'number', nullable: true },
         name: { type: 'string' },
         description: { type: 'string' },
         place: { type: 'string', nullable: true },

@@ -72,6 +72,7 @@ export interface MediaItem {
 export interface Event {
   id: number
   clubId: number | null
+  userId: number | null
   name: string
   description: string | null
   place: string | null
@@ -170,12 +171,15 @@ class ApiClient {
   }
 
   // Events
-  async getEvents(clubId?: number): Promise<Event[]> {
-    const qs = clubId ? `?clubId=${clubId}` : ''
+  async getEvents(filter?: { clubId?: number; userId?: number }): Promise<Event[]> {
+    const params = new URLSearchParams()
+    if (filter?.clubId) params.set('clubId', String(filter.clubId))
+    if (filter?.userId) params.set('userId', String(filter.userId))
+    const qs = params.toString() ? `?${params.toString()}` : ''
     return this.request(`/events${qs}`)
   }
 
-  async createEvent(data: { name: string; clubId?: number; description?: string; startAt?: string; endAt?: string }): Promise<Event> {
+  async createEvent(data: { name: string; clubId?: number; userId?: number; description?: string; startAt?: string; endAt?: string }): Promise<Event> {
     return this.request('/events', { method: 'POST', body: JSON.stringify(data) })
   }
 
@@ -318,6 +322,10 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify(data),
     });
+  }
+
+  async deleteIdentification(id: number): Promise<void> {
+    return this.request(`/identifications/${id}`, { method: 'DELETE' })
   }
 
   // Votes

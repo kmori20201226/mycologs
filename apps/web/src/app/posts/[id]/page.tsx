@@ -17,6 +17,7 @@ interface Identification {
   id: number
   createdAt: string
   confidence: number | null
+  description: AiIdentification | null
   user: { id: number; name: string }
   species: { id: number; scientificName: string }
 }
@@ -33,6 +34,8 @@ export default function PostPage() {
   const [notFound, setNotFound] = useState(false)
   const [selectedMedia, setSelectedMedia] = useState<MediaItem | null>(null)
   const [errorDismissed, setErrorDismissed] = useState(false)
+  const [acceptedId, setAcceptedId] = useState<number | null>(null)
+  const [aiAccepted, setAiAccepted] = useState(false)
 
   // AI identification state
   const [aiResult, setAiResult] = useState<AiIdentification | null>(null)
@@ -60,6 +63,27 @@ export default function PostPage() {
     setToast(msg)
     if (toastTimer.current) clearTimeout(toastTimer.current)
     toastTimer.current = setTimeout(() => setToast(''), 3500)
+  }
+
+  function handleAccept(id: number) {
+    setAcceptedId((prev) => (prev === id ? null : id))
+    setAiAccepted(false)
+  }
+
+  function handleAcceptAi() {
+    setAiAccepted(true)
+    setAcceptedId(null)
+  }
+
+  function handleDeclineAi() {
+    setAiResult(null)
+    setAiAccepted(false)
+  }
+
+  async function handleDecline(id: number) {
+    await apiClient.deleteIdentification(id)
+    setIdentifications((prev) => prev.filter((i) => i.id !== id))
+    if (acceptedId === id) setAcceptedId(null)
   }
 
   async function handleAiIdentify() {
@@ -145,7 +169,7 @@ export default function PostPage() {
                   <span className="mx-2">·</span>
                   <span>{new Date(post.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}</span>
                 </div>
-                <button
+                {!acceptedId && !aiAccepted && <button
                   onClick={handleAiIdentify}
                   disabled={aiLoading}
                   className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors"
@@ -161,7 +185,7 @@ export default function PostPage() {
                   ) : (
                     'Help Identify'
                   )}
-                </button>
+                </button>}
               </div>
 
               {post.event && (
@@ -198,6 +222,89 @@ export default function PostPage() {
               </div>
             )}
 
+            {/* Accepted identification */}
+            {(acceptedId !== null || aiAccepted) && (() => {
+              const acceptedDbIdent = identifications.find((i) => i.id === acceptedId)
+              const details: AiIdentification | null =
+                acceptedDbIdent?.description ?? (aiAccepted ? aiResult : null)
+              const name = acceptedDbIdent?.species.scientificName ?? aiResult?.scientific_name ?? ''
+              const japaneseName = aiResult?.japanese_name ?? null
+              return (
+                <div className="bg-emerald-50 border-2 border-emerald-400 rounded-xl shadow p-5 mb-6 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-emerald-600" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                    <span className="text-sm font-semibold text-emerald-700 uppercase tracking-wide">Accepted Identification</span>
+                    {aiAccepted && (
+                      <span className="text-xs font-medium text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full">AI</span>
+                    )}
+                  </div>
+
+                  <div>
+                    <p className="text-xl font-bold text-gray-900 italic">{name}</p>
+                    {japaneseName && <p className="text-base text-gray-700">{japaneseName}</p>}
+                    {acceptedDbIdent && (
+                      <p className="text-sm text-gray-500 mt-1">
+                        Proposed by {acceptedDbIdent.user.name} · {new Date(acceptedDbIdent.createdAt).toLocaleDateString()}
+                      </p>
+                    )}
+                  </div>
+
+                  {details && (
+                    <>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <AiConfidenceBadge confidence={details.confidence} />
+                        <EdibilityBadge edibility={details.edibility} />
+                      </div>
+
+                      {details.shape && (
+                        <p className="text-xs text-gray-500">形状: <span className="text-gray-700 font-medium">{details.shape}</span></p>
+                      )}
+
+                      {details.key_features?.length > 0 && (
+                        <div>
+                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">特徴</p>
+                          <ul className="space-y-1">
+                            {details.key_features.map((f, i) => (
+                              <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
+                                <span className="text-emerald-500 mt-0.5 shrink-0">•</span>
+                                {typeof f === 'string' ? f : Object.values(f).join(' ')}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {details.similar_species?.length > 0 && (
+                        <div>
+                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">類似種</p>
+                          <ul className="space-y-1">
+                            {details.similar_species.map((s, i) => (
+                              <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
+                                <span className="text-yellow-500 mt-0.5 shrink-0">△</span>
+                                {typeof s === 'string' ? s : [s.name, s.difference].filter(Boolean).join(' — ')}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {details.disclaimer && (
+                        <p className="text-xs text-gray-500 border-t border-emerald-200 pt-3 leading-relaxed">
+                          ⚠️ {details.disclaimer}
+                        </p>
+                      )}
+                    </>
+                  )}
+
+                  {!details && acceptedDbIdent && (
+                    <ConfidenceBadge confidence={acceptedDbIdent.confidence} />
+                  )}
+                </div>
+              )
+            })()}
+
             {otherMedia.length > 0 && (
               <div className="bg-white rounded-xl shadow p-6 mb-6">
                 <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-4">Attachments</h2>
@@ -221,7 +328,7 @@ export default function PostPage() {
             )}
 
             {/* Identifications */}
-            <div ref={identSectionRef} className="bg-white rounded-xl shadow p-6">
+            {!acceptedId && !aiAccepted && <div ref={identSectionRef} className="bg-white rounded-xl shadow p-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
                   Identifications
@@ -248,7 +355,7 @@ export default function PostPage() {
                 </div>
               )}
 
-              {aiResult && (
+              {aiResult && !aiAccepted && (
                 <div className="mb-6 rounded-xl border border-emerald-300 bg-emerald-50 p-5 space-y-3">
                   {/* Header */}
                   <div className="flex items-start justify-between gap-3">
@@ -275,15 +382,6 @@ export default function PostPage() {
                         <p className="mt-2 text-sm text-gray-500 italic">キノコが特定できませんでした</p>
                       )}
                     </div>
-                    <button
-                      onClick={() => setAiResult(null)}
-                      className="text-gray-400 hover:text-gray-600 shrink-0 mt-1"
-                      aria-label="Dismiss"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
                   </div>
 
                   {/* Shape */}
@@ -337,6 +435,32 @@ export default function PostPage() {
                       ⚠️ {aiResult.disclaimer}
                     </p>
                   )}
+
+                  {/* Accept / Decline */}
+                  <div className="flex items-center gap-2 pt-3 border-t border-emerald-200">
+                    <button
+                      onClick={handleAcceptAi}
+                      className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${
+                        aiAccepted
+                          ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                          : 'bg-white border border-emerald-500 text-emerald-600 hover:bg-emerald-50'
+                      }`}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                      {aiAccepted ? 'Accepted' : 'Accept'}
+                    </button>
+                    <button
+                      onClick={handleDeclineAi}
+                      className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-white border border-red-400 text-red-500 hover:bg-red-50 transition-colors"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                      </svg>
+                      Decline
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -348,20 +472,56 @@ export default function PostPage() {
                 </div>
               ) : identifications.length > 0 ? (
                 <ul className="space-y-3">
-                  {identifications.map((id) => (
-                    <li key={id.id} className="flex items-center gap-4 p-3 rounded-lg border bg-gray-50">
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-gray-900 text-sm italic">{id.species.scientificName}</p>
-                        <p className="text-xs text-gray-500">
-                          Proposed by {id.user.name} · {new Date(id.createdAt).toLocaleDateString()}
-                        </p>
-                      </div>
-                      <ConfidenceBadge confidence={id.confidence} />
-                    </li>
-                  ))}
+                  {identifications.filter((i) => i.id !== acceptedId).map((ident) => {
+                    const isAccepted = acceptedId === ident.id
+                    return (
+                      <li
+                        key={ident.id}
+                        className={`p-3 rounded-lg border transition-colors ${
+                          isAccepted ? 'border-emerald-400 bg-emerald-50' : 'border-gray-200 bg-gray-50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-4 mb-3">
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-sm italic text-gray-900">
+                              {ident.species.scientificName}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              Proposed by {ident.user.name} · {new Date(ident.createdAt).toLocaleDateString()}
+                            </p>
+                          </div>
+                          <ConfidenceBadge confidence={ident.confidence} />
+                        </div>
+                        <div className="flex items-center gap-2 pt-2 border-t border-gray-200">
+                          <button
+                            onClick={() => handleAccept(ident.id)}
+                            className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${
+                              isAccepted
+                                ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                                : 'bg-white border border-emerald-500 text-emerald-600 hover:bg-emerald-50'
+                            }`}
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                            </svg>
+                            {isAccepted ? 'Accepted' : 'Accept'}
+                          </button>
+                          <button
+                            onClick={() => handleDecline(ident.id)}
+                            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-white border border-red-400 text-red-500 hover:bg-red-50 transition-colors"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+                              <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                            </svg>
+                            Decline
+                          </button>
+                        </div>
+                      </li>
+                    )
+                  })}
                 </ul>
               ) : null}
-            </div>
+            </div>}
           </>
         ) : (
           !notFound && (

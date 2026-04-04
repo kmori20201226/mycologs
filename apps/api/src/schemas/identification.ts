@@ -5,6 +5,7 @@ export const identificationSchema = {
         postId: { type: 'number' },
         userId: { type: 'number' },
         specieId: { type: 'number' },
+        description: { type: 'object', nullable: true, additionalProperties: true },
         confidence: { type: 'number', nullable: true },
         createdAt: { type: 'string', format: 'date-time' },
         updatedAt: { type: 'string', format: 'date-time' },
@@ -38,7 +39,8 @@ export const createIdentificationSchema = {
     properties: {
         postId: { type: 'number' },
         userId: { type: 'number' },
-        specieId: { type: 'number' }
+        specieId: { type: 'number' },
+        description: { type: 'object', nullable: true, additionalProperties: true }
     }
 }
 

@@ -6,10 +6,25 @@ test('POST, GET, LIST, PATCH and DELETE /events', async (t) => {
     const app = await buildApp()
     t.after(() => app.close())
 
-    // CREATE
+    // CREATE a user to own events and generate auth token
+    const userRes = await app.inject({
+        method: 'POST',
+        url: '/users',
+        payload: {
+            name: 'Event Owner',
+            email: `event-owner-${Date.now()}@example.com`,
+            password: 'password123'
+        }
+    })
+    const createdUser = userRes.json() as any
+    const token = app.jwt.sign({ id: createdUser.id, email: createdUser.email })
+    const authHeaders = { authorization: `Bearer ${token}` }
+
+    // CREATE (club-less, user-less)
     const createRes = await app.inject({
         method: 'POST',
         url: '/events',
+        headers: authHeaders,
         payload: {
             name: 'Mushroom Foraging Trip',
             description: 'A day trip to collect mushrooms in the forest',
@@ -23,6 +38,31 @@ test('POST, GET, LIST, PATCH and DELETE /events', async (t) => {
     assert.equal(createdEvent.name, 'Mushroom Foraging Trip')
     assert.equal(createdEvent.description, 'A day trip to collect mushrooms in the forest')
     assert.ok(createdEvent.id)
+
+    // CREATE user-owned event
+    const userEventRes = await app.inject({
+        method: 'POST',
+        url: '/events',
+        headers: authHeaders,
+        payload: {
+            name: 'Personal Foraging Trip',
+            userId: createdUser.id
+        }
+    })
+
+    assert.equal(userEventRes.statusCode, 201)
+    const userEvent = userEventRes.json() as any
+    assert.equal(userEvent.userId, createdUser.id)
+
+    // LIST filtered by userId
+    const listByUserRes = await app.inject({
+        method: 'GET',
+        url: `/events?userId=${createdUser.id}`
+    })
+
+    assert.equal(listByUserRes.statusCode, 200)
+    const userEvents = listByUserRes.json() as any[]
+    assert.ok(userEvents.every(e => e.userId === createdUser.id))
 
     // READ BY ID
     const getRes = await app.inject({
@@ -48,6 +88,7 @@ test('POST, GET, LIST, PATCH and DELETE /events', async (t) => {
     const updateRes = await app.inject({
         method: 'PATCH',
         url: `/events/${createdEvent.id}`,
+        headers: authHeaders,
         payload: {
             name: 'Updated Mushroom Foraging Trip',
             description: 'Updated description'
@@ -57,10 +98,14 @@ test('POST, GET, LIST, PATCH and DELETE /events', async (t) => {
     assert.equal(updateRes.statusCode, 200)
     assert.equal(updateRes.json().name, 'Updated Mushroom Foraging Trip')
 
+    // DELETE user-owned event
+    await app.inject({ method: 'DELETE', url: `/events/${userEvent.id}`, headers: authHeaders })
+
     // DELETE
     const deleteRes = await app.inject({
         method: 'DELETE',
-        url: `/events/${createdEvent.id}`
+        url: `/events/${createdEvent.id}`,
+        headers: authHeaders
     })
 
     assert.equal(deleteRes.statusCode, 200)

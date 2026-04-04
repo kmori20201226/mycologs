@@ -3,41 +3,43 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { apiClient, type Event } from '@/lib/api'
-import { getSelectedClubId, getStoredClubs } from '@/lib/auth'
+import { getStoredUser } from '@/lib/auth'
 
 function formatDate(iso: string | null): string {
   if (!iso) return '—'
   return new Date(iso).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })
 }
 
-export default function EventListPage() {
+export default function UserEventListPage() {
   const router = useRouter()
   const [events, setEvents] = useState<Event[]>([])
   const [newName, setNewName] = useState('')
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null)
-  const [clubId, setClubId] = useState<number | null>(null)
-  const [clubName, setClubName] = useState<string>('')
+  const [userId, setUserId] = useState<number | null>(null)
+  const [userName, setUserName] = useState<string>('')
 
   useEffect(() => {
-    const id = getSelectedClubId()
-    setClubId(id)
-    if (id) {
-      const clubs = getStoredClubs()
-      const club = clubs.find((c) => c.id === id)
-      setClubName(club?.name ?? '')
+    const user = getStoredUser()
+    if (!user) {
+      router.push('/login')
+      return
     }
-    loadEvents(id)
+    setUserId(user.id)
+    setUserName(user.name)
+    loadEvents(user.id)
   }, [])
 
-  async function loadEvents(id?: number | null) {
-    const cid = id !== undefined ? id : clubId
-    const data = await apiClient.getEvents(cid ? { clubId: cid } : undefined)
+  async function loadEvents(uid?: number) {
+    const id = uid ?? userId
+    if (!id) return
+    const data = await apiClient.getEvents({ userId: id })
     setEvents(data)
   }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
-    await apiClient.createEvent({ name: newName, clubId: clubId ?? undefined })
+    if (!userId) return
+    await apiClient.createEvent({ name: newName, userId })
     setNewName('')
     loadEvents()
   }
@@ -52,9 +54,9 @@ export default function EventListPage() {
     <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto px-4 py-8 max-w-4xl">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Club Events</h1>
-          {clubName && (
-            <p className="text-sm text-gray-500 mt-1">Club: <span className="font-medium text-gray-700">{clubName}</span></p>
+          <h1 className="text-3xl font-bold text-gray-900">My Events</h1>
+          {userName && (
+            <p className="text-sm text-gray-500 mt-1">{userName}</p>
           )}
         </div>
 
@@ -101,7 +103,7 @@ export default function EventListPage() {
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-4">
                         <button
-                          onClick={() => router.push(`/admin/events/${ev.id}`)}
+                          onClick={() => router.push(`/events/${ev.id}`)}
                           className="text-emerald-600 hover:text-emerald-700 font-medium transition-colors"
                         >
                           Edit
