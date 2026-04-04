@@ -141,9 +141,7 @@ export default function ManagerRequestsPage() {
     function onClubChanged(e: Event) {
       const { clubId: newId } = (e as CustomEvent).detail
       const allClubs = getStoredClubs()
-      const managed = allClubs.filter((c) => c.role === 'CLUBMANAGER')
-      const target = managed.find((c) => c.id === newId)?.id ?? managed[0]?.id
-      if (target) loadForClub(target, allClubs)
+      loadForClub(newId, allClubs)
     }
     window.addEventListener('clubChanged', onClubChanged)
     return () => window.removeEventListener('clubChanged', onClubChanged)
