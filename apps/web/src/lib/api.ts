@@ -316,12 +316,17 @@ class ApiClient {
   async createIdentification(data: {
     postId: number;
     userId: number;
-    specieId: number;
+    specieId?: number;
+    description?: Record<string, unknown>;
   }): Promise<Identification> {
     return this.request('/identifications', {
       method: 'POST',
       body: JSON.stringify(data),
     });
+  }
+
+  async acceptIdentification(id: number): Promise<void> {
+    return this.request(`/identifications/${id}/accept`, { method: 'POST' })
   }
 
   async deleteIdentification(id: number): Promise<void> {
@@ -347,6 +352,19 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify(data),
     });
+  }
+
+  // Followups (comments)
+  async getPostFollowups(postId: number): Promise<{ id: number; contents: string; createdAt: string; user: { id: number; name: string } | null }[]> {
+    return this.request(`/posts/${postId}/followups`)
+  }
+
+  async createFollowup(data: { postId: number; userId: number; contents: string }): Promise<{ id: number; contents: string; createdAt: string; user: { id: number; name: string } | null }> {
+    return this.request('/followups', { method: 'POST', body: JSON.stringify(data) })
+  }
+
+  async deleteFollowup(id: number): Promise<void> {
+    return this.request(`/followups/${id}`, { method: 'DELETE' })
   }
 }
 

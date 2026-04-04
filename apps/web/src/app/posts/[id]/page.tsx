@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { apiClient, type MediaItem, type AiIdentification } from '@/lib/api'
+import { getStoredUser } from '@/lib/auth'
 
 interface Post {
   id: number
@@ -18,8 +19,16 @@ interface Identification {
   createdAt: string
   confidence: number | null
   description: AiIdentification | null
+  accepted: boolean
   user: { id: number; name: string }
-  species: { id: number; scientificName: string }
+  species: { id: number; scientificName: string } | null
+}
+
+interface Followup {
+  id: number
+  contents: string
+  createdAt: string
+  user: { id: number; name: string } | null
 }
 
 export default function PostPage() {
@@ -36,6 +45,9 @@ export default function PostPage() {
   const [errorDismissed, setErrorDismissed] = useState(false)
   const [acceptedId, setAcceptedId] = useState<number | null>(null)
   const [aiAccepted, setAiAccepted] = useState(false)
+  const [followups, setFollowups] = useState<Followup[]>([])
+  const [commentText, setCommentText] = useState('')
+  const [commentSubmitting, setCommentSubmitting] = useState(false)
 
   // AI identification state
   const [aiResult, setAiResult] = useState<AiIdentification | null>(null)
@@ -55,7 +67,16 @@ export default function PostPage() {
       .catch(() => {})
 
     apiClient.getPostIdentifications(postId)
-      .then((ids) => setIdentifications(ids as Identification[]))
+      .then((ids) => {
+        const list = ids as Identification[]
+        setIdentifications(list)
+        const accepted = list.find((i) => i.accepted)
+        if (accepted) setAcceptedId(accepted.id)
+      })
+      .catch(() => {})
+
+    apiClient.getPostFollowups(postId)
+      .then((f) => setFollowups(f as Followup[]))
       .catch(() => {})
   }, [postId])
 
@@ -65,14 +86,29 @@ export default function PostPage() {
     toastTimer.current = setTimeout(() => setToast(''), 3500)
   }
 
-  function handleAccept(id: number) {
-    setAcceptedId((prev) => (prev === id ? null : id))
+  async function handleAccept(id: number) {
+    setAcceptedId(id)
     setAiAccepted(false)
+    await apiClient.acceptIdentification(id)
+    setIdentifications((prev) => prev.map((i) => ({ ...i, accepted: i.id === id })))
   }
 
-  function handleAcceptAi() {
-    setAiAccepted(true)
-    setAcceptedId(null)
+  async function handleAcceptAi() {
+    if (!aiResult) return
+    const user = getStoredUser()
+    if (!user) return
+    // Persist the AI result as an Identification record, then accept it
+    const created = await apiClient.createIdentification({
+      postId,
+      userId: user.id,
+      description: aiResult as unknown as Record<string, unknown>
+    })
+    await apiClient.acceptIdentification(created.id)
+    const newIdent: Identification = { ...(created as any), accepted: true, description: aiResult }
+    setIdentifications((prev) => [...prev.map((i) => ({ ...i, accepted: false })), newIdent])
+    setAcceptedId(created.id)
+    setAiAccepted(false)
+    setAiResult(null)
   }
 
   function handleDeclineAi() {
@@ -84,6 +120,20 @@ export default function PostPage() {
     await apiClient.deleteIdentification(id)
     setIdentifications((prev) => prev.filter((i) => i.id !== id))
     if (acceptedId === id) setAcceptedId(null)
+  }
+
+  async function handleCommentSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    const user = getStoredUser()
+    if (!user || !commentText.trim()) return
+    setCommentSubmitting(true)
+    try {
+      const created = await apiClient.createFollowup({ postId, userId: user.id, contents: commentText.trim() })
+      setFollowups((prev) => [...prev, created as Followup])
+      setCommentText('')
+    } finally {
+      setCommentSubmitting(false)
+    }
   }
 
   async function handleAiIdentify() {
@@ -227,7 +277,7 @@ export default function PostPage() {
               const acceptedDbIdent = identifications.find((i) => i.id === acceptedId)
               const details: AiIdentification | null =
                 acceptedDbIdent?.description ?? (aiAccepted ? aiResult : null)
-              const name = acceptedDbIdent?.species.scientificName ?? aiResult?.scientific_name ?? ''
+              const name = acceptedDbIdent?.species?.scientificName ?? acceptedDbIdent?.description?.scientific_name as string ?? aiResult?.scientific_name ?? ''
               const japaneseName = aiResult?.japanese_name ?? null
               return (
                 <div className="bg-emerald-50 border-2 border-emerald-400 rounded-xl shadow p-5 mb-6 space-y-3">
@@ -328,7 +378,7 @@ export default function PostPage() {
             )}
 
             {/* Identifications */}
-            {!acceptedId && !aiAccepted && <div ref={identSectionRef} className="bg-white rounded-xl shadow p-6">
+            {!acceptedId && !aiAccepted && <div ref={identSectionRef} className="bg-white rounded-xl shadow p-6 mb-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
                   Identifications
@@ -337,6 +387,7 @@ export default function PostPage() {
                   )}
                 </h2>
               </div>
+
 
               {/* AI identification result */}
               {aiLoading && (
@@ -484,7 +535,7 @@ export default function PostPage() {
                         <div className="flex items-center gap-4 mb-3">
                           <div className="flex-1 min-w-0">
                             <p className="font-medium text-sm italic text-gray-900">
-                              {ident.species.scientificName}
+                              {ident.species?.scientificName ?? (ident.description as any)?.scientific_name ?? '—'}
                             </p>
                             <p className="text-xs text-gray-500">
                               Proposed by {ident.user.name} · {new Date(ident.createdAt).toLocaleDateString()}
@@ -522,6 +573,69 @@ export default function PostPage() {
                 </ul>
               ) : null}
             </div>}
+
+            {/* Comments */}
+            {(() => {
+              const user = getStoredUser()
+              return (
+                <div className="bg-white rounded-xl shadow p-6">
+                  <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-4">
+                    Comments
+                    {followups.length > 0 && (
+                      <span className="ml-2 text-emerald-600">{followups.length}</span>
+                    )}
+                  </h2>
+
+                  {followups.length === 0 && (
+                    <p className="text-sm text-gray-400 mb-4">No comments yet.</p>
+                  )}
+
+                  {followups.length > 0 && (
+                    <ul className="space-y-4 mb-6">
+                      {followups.map((f) => (
+                        <li key={f.id} className="flex gap-3">
+                          <div className="w-7 h-7 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
+                            {(f.user?.name ?? '?')[0].toUpperCase()}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-baseline gap-2 mb-0.5">
+                              <span className="text-sm font-medium text-gray-800">{f.user?.name ?? 'Unknown'}</span>
+                              <span className="text-xs text-gray-400">{new Date(f.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}</span>
+                            </div>
+                            <p className="text-sm text-gray-700 whitespace-pre-wrap">{f.contents}</p>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
+                  {user ? (
+                    <form onSubmit={handleCommentSubmit} className="flex flex-col gap-2">
+                      <textarea
+                        value={commentText}
+                        onChange={(e) => setCommentText(e.target.value)}
+                        placeholder="Add a comment…"
+                        rows={3}
+                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                      />
+                      <div className="flex justify-end">
+                        <button
+                          type="submit"
+                          disabled={commentSubmitting || !commentText.trim()}
+                          className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-sm font-semibold rounded-lg transition-colors"
+                        >
+                          {commentSubmitting ? 'Posting…' : 'Post Comment'}
+                        </button>
+                      </div>
+                    </form>
+                  ) : (
+                    <p className="text-sm text-gray-400">
+                      <Link href="/login" className="text-emerald-600 hover:underline">Sign in</Link> to leave a comment.
+                    </p>
+                  )}
+                </div>
+              )
+            })()}
           </>
         ) : (
           !notFound && (

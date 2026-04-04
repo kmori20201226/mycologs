@@ -170,15 +170,16 @@ model Identification {
   id                Int       @id @default(autoincrement())
   postId            Int       @map("post_id")
   userId            Int       @map("user_id")
-  specieId          Int       @map("specie_id")
+  specieId          Int?      @map("specie_id")
   description       Json?     @map("description")
+  accepted          Boolean   @default(false) @map("accepted")
   confidence        Float?    // Calculated at query time
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @updatedAt @map("updated_at")
 
   user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   post              Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
-  species           Species   @relation(fields: [specieId], references: [id], onDelete: Cascade)
+  species           Species?  @relation(fields: [specieId], references: [id], onDelete: SetNull)
   votes             Vote[]
 }
 

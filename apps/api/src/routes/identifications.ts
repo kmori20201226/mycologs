@@ -214,6 +214,45 @@ export default async function (fastify: FastifyInstance) {
         }
     })
 
+    // ACCEPT — unaccepts all siblings, accepts this one
+    fastify.post('/identifications/:id/accept', {
+        schema: {
+            params: {
+                type: 'object',
+                properties: { id: { type: 'integer' } },
+                required: ['id']
+            },
+            response: {
+                200: identificationSchema,
+                404: { type: 'object', properties: { message: { type: 'string' } } }
+            }
+        }
+    }, async (request, reply) => {
+        const { id } = request.params as any
+
+        const target = await fastify.prisma.identification.findUnique({ where: { id: Number(id) } })
+        if (!target) return reply.code(404).send({ message: 'Identification not found' })
+
+        // Unaccept all identifications for the same post, then accept this one
+        await fastify.prisma.identification.updateMany({
+            where: { postId: target.postId },
+            data: { accepted: false }
+        })
+
+        const identification = await fastify.prisma.identification.update({
+            where: { id: Number(id) },
+            data: { accepted: true },
+            include: {
+                user: { select: { id: true, name: true } },
+                post: { select: { id: true, contents: true } },
+                species: { select: { id: true, scientificName: true } }
+            }
+        })
+
+        const confidence = await calculateConfidence(identification.id)
+        return { ...identification, confidence }
+    })
+
     // DELETE
     fastify.delete('/identifications/:id', {
         schema: {

@@ -6,6 +6,7 @@ export const identificationSchema = {
         userId: { type: 'number' },
         specieId: { type: 'number' },
         description: { type: 'object', nullable: true, additionalProperties: true },
+        accepted: { type: 'boolean' },
         confidence: { type: 'number', nullable: true },
         createdAt: { type: 'string', format: 'date-time' },
         updatedAt: { type: 'string', format: 'date-time' },
@@ -35,11 +36,11 @@ export const identificationSchema = {
 
 export const createIdentificationSchema = {
     type: 'object',
-    required: ['postId', 'userId', 'specieId'],
+    required: ['postId', 'userId'],
     properties: {
         postId: { type: 'number' },
         userId: { type: 'number' },
-        specieId: { type: 'number' },
+        specieId: { type: 'number', nullable: true },
         description: { type: 'object', nullable: true, additionalProperties: true }
     }
 }

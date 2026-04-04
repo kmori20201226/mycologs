@@ -38,31 +38,17 @@ export default async function PostsPage() {
 
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {posts.map((post) => (
-            <div key={post.id} className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex-1">
-                  <p className="text-gray-600 text-sm mb-2">
-                    By {post.user.name} • {new Date(post.createdAt).toLocaleDateString()}
-                  </p>
-                  <p className="text-gray-900 line-clamp-3">{post.contents}</p>
-                </div>
-              </div>
-
-              <div className="flex gap-2 mt-4">
-                <Link
-                  href={`/posts/${post.id}`}
-                  className="text-emerald-600 hover:text-emerald-700 font-medium text-sm"
-                >
-                  View Details →
-                </Link>
-                <Link
-                  href={`/posts/${post.id}/identify`}
-                  className="text-blue-600 hover:text-blue-700 font-medium text-sm"
-                >
-                  Help Identify →
-                </Link>
-              </div>
-            </div>
+            <Link
+              key={post.id}
+              href={`/posts/${post.id}`}
+              className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow block"
+            >
+              <p className="text-gray-600 text-sm mb-2">
+                By {post.user.name} • {new Date(post.createdAt).toLocaleDateString()}
+              </p>
+              <p className="text-gray-900 line-clamp-3">{post.contents}</p>
+              <p className="text-emerald-600 font-medium text-sm mt-4">View Details →</p>
+            </Link>
           ))}
         </div>
 
