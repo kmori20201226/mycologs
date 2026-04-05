@@ -70,6 +70,12 @@ export default async function (fastify: FastifyInstance) {
     // LIST ALL
     fastify.get('/posts', {
         schema: {
+            querystring: {
+                type: 'object',
+                properties: {
+                    eventId: { type: 'integer' }
+                }
+            },
             response: {
                 200: {
                     type: 'array',
@@ -78,7 +84,12 @@ export default async function (fastify: FastifyInstance) {
             }
         }
     }, async (request, reply) => {
+        const { eventId } = request.query as { eventId?: number }
+
         const posts = await fastify.prisma.post.findMany({
+            where: {
+                ...(eventId ? { eventId: Number(eventId) } : {})
+            },
             include: {
                 user: { select: { id: true, name: true, email: true } },
                 event: { select: { id: true, name: true } }

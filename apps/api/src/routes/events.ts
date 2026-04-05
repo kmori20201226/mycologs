@@ -69,6 +69,13 @@ export default async function (fastify: FastifyInstance) {
     // LIST ALL
     fastify.get('/events', {
         schema: {
+            querystring: {
+                type: 'object',
+                properties: {
+                    clubId: { type: 'integer' },
+                    userId: { type: 'integer' }
+                }
+            },
             response: {
                 200: {
                     type: 'array',

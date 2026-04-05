@@ -26,6 +26,7 @@ export type UserRole = UserLevelRole | 'CLUBMEMBER' | 'CLUBMANAGER'
 export interface ClubMembership {
   id: number
   name: string
+  createdAt: string
   role: string
 }
 

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import ClubEventsButton from "@/components/ClubEventsButton";
 
 export default function Home() {
   return (
@@ -12,7 +13,7 @@ export default function Home() {
             きのこ同定と菌類探索のための究極のプラットフォーム。
             採集仲間とつながり、発見をシェアして、コミュニティから学びましょう。
           </p>
-          <div className="flex gap-4 justify-center">
+          <div className="flex gap-4 justify-center flex-wrap">
             <Link
               href="/posts"
               className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 rounded-lg font-semibold transition-colors"
@@ -25,6 +26,7 @@ export default function Home() {
             >
               きのこを同定する
             </Link>
+            <ClubEventsButton />
           </div>
         </div>
 

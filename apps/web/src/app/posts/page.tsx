@@ -5,15 +5,12 @@ interface Post {
   id: number;
   contents: string;
   createdAt: string;
-  user: {
-    id: number;
-    name: string;
-  };
+  user: { id: number; name: string };
 }
 
 async function getPosts(): Promise<Post[]> {
   try {
-    return await apiClient.getPosts();
+    return await apiClient.getPosts() as Post[];
   } catch (error) {
     console.error('Failed to fetch posts:', error);
     return [];

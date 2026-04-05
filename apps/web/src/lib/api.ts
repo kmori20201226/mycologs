@@ -178,8 +178,11 @@ class ApiClient {
   }
 
   // Posts
-  async getPosts(): Promise<Post[]> {
-    return this.request('/posts');
+  async getPosts(filter?: { eventId?: number }): Promise<Post[]> {
+    const params = new URLSearchParams()
+    if (filter?.eventId) params.set('eventId', String(filter.eventId))
+    const qs = params.toString() ? `?${params.toString()}` : ''
+    return this.request(`/posts${qs}`)
   }
 
   async getPost(id: number): Promise<Post> {
