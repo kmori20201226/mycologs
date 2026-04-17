@@ -1,43 +1,10 @@
 import { FastifyInstance } from 'fastify'
-import Anthropic from '@anthropic-ai/sdk'
 import fs from 'fs'
 import path from 'path'
 import sharp from 'sharp'
 
 const UPLOADS_DIR = path.resolve(__dirname, '../../../../data/uploads')
-
-const SYSTEM_PROMPT = `\
-You are a mycologist specialising in Japanese fungi.
-When given a mushroom photo, respond ONLY with a JSON object —
-no markdown fences, no preamble, no explanation outside the JSON.
-
-Required keys:
-  scientific_name   string   Best-guess binomial (e.g. "Amanita muscaria")
-  japanese_name     string   Standard Japanese name in katakana/kanji, or ""
-  confidence        string   One of: "high", "medium", "low"
-  shape             string   One of: Cap, Bracket, Coral, Tooth, Jelly, Cup,
-                             Puffball, Stinkhorn, Crust, Truffle
-  edibility         string   One of: edible, toxic, inedible, unknown
-  key_features      list     2–4 visual features that led to this identification
-  similar_species   list     0–2 species that could be confused with this one
-  disclaimer        string   Always include a safety disclaimer about not
-                             relying on AI for edibility decisions
-
-If the image does not contain a mushroom, set scientific_name to ""
-and explain briefly in the disclaimer field.
-The mushroom is assumed to have been found in Japan, so only consider
-species native to or commonly found in Japan.
-When describing key features, use simple language that a beginner could understand.
-For similar species, choose ones that are visually similar and briefly explain how to tell them apart.
-Always include a clear safety disclaimer, even for edible mushrooms.
-Requirements:
-- Always respond in Japanese
-- Use clear, natural Japanese
-- Include:
-  - 推定される種名（日本語名と学名）
-  - 特徴の説明
-  - 類似種との違い
-  - 食用可否（不明な場合は「不明」とする）`
+const AI_SERVICE_URL = process.env.AI_SERVICE_URL ?? 'http://localhost:3002'
 
 const MIME_TYPES: Record<string, string> = {
     '.jpg':  'image/jpeg',
@@ -98,51 +65,31 @@ export default async function (fastify: FastifyInstance) {
             return reply.code(422).send({ message: 'No images attached to this post.' })
         }
 
-        const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-
-        // Build image content blocks (resize each image before encoding)
-        const imageBlocks: Anthropic.ImageBlockParam[] = await Promise.all(
+        // Build image payload (resize each image before encoding)
+        const encodedImages = await Promise.all(
             images.map(async (img) => {
                 const { data, mediaType } = await encodeImage(img.filename)
-                return {
-                    type: 'image' as const,
-                    source: {
-                        type: 'base64' as const,
-                        media_type: mediaType as Anthropic.Base64ImageSource['media_type'],
-                        data,
-                    },
-                }
+                return { data, media_type: mediaType }
             })
         )
 
         const event = post?.event
-        const hasCoords = event?.latitude != null && event?.longitude != null
-        const locationLine = hasCoords
-            ? `GPS: latitude ${event!.latitude}, longitude ${event!.longitude}.`
-            : 'No GPS provided. Assume somewhere in Japan.'
+        const body: Record<string, unknown> = { images: encodedImages }
+        if (event?.latitude != null)  body.latitude  = event.latitude
+        if (event?.longitude != null) body.longitude = event.longitude
 
-        const textBlock: Anthropic.TextBlockParam = {
-            type: 'text',
-            text: images.length > 1
-                ? `${locationLine}\n複数の画像を総合的に見て同定してください。`
-                : locationLine,
-        }
-
-        const response = await client.messages.create({
-            model: 'claude-sonnet-4-6',
-            max_tokens: 1024,
-            system: SYSTEM_PROMPT,
-            messages: [{ role: 'user', content: [...imageBlocks, textBlock] }],
+        const response = await fetch(`${AI_SERVICE_URL}/api/identification/evaluate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
         })
 
-        let raw = (response.content[0] as Anthropic.TextBlock).text.trim()
-
-        // Strip accidental markdown fences
-        if (raw.startsWith('```')) {
-            raw = raw.replace(/^```[^\n]*\n/, '').replace(/```[\s\S]*$/, '').trim()
+        if (!response.ok) {
+            const detail = await response.text()
+            return reply.code(response.status).send({ message: detail })
         }
 
-        const result = JSON.parse(raw)
+        const result = await response.json()
         return reply.send(result)
     })
 }

@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from mycologs_ai_service.api.moderation.router import router as moderation_router
+from mycologs_ai_service.api.identification.router import router as identification_router
 
 app = FastAPI(title="Blog AI Service", version="1.0.0")
 
@@ -20,6 +21,7 @@ app.add_middleware(
 #   from api.recommender.router import router as recommender_router
 #
 app.include_router(moderation_router, prefix="/api")
+app.include_router(identification_router, prefix="/api")
 
 
 # ── Health ─────────────────────────────────────────────────────────────────

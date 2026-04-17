@@ -9,6 +9,8 @@
     "build": "npm run build -ws",
     "start": "node apps/api/dist/server.js",
     "start:web": "npm --workspace apps/web run start",
+    "start:ai": "cd ai-service && mycologs-ai-service --daemon",
+    "stop:ai": "cd ai-service && mycologs-ai-service --stop",
     "db:up": "docker compose -f docker/postgres/docker-compose.yml up -d",
     "db:down": "docker compose -f docker/postgres/docker-compose.yml down",
     "migrate": "bash scripts/migrate.sh",
