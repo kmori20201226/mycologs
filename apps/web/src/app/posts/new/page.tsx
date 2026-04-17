@@ -12,7 +12,12 @@ interface FileEntry {
   preview: string | null  // object URL for images
 }
 
-type SubmitPhase = 'idle' | 'creating' | 'uploading' | 'done'
+type SubmitPhase = 'idle' | 'moderating' | 'creating' | 'uploading' | 'done'
+
+interface ModerationWarning {
+  category: string
+  comment: string
+}
 
 function fileIcon(type: string) {
   if (type.startsWith('video/')) return (
@@ -53,6 +58,7 @@ export default function NewPostPage() {
   const [uploadFailCount, setUploadFailCount] = useState(0)
   const [notAuthed, setNotAuthed] = useState(false)
   const [dragging, setDragging] = useState(false)
+  const [warning, setWarning] = useState<ModerationWarning | null>(null)
 
   useEffect(() => {
     const user = getStoredUser()
@@ -96,34 +102,35 @@ export default function NewPostPage() {
     if (e.dataTransfer.files?.length) addFiles(e.dataTransfer.files)
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
+  async function doCreatePost(confirmedModeration?: ModerationWarning) {
     const user = getStoredUser()
     if (!user) { setNotAuthed(true); return }
 
-    setError('')
-    setUploadFailCount(0)
-
-    // 1. Create post
     setPhase('creating')
     let postId: number
-    try {
-      const post = await apiClient.request<{ id: number }>('/posts', {
-        method: 'POST',
-        body: JSON.stringify({
-          userId: user.id,
-          contents,
-          ...(eventId !== '' ? { eventId } : {}),
-        }),
-      })
-      postId = post.id
-    } catch {
-      setError('投稿の作成に失敗しました。もう一度お試しください。')
-      setPhase('idle')
-      return
+    const result = await apiClient.createPost({
+      userId: user.id,
+      contents,
+      ...(eventId !== '' ? { eventId: eventId as number } : {}),
+      ...(confirmedModeration ? { confirmedModeration } : {}),
+    })
+
+    if (!result.ok) {
+      if (result.status === 'rejected') {
+        setError(`この投稿は公開できません。\n${result.comment}`)
+        setPhase('idle')
+        return
+      }
+      if (result.status === 'warning') {
+        setWarning({ category: result.category, comment: result.comment })
+        setPhase('idle')
+        return
+      }
     }
 
-    // 2. Upload media in parallel
+    postId = (result as { ok: true; id: number }).id
+
+    // Upload media in parallel
     if (files.length > 0) {
       setPhase('uploading')
       setUploadProgress({ done: 0, total: files.length })
@@ -143,18 +150,53 @@ export default function NewPostPage() {
       setUploadFailCount(failCount)
     }
 
-    // 3. Redirect
     setPhase('done')
     const qs = uploadFailCount > 0 ? `?uploadErrors=${uploadFailCount}` : ''
     router.push(`/posts/${postId}${qs}`)
   }
 
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    const user = getStoredUser()
+    if (!user) { setNotAuthed(true); return }
+    setError('')
+    setWarning(null)
+    setUploadFailCount(0)
+    setPhase('moderating')
+    try {
+      await doCreatePost()
+    } catch {
+      setError('投稿の作成に失敗しました。もう一度お試しください。')
+      setPhase('idle')
+    }
+  }
+
+  async function handleConfirmWarning() {
+    if (!warning) return
+    const w = warning
+    setWarning(null)
+    setError('')
+    setPhase('moderating')
+    try {
+      await doCreatePost(w)
+    } catch {
+      setError('投稿の作成に失敗しました。もう一度お試しください。')
+      setPhase('idle')
+    }
+  }
+
   const submitting = phase !== 'idle'
 
   const submitLabel = () => {
+    if (phase === 'moderating') return '確認中…'
     if (phase === 'creating') return '投稿作成中…'
     if (phase === 'uploading') return `アップロード中 ${uploadProgress.done}/${uploadProgress.total}…`
     return '投稿'
+  }
+
+  const warningCategoryLabel: Record<string, string> = {
+    POTENTIALLY_OFFENSIVE: '不快な表現の可能性',
+    OFF_TOPIC_IMAGE:        'キノコと無関係な内容',
   }
 
   if (notAuthed) {
@@ -172,6 +214,7 @@ export default function NewPostPage() {
   const otherFiles = files.filter((f) => !f.file.type.startsWith('image/'))
 
   return (
+    <>
     <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto px-4 py-8 max-w-xl">
 
@@ -320,7 +363,9 @@ export default function NewPostPage() {
               )}
             </div>
 
-            {error && <p className="text-red-500 text-sm">{error}</p>}
+            {error && (
+              <p className="text-red-500 text-sm whitespace-pre-line">{error}</p>
+            )}
 
             {/* Upload progress bar */}
             {phase === 'uploading' && (
@@ -358,5 +403,42 @@ export default function NewPostPage() {
 
       </div>
     </div>
+
+    {/* Moderation warning dialog */}
+
+    {warning && (
+      <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 space-y-4">
+          <div className="flex items-start gap-3">
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-yellow-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+            </svg>
+            <div>
+              <h2 className="text-base font-semibold text-gray-900">投稿内容の注意</h2>
+              <p className="text-xs text-yellow-700 font-medium mt-0.5">
+                {warningCategoryLabel[warning.category] ?? warning.category}
+              </p>
+            </div>
+          </div>
+          <p className="text-sm text-gray-700 leading-relaxed">{warning.comment}</p>
+          <p className="text-xs text-gray-500">このまま投稿すると、内容が記録されます。修正することをお勧めします。</p>
+          <div className="flex gap-3 pt-1">
+            <button
+              onClick={handleConfirmWarning}
+              className="flex-1 px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white text-sm font-semibold rounded-lg transition-colors"
+            >
+              このまま投稿する
+            </button>
+            <button
+              onClick={() => setWarning(null)}
+              className="flex-1 px-4 py-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 text-sm font-semibold rounded-lg transition-colors"
+            >
+              修正する
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   )
 }

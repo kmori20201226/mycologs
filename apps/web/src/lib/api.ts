@@ -170,11 +170,18 @@ class ApiClient {
   }
 
   async getUserProfile(id: number): Promise<{
-    id: number; name: string; email: string; createdAt: string;
+    id: number; name: string; handleName: string | null; email: string; createdAt: string;
     postCount: number; identificationCount: number; followupCount: number;
     recentPosts: { id: number; contents: string; createdAt: string; event: { id: number; name: string } | null; _count: { media: number; identifications: number } }[]
   }> {
     return this.request(`/users/${id}/profile`)
+  }
+
+  async updateUserHandleName(id: number, handleName: string): Promise<{ id: number; handleName: string | null }> {
+    return this.request(`/users/${id}/handle-name`, {
+      method: 'PATCH',
+      body: JSON.stringify({ handleName }),
+    })
   }
 
   // Posts
@@ -189,11 +196,36 @@ class ApiClient {
     return this.request(`/posts/${id}`);
   }
 
-  async createPost(data: { userId: number; contents: string }): Promise<Post> {
-    return this.request('/posts', {
+  async createPost(data: {
+    userId: number
+    contents: string
+    eventId?: number
+    confirmedModeration?: { category: string; comment: string }
+  }): Promise<
+    | { ok: true; id: number }
+    | { ok: false; status: 'rejected'; comment: string }
+    | { ok: false; status: 'warning'; category: string; comment: string }
+  > {
+    const url = `${this.baseURL}/posts`
+    let authHeader: Record<string, string> = {}
+    if (typeof document !== 'undefined') {
+      const match = document.cookie.match(/(?:^|; )token=([^;]*)/)
+      if (match) authHeader = { Authorization: `Bearer ${decodeURIComponent(match[1])}` }
+    }
+    const response = await fetch(url, {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeader },
       body: JSON.stringify(data),
-    });
+    })
+    if (response.status === 422) {
+      const body = await response.json()
+      return { ok: false, ...body }
+    }
+    if (!response.ok) {
+      throw new Error(`API request failed: ${url} => ${response.status} ${response.statusText}`)
+    }
+    const post = await response.json()
+    return { ok: true, id: post.id }
   }
 
   // Events

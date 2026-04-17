@@ -39,7 +39,7 @@ export default async function (fastify: FastifyInstance) {
                 description: description ?? null
             },
             include: {
-                user: { select: { id: true, name: true } },
+                user: { select: { id: true, name: true, handleName: true } },
                 post: { select: { id: true, contents: true } },
                 species: { select: { id: true, scientificName: true } }
             }
@@ -81,7 +81,7 @@ export default async function (fastify: FastifyInstance) {
         const identification = await fastify.prisma.identification.findUnique({
             where: { id: Number(id) },
             include: {
-                user: { select: { id: true, name: true } },
+                user: { select: { id: true, name: true, handleName: true } },
                 post: { select: { id: true, contents: true } },
                 species: { select: { id: true, scientificName: true } }
             }
@@ -110,7 +110,7 @@ export default async function (fastify: FastifyInstance) {
     }, async (request, reply) => {
         const identifications = await fastify.prisma.identification.findMany({
             include: {
-                user: { select: { id: true, name: true } },
+                user: { select: { id: true, name: true, handleName: true } },
                 post: { select: { id: true, contents: true } },
                 species: { select: { id: true, scientificName: true } }
             },
@@ -151,7 +151,7 @@ export default async function (fastify: FastifyInstance) {
         const identifications = await fastify.prisma.identification.findMany({
             where: { postId: Number(postId) },
             include: {
-                user: { select: { id: true, name: true } },
+                user: { select: { id: true, name: true, handleName: true } },
                 post: { select: { id: true, contents: true } },
                 species: { select: { id: true, scientificName: true } }
             },
@@ -199,7 +199,7 @@ export default async function (fastify: FastifyInstance) {
                 where: { id: Number(id) },
                 data: updateData,
                 include: {
-                    user: { select: { id: true, name: true } },
+                    user: { select: { id: true, name: true, handleName: true } },
                     post: { select: { id: true, contents: true } },
                     species: { select: { id: true, scientificName: true } }
                 }
@@ -243,7 +243,7 @@ export default async function (fastify: FastifyInstance) {
             where: { id: Number(id) },
             data: { accepted: true },
             include: {
-                user: { select: { id: true, name: true } },
+                user: { select: { id: true, name: true, handleName: true } },
                 post: { select: { id: true, contents: true } },
                 species: { select: { id: true, scientificName: true } }
             }

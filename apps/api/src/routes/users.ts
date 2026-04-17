@@ -78,6 +78,60 @@ export default async function (fastify: FastifyInstance) {
         return user
     })
 
+    // UPDATE HANDLE NAME
+    fastify.patch('/users/:id/handle-name', {
+        schema: {
+            params: {
+                type: 'object',
+                properties: { id: { type: 'integer' } },
+                required: ['id']
+            },
+            body: {
+                type: 'object',
+                required: ['handleName'],
+                properties: { handleName: { type: 'string' } }
+            },
+            response: {
+                200: {
+                    type: 'object',
+                    properties: {
+                        id: { type: 'number' },
+                        handleName: { type: 'string', nullable: true }
+                    }
+                },
+                400: { type: 'object', properties: { message: { type: 'string' } } },
+                404: { type: 'object', properties: { message: { type: 'string' } } },
+                409: { type: 'object', properties: { message: { type: 'string' } } }
+            }
+        }
+    }, async (request, reply) => {
+        const { id } = request.params as { id: string }
+        const { handleName } = request.body as { handleName: string }
+
+        const trimmed = handleName.trim()
+        if (trimmed.length === 0) {
+            return reply.code(400).send({ message: 'ハンドルネームには空白以外の文字を含めてください。' })
+        }
+
+        const existing = await fastify.prisma.user.findFirst({
+            where: { handleName: trimmed, NOT: { id: Number(id) } }
+        })
+        if (existing) {
+            return reply.code(409).send({ message: 'このハンドルネームはすでに使用されています。' })
+        }
+
+        try {
+            const user = await fastify.prisma.user.update({
+                where: { id: Number(id) },
+                data: { handleName: trimmed },
+                select: { id: true, handleName: true }
+            })
+            return user
+        } catch {
+            return reply.code(404).send({ message: 'Not found' })
+        }
+    })
+
     // PROFILE — user info + activity stats + recent posts
     fastify.get('/users/:id/profile', {
         schema: {
@@ -92,6 +146,7 @@ export default async function (fastify: FastifyInstance) {
                     properties: {
                         id: { type: 'number' },
                         name: { type: 'string' },
+                        handleName: { type: 'string', nullable: true },
                         email: { type: 'string' },
                         createdAt: { type: 'string', format: 'date-time' },
                         postCount: { type: 'number' },
@@ -137,7 +192,7 @@ export default async function (fastify: FastifyInstance) {
 
         const user = await fastify.prisma.user.findUnique({
             where: { id: uid },
-            select: { id: true, name: true, email: true, createdAt: true }
+            select: { id: true, name: true, handleName: true, email: true, createdAt: true }
         })
         if (!user) return reply.code(404).send({ message: 'Not found' })
 

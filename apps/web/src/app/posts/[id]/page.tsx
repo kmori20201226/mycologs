@@ -10,7 +10,7 @@ interface Post {
   id: number
   contents: string
   createdAt: string
-  user: { id: number; name: string }
+  user: { id: number; name: string; handleName: string | null }
   event: { id: number; name: string } | null
 }
 
@@ -20,7 +20,7 @@ interface Identification {
   confidence: number | null
   description: AiIdentification | null
   accepted: boolean
-  user: { id: number; name: string }
+  user: { id: number; name: string; handleName: string | null }
   species: { id: number; scientificName: string } | null
 }
 
@@ -28,7 +28,7 @@ interface Followup {
   id: number
   contents: string
   createdAt: string
-  user: { id: number; name: string } | null
+  user: { id: number; name: string; handleName: string | null } | null
 }
 
 export default function PostPage() {
@@ -215,7 +215,7 @@ export default function PostPage() {
             <div className="bg-white rounded-xl shadow p-6 mb-6">
               <div className="flex items-center justify-between mb-4">
                 <div className="text-sm text-gray-500">
-                  <span className="font-medium text-gray-700">{post.user.name}</span>
+                  <span className="font-medium text-gray-700">{post.user.handleName ?? post.user.name}</span>
                   <span className="mx-2">·</span>
                   <span>{new Date(post.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}</span>
                 </div>
@@ -296,7 +296,7 @@ export default function PostPage() {
                     {japaneseName && <p className="text-base text-gray-700">{japaneseName}</p>}
                     {acceptedDbIdent && (
                       <p className="text-sm text-gray-500 mt-1">
-                        {acceptedDbIdent.user.name} が提案 · {new Date(acceptedDbIdent.createdAt).toLocaleDateString('ja-JP')}
+                        {acceptedDbIdent.user.handleName ?? acceptedDbIdent.user.name} が提案 · {new Date(acceptedDbIdent.createdAt).toLocaleDateString('ja-JP')}
                       </p>
                     )}
                   </div>
@@ -538,7 +538,7 @@ export default function PostPage() {
                               {ident.species?.scientificName ?? (ident.description as any)?.scientific_name ?? '—'}
                             </p>
                             <p className="text-xs text-gray-500">
-                              {ident.user.name} が提案 · {new Date(ident.createdAt).toLocaleDateString('ja-JP')}
+                              {ident.user.handleName ?? ident.user.name} が提案 · {new Date(ident.createdAt).toLocaleDateString('ja-JP')}
                             </p>
                           </div>
                           <ConfidenceBadge confidence={ident.confidence} />
@@ -595,11 +595,11 @@ export default function PostPage() {
                       {followups.map((f) => (
                         <li key={f.id} className="flex gap-3">
                           <div className="w-7 h-7 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
-                            {(f.user?.name ?? '?')[0].toUpperCase()}
+                            {(f.user?.handleName ?? f.user?.name ?? '?')[0].toUpperCase()}
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-baseline gap-2 mb-0.5">
-                              <span className="text-sm font-medium text-gray-800">{f.user?.name ?? 'Unknown'}</span>
+                              <span className="text-sm font-medium text-gray-800">{f.user?.handleName ?? f.user?.name ?? 'Unknown'}</span>
                               <span className="text-xs text-gray-400">{new Date(f.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}</span>
                             </div>
                             <p className="text-sm text-gray-700 whitespace-pre-wrap">{f.contents}</p>

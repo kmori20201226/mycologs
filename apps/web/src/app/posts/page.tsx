@@ -5,7 +5,7 @@ interface Post {
   id: number;
   contents: string;
   createdAt: string;
-  user: { id: number; name: string };
+  user: { id: number; name: string; handleName: string | null };
 }
 
 async function getPosts(): Promise<Post[]> {
@@ -41,7 +41,7 @@ export default async function PostsPage() {
               className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow block"
             >
               <p className="text-gray-600 text-sm mb-2">
-                {post.user.name} • {new Date(post.createdAt).toLocaleDateString('ja-JP')}
+                {post.user.handleName ?? post.user.name} •{new Date(post.createdAt).toLocaleDateString('ja-JP')}
               </p>
               <p className="text-gray-900 line-clamp-3">{post.contents}</p>
               <p className="text-emerald-600 font-medium text-sm mt-4">詳細を見る →</p>

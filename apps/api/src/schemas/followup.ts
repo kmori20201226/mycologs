@@ -12,7 +12,8 @@ export const followupSchema = {
             nullable: true,
             properties: {
                 id: { type: 'number' },
-                name: { type: 'string' }
+                name: { type: 'string' },
+                handleName: { type: 'string', nullable: true }
             }
         },
         post: {

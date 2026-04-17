@@ -70,7 +70,7 @@ model ClubUser {
 model User {
   id                Int               @id @default(autoincrement())
   name              String
-  handleName        String            @map("handle_name")
+  handleName        String?           @map("handle_name")
   email             String            @unique
   password_hash     String?
   emailVerified     DateTime?         @map("email_verified")
@@ -93,6 +93,8 @@ model User {
   events            Event[]
   userRequests      UserRequest[]   @relation("UserRequestRequester")
   repliedRequests   UserRequest[]   @relation("UserRequestReplier")
+  userLogs          UserLog[]       @relation("UserLogs")
+  createdLogs       UserLog[]       @relation("CreatedLogs")
 
   @@map("users")
 }

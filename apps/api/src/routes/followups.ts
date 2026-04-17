@@ -21,7 +21,7 @@ export default async function (fastify: FastifyInstance) {
                 contents
             },
             include: {
-                user: { select: { id: true, name: true } },
+                user: { select: { id: true, name: true, handleName: true } },
                 post: { select: { id: true, contents: true } }
             }
         })
@@ -55,7 +55,7 @@ export default async function (fastify: FastifyInstance) {
         const followup = await fastify.prisma.followup.findUnique({
             where: { id: Number(id) },
             include: {
-                user: { select: { id: true, name: true } },
+                user: { select: { id: true, name: true, handleName: true } },
                 post: { select: { id: true, contents: true } }
             }
         })
@@ -80,7 +80,7 @@ export default async function (fastify: FastifyInstance) {
     }, async (request, reply) => {
         const followups = await fastify.prisma.followup.findMany({
             include: {
-                user: { select: { id: true, name: true } },
+                user: { select: { id: true, name: true, handleName: true } },
                 post: { select: { id: true, contents: true } }
             },
             orderBy: { createdAt: 'desc' }
@@ -112,7 +112,7 @@ export default async function (fastify: FastifyInstance) {
         const followups = await fastify.prisma.followup.findMany({
             where: { postId: Number(postId) },
             include: {
-                user: { select: { id: true, name: true } },
+                user: { select: { id: true, name: true, handleName: true } },
                 post: { select: { id: true, contents: true } }
             },
             orderBy: { createdAt: 'asc' }
@@ -151,7 +151,7 @@ export default async function (fastify: FastifyInstance) {
                 where: { id: Number(id) },
                 data: updateData,
                 include: {
-                    user: { select: { id: true, name: true } },
+                    user: { select: { id: true, name: true, handleName: true } },
                     post: { select: { id: true, contents: true } }
                 }
             })

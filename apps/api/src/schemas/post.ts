@@ -12,6 +12,7 @@ export const postSchema = {
             properties: {
                 id: { type: 'number' },
                 name: { type: 'string' },
+                handleName: { type: 'string', nullable: true },
                 email: { type: 'string' }
             }
         },
@@ -32,7 +33,14 @@ export const createPostSchema = {
     properties: {
         eventId: { type: 'number' },
         userId: { type: 'number' },
-        contents: { type: 'string' }
+        contents: { type: 'string' },
+        confirmedModeration: {
+            type: 'object',
+            properties: {
+                category: { type: 'string' },
+                comment:  { type: 'string' }
+            }
+        }
     }
 }
 

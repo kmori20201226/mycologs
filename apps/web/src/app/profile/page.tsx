@@ -9,6 +9,7 @@ import { getStoredUser } from '@/lib/auth'
 interface ProfileData {
   id: number
   name: string
+  handleName: string | null
   email: string
   createdAt: string
   postCount: number
@@ -27,6 +28,10 @@ export default function ProfilePage() {
   const router = useRouter()
   const [profile, setProfile] = useState<ProfileData | null>(null)
   const [notFound, setNotFound] = useState(false)
+  const [handleInput, setHandleInput] = useState('')
+  const [handleSaving, setHandleSaving] = useState(false)
+  const [handleError, setHandleError] = useState('')
+  const [handleSuccess, setHandleSuccess] = useState(false)
 
   useEffect(() => {
     const user = getStoredUser()
@@ -35,9 +40,37 @@ export default function ProfilePage() {
       return
     }
     apiClient.getUserProfile(user.id)
-      .then(setProfile)
+      .then((p) => { setProfile(p); setHandleInput(p.handleName ?? '') })
       .catch(() => setNotFound(true))
   }, [router])
+
+  async function handleSaveHandleName(e: React.FormEvent) {
+    e.preventDefault()
+    if (!profile) return
+    setHandleError('')
+    setHandleSuccess(false)
+    if (handleInput.trim().length === 0) {
+      setHandleError('空白以外の文字を含めてください。')
+      return
+    }
+    setHandleSaving(true)
+    try {
+      const updated = await apiClient.updateUserHandleName(profile.id, handleInput)
+      setProfile((p) => p ? { ...p, handleName: updated.handleName } : p)
+      setHandleInput(updated.handleName ?? '')
+      setHandleSuccess(true)
+      setTimeout(() => setHandleSuccess(false), 3000)
+    } catch (err: any) {
+      const msg = err?.message ?? ''
+      if (msg.includes('409') || msg.includes('使用されています')) {
+        setHandleError('このハンドルネームはすでに使用されています。')
+      } else {
+        setHandleError('保存に失敗しました。もう一度お試しください。')
+      }
+    } finally {
+      setHandleSaving(false)
+    }
+  }
 
   if (notFound) {
     return (
@@ -71,11 +104,46 @@ export default function ProfilePage() {
           </div>
           <div className="flex-1 min-w-0">
             <h1 className="text-xl font-bold text-gray-900">{profile.name}</h1>
+            {profile.handleName && (
+              <p className="text-sm text-emerald-600 font-medium">@{profile.handleName}</p>
+            )}
             <p className="text-sm text-gray-500 truncate">{profile.email}</p>
             <p className="text-xs text-gray-400 mt-1">
               {new Date(profile.createdAt).toLocaleDateString('ja-JP', { year: 'numeric', month: 'long' })}から参加
             </p>
           </div>
+        </div>
+
+        {/* Handle name edit */}
+        <div className="bg-white rounded-xl shadow p-6 mb-6">
+          <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-4">ハンドルネーム</h2>
+          <p className="text-xs text-gray-500 mb-3">
+            投稿・同定・コメントで表示される名前です。他のユーザーと重複できません。
+          </p>
+          <form onSubmit={handleSaveHandleName} className="flex flex-col gap-3">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={handleInput}
+                onChange={(e) => { setHandleInput(e.target.value); setHandleError(''); setHandleSuccess(false) }}
+                placeholder="例: kinoko_taro"
+                className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+              />
+              <button
+                type="submit"
+                disabled={handleSaving}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-sm font-semibold rounded-lg transition-colors shrink-0"
+              >
+                {handleSaving ? '保存中…' : '保存'}
+              </button>
+            </div>
+            {handleError && (
+              <p className="text-xs text-red-600">{handleError}</p>
+            )}
+            {handleSuccess && (
+              <p className="text-xs text-emerald-600">ハンドルネームを保存しました。</p>
+            )}
+          </form>
         </div>
 
         {/* Quick actions */}
