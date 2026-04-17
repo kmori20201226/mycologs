@@ -1,0 +1,34 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mycologs-ai-service"
+version = "0.1.0"
+description = "AI agent service for the mushroom blog"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.111.0",
+    "uvicorn[standard]>=0.29.0",
+    "anthropic>=0.28.0",
+    "pydantic>=2.7.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "httpx>=0.27.0",   # AsyncClient for FastAPI test client
+]
+
+[project.scripts]
+# After `pip install -e .`, run the server with: blog-ai-service
+mycologs-ai-service = "mycologs_ai_service.__main__:main"
+moderate = "mycologs_ai_service.scripts.moderate:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mycologs_ai_service"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

@@ -12,7 +12,7 @@ def _find_and_load_env() -> Path | None:
     """
     candidates = [
         Path.cwd() / ".env",                               # 1. current dir
-        Path(__file__).resolve().parent.parent.parent / ".env",   # 2. ../../../ of config.py
+        Path(__file__).resolve().parent.parent.parent.parent / ".env",   # 2. ../../../../ of config.py
     ]
 
     for path in candidates:

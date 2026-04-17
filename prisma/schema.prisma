@@ -13,9 +13,9 @@ datasource db {
 }
 
 model Club {
-  id            Int      @id @default(autoincrement())
+  id            Int            @id @default(autoincrement())
   name          String
-  createdAt     DateTime @default(now()) @map("created_at")
+  createdAt     DateTime       @default(now()) @map("created_at")
 
   clubUsers     ClubUser[]
   events        Event[]
@@ -42,9 +42,9 @@ enum UserRole {
 }
 
 model Role {
-  id            Int      @id @default(autoincrement())
-  name          RoleType @unique
-  createdAt     DateTime @default(now()) @map("created_at")
+  id            Int           @id @default(autoincrement())
+  name          RoleType      @unique
+  createdAt     DateTime      @default(now()) @map("created_at")
 
   clubUsers     ClubUser[]
   users         User[]
@@ -53,48 +53,95 @@ model Role {
 }
 
 model ClubUser {
-  id            Int      @id @default(autoincrement())
-  clubId        Int      @map("club_id")
-  userId        Int      @map("user_id")
-  roleId        Int      @map("role_id")
-  createdAt     DateTime @default(now()) @map("created_at")
+  id            Int           @id @default(autoincrement())
+  clubId        Int           @map("club_id")
+  userId        Int           @map("user_id")
+  roleId        Int           @map("role_id")
+  createdAt     DateTime      @default(now()) @map("created_at")
 
-  club          Club     @relation(fields: [clubId], references: [id])
-  user          User     @relation(fields: [userId], references: [id])
-  role          Role     @relation(fields: [roleId], references: [id])
+  club          Club          @relation(fields: [clubId], references: [id])
+  user          User          @relation(fields: [userId], references: [id])
+  role          Role          @relation(fields: [roleId], references: [id])
 
   @@unique([clubId, userId])
   @@map("club_users")
 }
 
 model User {
-  id            Int      @id @default(autoincrement())
-  name          String
-  email         String   @unique
-  password_hash String?
-  emailVerified DateTime? @map("email_verified")
-  address       String?
-  tel           String?
-  line_id       String?
-  meta          Json?
-  role          UserRole? @map("role")
-  roleId        Int?     @map("role_id")
-  voteWeight    Int?     @map("vote_weight")
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
-  roleRef       Role?    @relation(fields: [roleId], references: [id])
-
-  clubUsers     ClubUser[]
-  oauthAccounts OAuthAccount[]
-  posts         Post[]
-  followups     Followup[]
-  identifications Identification[]
-  votes         Vote[]
-  events        Event[]
-  userRequests  UserRequest[] @relation("UserRequestRequester")
-  repliedRequests UserRequest[] @relation("UserRequestReplier")
+  id                Int               @id @default(autoincrement())
+  name              String
+  handleName        String            @map("handle_name")
+  email             String            @unique
+  password_hash     String?
+  emailVerified     DateTime?         @map("email_verified")
+  address           String?
+  tel               String?
+  line_id           String?
+  meta              Json?
+  role              UserRole?         @map("role")
+  roleId            Int?              @map("role_id")
+  voteWeight        Int?              @map("vote_weight")
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
+  roleRef           Role?             @relation(fields: [roleId], references: [id])
+  clubUsers         ClubUser[]
+  oauthAccounts     OAuthAccount[]
+  posts             Post[]
+  followups         Followup[]
+  identifications   Identification[]
+  votes             Vote[]
+  events            Event[]
+  userRequests      UserRequest[]   @relation("UserRequestRequester")
+  repliedRequests   UserRequest[]   @relation("UserRequestReplier")
 
   @@map("users")
+}
+
+// UserLog
+// -----------------------------------------------------
+// Intension:
+//   In order to log users behavioral credibility so that the user is favorable
+//   for this site. Unfavorable post is logged here. Points to be deduct is defined as follows:
+//    -5 Offensive, sexual post that should not be shown. (This rule is applied to images posted)
+//    -2 Someone may feel offensive, arrogant: this post is going to be shown.
+//    -1 Images posted are not related mushrooms, ambient.
+//   Evaluation is made by AI agent.
+//   If point is below a threashold within certain period of time, any post actions are not allowed.
+// Column descriptions:
+//   transactionType: for now, "POST" for user post, "RESET" for administrator reset of points.
+//       "RESET" is a special record which an administrator adds.
+//   userPost: User post which is rejected.
+//   comment: Text how the AI agent judged
+
+enum TransactionType {
+  POST
+  RESET
+}
+
+enum RejectionCategory {
+  OFFENSIVE_SEXUAL
+  POTENTIALLY_OFFENSIVE
+  OFF_TOPIC_IMAGE
+  NONE
+}
+
+model UserLog {
+  id                 Int                @id @default(autoincrement())
+  userId             Int                @map("user_id")
+  user               User               @relation("UserLogs", fields: [userId], references: [id])
+  postId             Int?               @map("post_id")
+  followupId         Int?               @map("followup_id")
+  point              Int                @default(0)
+  transactionType    TransactionType    @map("transaction_type")
+  rejectionCategory  RejectionCategory? @map("rejection_category")
+  userPost           String             @map("user_post")
+  comment            String
+  createdBy          Int                @map("created_by")
+  creator            User               @relation("CreatedLogs", fields: [createdBy], references: [id])
+  createdAt          DateTime           @default(now()) @map("created_at")
+
+  @@map("user_log")
+  @@index([userId, createdAt])
 }
 
 model UserRequest {
