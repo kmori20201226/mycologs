@@ -9,6 +9,23 @@ interface UserSummary {
   email: string
 }
 
+type Period = '24h' | '7d' | '1m' | 'all'
+
+const PERIOD_OPTIONS: { value: Period; label: string; hours?: number }[] = [
+  { value: '24h', label: '過去24時間', hours: 24 },
+  { value: '7d',  label: '過去7日間',  hours: 24 * 7 },
+  { value: '1m',  label: '過去1ヶ月',  hours: 24 * 30 },
+  { value: 'all', label: 'すべてのユーザー' },
+]
+
+function periodToLogSince(period: Period): string | undefined {
+  const opt = PERIOD_OPTIONS.find((o) => o.value === period)
+  if (!opt || !opt.hours) return undefined
+  const d = new Date()
+  d.setTime(d.getTime() - opt.hours * 60 * 60 * 1000)
+  return d.toISOString()
+}
+
 interface UserLog {
   id: number
   userId: number
@@ -36,6 +53,7 @@ function formatDate(iso: string) {
 }
 
 export default function UserLogsPage() {
+  const [period, setPeriod] = useState<Period>('24h')
   const [users, setUsers] = useState<UserSummary[]>([])
   const [selectedUserId, setSelectedUserId] = useState<number | ''>('')
   const [logs, setLogs] = useState<UserLog[]>([])
@@ -43,8 +61,12 @@ export default function UserLogsPage() {
   const [totalPoints, setTotalPoints] = useState(0)
 
   useEffect(() => {
-    apiClient.request<UserSummary[]>('/users').then(setUsers).catch(() => {})
-  }, [])
+    const logSince = periodToLogSince(period)
+    const url = logSince ? `/users?logSince=${encodeURIComponent(logSince)}` : '/users'
+    setSelectedUserId('')
+    setLogs([])
+    apiClient.request<UserSummary[]>(url).then(setUsers).catch(() => {})
+  }, [period])
 
   async function loadLogs(uid: number) {
     setLoading(true)
@@ -75,8 +97,23 @@ export default function UserLogsPage() {
 
         {/* User selector */}
         <div className="bg-white rounded-xl shadow p-5 mb-6 flex flex-wrap items-end gap-4">
+          <div className="min-w-44">
+            <label className="block text-sm font-medium text-gray-700 mb-1">対象期間</label>
+            <select
+              value={period}
+              onChange={(e) => setPeriod(e.target.value as Period)}
+              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            >
+              {PERIOD_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          </div>
           <div className="flex-1 min-w-48">
-            <label className="block text-sm font-medium text-gray-700 mb-1">ユーザーを選択</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              ユーザーを選択
+              <span className="ml-1 text-gray-400 font-normal">({users.length}名)</span>
+            </label>
             <select
               value={selectedUserId}
               onChange={handleUserChange}

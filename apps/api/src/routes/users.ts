@@ -31,9 +31,33 @@ export default async function (fastify: FastifyInstance) {
     })
 
     // LIST ALL
-    fastify.get('/users', async (request, reply) => {
+    fastify.get('/users', {
+        schema: {
+            querystring: {
+                type: 'object',
+                properties: {
+                    logSince: { type: 'string' }
+                }
+            }
+        }
+    }, async (request, reply) => {
+        const { logSince } = request.query as { logSince?: string }
+
+        if (logSince) {
+            const since = new Date(logSince)
+            const users = await fastify.prisma.user.findMany({
+                where: {
+                    userLogs: { some: { createdAt: { gte: since } } }
+                },
+                select: { id: true, name: true, email: true, createdAt: true },
+                orderBy: { name: 'asc' }
+            })
+            return users
+        }
+
         const users = await fastify.prisma.user.findMany({
-            select: { id: true, name: true, email: true, createdAt: true }
+            select: { id: true, name: true, email: true, createdAt: true },
+            orderBy: { name: 'asc' }
         })
         return users
     })
