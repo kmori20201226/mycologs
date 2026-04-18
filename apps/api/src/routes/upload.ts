@@ -120,6 +120,88 @@ const uploadRoutes: FastifyPluginAsync = async (fastify) => {
             return reply.status(201).send(media)
         }
     )
+
+    // Upload / replace event banner image
+    fastify.post<{ Params: { id: string } }>(
+        '/events/:id/banner',
+        {
+            preHandler: [fastify.authenticate],
+            schema: {
+                params: {
+                    type: 'object',
+                    properties: { id: { type: 'string' } },
+                    required: ['id'],
+                },
+                response: {
+                    200: {
+                        type: 'object',
+                        properties: {
+                            bannerImage: { type: 'string', nullable: true },
+                        },
+                    },
+                },
+            },
+        },
+        async (request, reply) => {
+            const eventId = Number(request.params.id)
+            if (isNaN(eventId)) {
+                return reply.status(400).send({ error: 'Invalid event ID' })
+            }
+
+            const event = await fastify.prisma.event.findUnique({ where: { id: eventId } })
+            if (!event) {
+                return reply.status(404).send({ error: 'Event not found' })
+            }
+
+            const file = await request.file({ limits: { fileSize: 10 * 1024 * 1024 } })
+            if (!file) {
+                return reply.status(400).send({ error: 'No file uploaded' })
+            }
+
+            if (!file.mimetype.startsWith('image/')) {
+                return reply.status(400).send({ error: 'Only image files are allowed' })
+            }
+
+            if (!fs.existsSync(UPLOADS_DIR)) {
+                fs.mkdirSync(UPLOADS_DIR, { recursive: true })
+            }
+
+            const ext = path.extname(file.filename).toLowerCase() || '.jpg'
+            const storedName = `event-banner-${crypto.randomUUID()}${ext}`
+            const filePath = path.join(UPLOADS_DIR, storedName)
+
+            try {
+                await pipeline(file.file, fs.createWriteStream(filePath))
+            } catch (err) {
+                if (fs.existsSync(filePath)) fs.unlinkSync(filePath)
+                throw err
+            }
+
+            if (file.file.truncated) {
+                fs.unlinkSync(filePath)
+                return reply.status(413).send({ error: 'File too large (max 10 MB)' })
+            }
+
+            // Delete old banner file if exists
+            if (event.bannerImage) {
+                const oldFilename = event.bannerImage.split('/uploads/')[1]
+                if (oldFilename) {
+                    const oldPath = path.join(UPLOADS_DIR, oldFilename)
+                    if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath)
+                }
+            }
+
+            const apiBase = process.env.API_URL ?? 'http://localhost:3000'
+            const url = `${apiBase}/uploads/${storedName}`
+
+            const updated = await fastify.prisma.event.update({
+                where: { id: eventId },
+                data: { bannerImage: url },
+            })
+
+            return reply.send({ bannerImage: updated.bannerImage })
+        }
+    )
 }
 
 export default uploadRoutes

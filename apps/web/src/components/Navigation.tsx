@@ -9,7 +9,7 @@ import {
   getToken,
   type ClubMembership
 } from '@/lib/auth'
-import { menuItems, type MenuVisibility } from '@/config/menu'
+import { menuEntries, type MenuVisibility } from '@/config/menu'
 import { apiClient } from '@/lib/api'
 
 function isVisible(
@@ -106,7 +106,7 @@ export default function Navigation() {
     window.location.href = '/'
   }
 
-  const visibleItems = menuItems.filter((item) => isVisible(item.visibleTo, user, clubs, selectedClubId))
+  const visibleEntries = menuEntries.filter((entry) => isVisible(entry.visibleTo, user, clubs, selectedClubId))
   const selectedClub = clubs.find((c) => c.id === selectedClubId)
 
   return (
@@ -192,22 +192,48 @@ export default function Navigation() {
 
       {/* Dropdown menu */}
       {menuOpen && (
-        <div className="absolute top-16 left-0 w-56 bg-white border shadow-lg z-50">
-          {visibleItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={() => setMenuOpen(false)}
-              className="flex items-center justify-between px-4 py-3 text-gray-700 hover:bg-emerald-50 hover:text-emerald-600 font-medium transition-colors"
-            >
-              {item.label}
-              {item.href === '/admin/requests' && pendingRequestCount > 0 && (
-                <span className="ml-2 inline-flex items-center justify-center w-5 h-5 rounded-full bg-red-500 text-white text-xs font-bold">
-                  {pendingRequestCount > 99 ? '99+' : pendingRequestCount}
-                </span>
-              )}
-            </Link>
-          ))}
+        <div className="absolute top-16 left-0 w-56 bg-white border shadow-lg z-50 py-1">
+          {visibleEntries.map((entry) => {
+            if (entry.type === 'item') {
+              return (
+                <Link
+                  key={entry.href}
+                  href={entry.href}
+                  onClick={() => setMenuOpen(false)}
+                  className="flex items-center justify-between px-4 py-2.5 text-gray-700 hover:bg-emerald-50 hover:text-emerald-600 font-medium transition-colors"
+                >
+                  {entry.label}
+                </Link>
+              )
+            }
+            // Group
+            const visibleChildren = entry.children.filter((c) =>
+              isVisible(c.visibleTo, user, clubs, selectedClubId)
+            )
+            if (visibleChildren.length === 0) return null
+            return (
+              <div key={entry.label}>
+                <p className="px-4 pt-3 pb-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                  {entry.label}
+                </p>
+                {visibleChildren.map((child) => (
+                  <Link
+                    key={child.href}
+                    href={child.href}
+                    onClick={() => setMenuOpen(false)}
+                    className="flex items-center justify-between pl-7 pr-4 py-2 text-gray-700 hover:bg-emerald-50 hover:text-emerald-600 transition-colors"
+                  >
+                    {child.label}
+                    {child.href === '/admin/requests' && pendingRequestCount > 0 && (
+                      <span className="ml-2 inline-flex items-center justify-center w-5 h-5 rounded-full bg-red-500 text-white text-xs font-bold">
+                        {pendingRequestCount > 99 ? '99+' : pendingRequestCount}
+                      </span>
+                    )}
+                  </Link>
+                ))}
+              </div>
+            )
+          })}
         </div>
       )}
     </nav>

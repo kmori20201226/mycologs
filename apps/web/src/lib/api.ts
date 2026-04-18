@@ -1,5 +1,3 @@
-import { User, Post, Identification, Vote, Species, Family, Genus, Shape } from '../../../packages/types/src';
-
 export interface TaxShape {
   id: number
   name: string
@@ -80,6 +78,8 @@ export interface Event {
   latitude: number | null
   startAt: string | null
   endAt: string | null
+  bannerImage: string | null
+  retrospective: string | null
   createdAt: string
 }
 
@@ -154,15 +154,15 @@ class ApiClient {
   }
 
   // Users
-  async getUsers(): Promise<User[]> {
+  async getUsers(): Promise<unknown[]> {
     return this.request('/users');
   }
 
-  async getUser(id: number): Promise<User> {
+  async getUser(id: number): Promise<unknown> {
     return this.request(`/users/${id}`);
   }
 
-  async createUser(data: { name: string; email: string }): Promise<User> {
+  async createUser(data: { name: string; email: string }): Promise<unknown> {
     return this.request('/users', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -185,14 +185,14 @@ class ApiClient {
   }
 
   // Posts
-  async getPosts(filter?: { eventId?: number }): Promise<Post[]> {
+  async getPosts(filter?: { eventId?: number }): Promise<unknown[]> {
     const params = new URLSearchParams()
     if (filter?.eventId) params.set('eventId', String(filter.eventId))
     const qs = params.toString() ? `?${params.toString()}` : ''
     return this.request(`/posts${qs}`)
   }
 
-  async getPost(id: number): Promise<Post> {
+  async getPost(id: number): Promise<unknown> {
     return this.request(`/posts/${id}`);
   }
 
@@ -241,7 +241,7 @@ class ApiClient {
     return this.request('/events', { method: 'POST', body: JSON.stringify(data) })
   }
 
-  async updateEvent(id: number, data: { name?: string; description?: string; place?: string | null; longitude?: number | null; latitude?: number | null; startAt?: string | null; endAt?: string | null }): Promise<Event> {
+  async updateEvent(id: number, data: { name?: string; description?: string; place?: string | null; longitude?: number | null; latitude?: number | null; startAt?: string | null; endAt?: string | null; retrospective?: string | null }): Promise<Event> {
     return this.request(`/events/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
   }
 
@@ -251,6 +251,24 @@ class ApiClient {
 
   async deleteEvent(id: number): Promise<void> {
     return this.request(`/events/${id}`, { method: 'DELETE' })
+  }
+
+  async uploadEventBanner(id: number, file: File): Promise<{ bannerImage: string | null }> {
+    const url = `${this.baseURL}/events/${id}/banner`
+    let authHeader: Record<string, string> = {}
+    if (typeof document !== 'undefined') {
+      const match = document.cookie.match(/(?:^|; )token=([^;]*)/)
+      if (match) authHeader = { Authorization: `Bearer ${decodeURIComponent(match[1])}` }
+    }
+    const form = new FormData()
+    form.append('file', file)
+    const response = await fetch(url, { method: 'POST', headers: authHeader, body: form })
+    if (!response.ok) throw new Error(`Upload failed: ${response.status}`)
+    return response.json()
+  }
+
+  async deleteEventBanner(id: number): Promise<void> {
+    return this.request(`/events/${id}/banner`, { method: 'DELETE' })
   }
 
   // Clubs
@@ -366,11 +384,11 @@ class ApiClient {
   }
 
   // Identifications
-  async getIdentifications(): Promise<Identification[]> {
+  async getIdentifications(): Promise<unknown[]> {
     return this.request('/identifications');
   }
 
-  async getPostIdentifications(postId: number): Promise<Identification[]> {
+  async getPostIdentifications(postId: number): Promise<unknown[]> {
     return this.request(`/posts/${postId}/identifications`);
   }
 
@@ -379,7 +397,7 @@ class ApiClient {
     userId: number;
     specieId?: number;
     description?: Record<string, unknown>;
-  }): Promise<Identification> {
+  }): Promise<unknown> {
     return this.request('/identifications', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -395,11 +413,11 @@ class ApiClient {
   }
 
   // Votes
-  async getVotes(): Promise<Vote[]> {
+  async getVotes(): Promise<unknown[]> {
     return this.request('/votes');
   }
 
-  async getPostVotes(postId: number): Promise<Vote[]> {
+  async getPostVotes(postId: number): Promise<unknown[]> {
     return this.request(`/posts/${postId}/votes`);
   }
 
@@ -408,7 +426,7 @@ class ApiClient {
     userId: number;
     identificationId: number;
     probability: number;
-  }): Promise<Vote> {
+  }): Promise<unknown> {
     return this.request('/votes', {
       method: 'POST',
       body: JSON.stringify(data),

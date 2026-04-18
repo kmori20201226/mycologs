@@ -7,7 +7,7 @@ import { getStoredUser } from '@/lib/auth'
 
 function formatDate(iso: string | null): string {
   if (!iso) return '—'
-  return new Date(iso).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })
+  return new Date(iso).toLocaleDateString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
 export default function UserEventListPage() {
@@ -88,18 +88,21 @@ export default function UserEventListPage() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b">
                 <tr>
-                  <th className="text-left px-6 py-3 font-semibold text-gray-600">名前</th>
-                  <th className="text-left px-6 py-3 font-semibold text-gray-600">開始</th>
-                  <th className="text-left px-6 py-3 font-semibold text-gray-600">終了</th>
-                  <th className="px-6 py-3" />
+                  <th className="text-left px-4 py-3 font-semibold text-gray-600 w-28">開始日</th>
+                  <th className="text-left px-4 py-3 font-semibold text-gray-600">名前・説明</th>
+                  <th className="px-4 py-3" />
                 </tr>
               </thead>
               <tbody className="divide-y">
                 {events.map((ev) => (
                   <tr key={ev.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 font-medium text-gray-800">{ev.name}</td>
-                    <td className="px-6 py-4 text-gray-500">{formatDate(ev.startAt)}</td>
-                    <td className="px-6 py-4 text-gray-500">{formatDate(ev.endAt)}</td>
+                    <td className="px-4 py-4 text-sm text-gray-500 whitespace-nowrap align-top">{formatDate(ev.startAt)}</td>
+                    <td className="px-4 py-4 align-top">
+                      <p className="font-medium text-gray-800 text-sm">{ev.name}</p>
+                      {ev.description && (
+                        <p className="text-xs text-gray-400 mt-0.5 line-clamp-2">{ev.description}</p>
+                      )}
+                    </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-4">
                         <button

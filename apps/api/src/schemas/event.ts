@@ -11,6 +11,8 @@ export const eventSchema = {
         latitude: { type: 'number', nullable: true },
         startAt: { type: 'string', format: 'date-time', nullable: true },
         endAt: { type: 'string', format: 'date-time', nullable: true },
+        bannerImage: { type: 'string', nullable: true },
+        retrospective: { type: 'string', nullable: true },
         createdAt: { type: 'string', format: 'date-time' }
     }
 }
@@ -42,6 +44,7 @@ export const updateEventSchema = {
         longitude: { type: 'number', nullable: true },
         latitude: { type: 'number', nullable: true },
         startAt: { type: 'string', format: 'date-time', nullable: true },
-        endAt: { type: 'string', format: 'date-time', nullable: true }
+        endAt: { type: 'string', format: 'date-time', nullable: true },
+        retrospective: { type: 'string', nullable: true }
     }
 }

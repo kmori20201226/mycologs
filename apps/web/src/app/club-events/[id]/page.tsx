@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { apiClient, type Event } from '@/lib/api'
+import { getStoredUser, getStoredClubs, getSelectedClubId } from '@/lib/auth'
 
 interface Post {
   id: number
@@ -26,6 +27,12 @@ export default function ClubEventDetailPage() {
   const [posts, setPosts] = useState<Post[]>([])
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
+  const [canEdit, setCanEdit] = useState(false)
+
+  // Retrospective edit state
+  const [retroEditing, setRetroEditing] = useState(false)
+  const [retroText, setRetroText] = useState('')
+  const [retroSaving, setRetroSaving] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -35,7 +42,23 @@ export default function ClubEventDetailPage() {
           apiClient.getPosts({ eventId }),
         ])
         setEvent(ev)
+        setRetroText(ev.retrospective ?? '')
         setPosts(ps as Post[])
+
+        // Check if user can edit retrospective
+        const user = getStoredUser()
+        if (user) {
+          if (user.role === 'ADMIN' || user.role === 'DEVELOPER') {
+            setCanEdit(true)
+          } else {
+            // Check club role for the event's club
+            const clubs = getStoredClubs()
+            const selectedId = getSelectedClubId()
+            const clubId = ev.clubId ?? selectedId
+            const membership = clubs.find((c) => c.id === clubId)
+            if (membership?.role === 'CLUBMANAGER') setCanEdit(true)
+          }
+        }
       } catch {
         setNotFound(true)
       } finally {
@@ -44,6 +67,25 @@ export default function ClubEventDetailPage() {
     }
     load()
   }, [eventId])
+
+  async function handleRetroSave() {
+    if (!event) return
+    setRetroSaving(true)
+    try {
+      const updated = await apiClient.updateEvent(eventId, {
+        retrospective: retroText.trim() || null,
+      })
+      setEvent((prev) => prev ? { ...prev, retrospective: updated.retrospective } : prev)
+      setRetroEditing(false)
+    } finally {
+      setRetroSaving(false)
+    }
+  }
+
+  function handleRetroCancel() {
+    setRetroText(event?.retrospective ?? '')
+    setRetroEditing(false)
+  }
 
   if (notFound) {
     return (
@@ -82,41 +124,103 @@ export default function ClubEventDetailPage() {
 
         {/* Event info card */}
         {loading ? (
-          <div className="bg-white rounded-xl shadow p-6 mb-8 animate-pulse space-y-3">
-            <div className="h-6 bg-gray-200 rounded w-1/2" />
-            <div className="h-4 bg-gray-200 rounded w-1/3" />
+          <div className="bg-white rounded-xl shadow mb-8 animate-pulse">
+            <div className="h-48 bg-gray-200 rounded-t-xl" />
+            <div className="p-6 space-y-3">
+              <div className="h-6 bg-gray-200 rounded w-1/2" />
+              <div className="h-4 bg-gray-200 rounded w-1/3" />
+            </div>
           </div>
         ) : event && (
-          <div className="bg-white rounded-xl shadow p-6 mb-8">
-            <div className="flex items-start gap-3 mb-3">
-              <h1 className="text-2xl font-bold text-gray-900 flex-1">{event.name}</h1>
-              {isOngoing && (
-                <span className="shrink-0 inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700">
-                  開催中
-                </span>
-              )}
-              {isPast && (
-                <span className="shrink-0 inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-500">
-                  終了
-                </span>
-              )}
-            </div>
-
-            {event.description && (
-              <p className="text-gray-600 text-sm mb-4 whitespace-pre-wrap">{event.description}</p>
+          <div className="bg-white rounded-xl shadow mb-8">
+            {event.bannerImage && (
+              <img
+                src={event.bannerImage}
+                alt={event.name}
+                className="w-full rounded-t-xl object-cover max-h-56"
+              />
             )}
+            <div className="p-6">
+              <div className="flex items-start gap-3 mb-3">
+                <h1 className="text-2xl font-bold text-gray-900 flex-1">{event.name}</h1>
+                {isOngoing && (
+                  <span className="shrink-0 inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700">
+                    開催中
+                  </span>
+                )}
+                {isPast && (
+                  <span className="shrink-0 inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-500">
+                    終了
+                  </span>
+                )}
+              </div>
 
-            <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-gray-500">
-              {event.startAt && (
-                <span>開始: <span className="text-gray-700">{formatDate(event.startAt)}</span></span>
+              {event.description && (
+                <p className="text-gray-600 text-sm mb-4 whitespace-pre-wrap">{event.description}</p>
               )}
-              {event.endAt && (
-                <span>終了: <span className="text-gray-700">{formatDate(event.endAt)}</span></span>
-              )}
-              {event.place && (
-                <span>📍 <span className="text-gray-700">{event.place}</span></span>
+
+              <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-gray-500">
+                {event.startAt && (
+                  <span>開始: <span className="text-gray-700">{formatDate(event.startAt)}</span></span>
+                )}
+                {event.endAt && (
+                  <span>終了: <span className="text-gray-700">{formatDate(event.endAt)}</span></span>
+                )}
+                {event.place && (
+                  <span>📍 <span className="text-gray-700">{event.place}</span></span>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Retrospective */}
+        {!loading && (event?.retrospective || canEdit) && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 mb-6">
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-sm font-semibold text-amber-800 uppercase tracking-wide">振り返り</h2>
+              {canEdit && !retroEditing && (
+                <button
+                  onClick={() => setRetroEditing(true)}
+                  className="text-xs text-amber-700 hover:text-amber-900 font-medium transition-colors"
+                >
+                  {event?.retrospective ? '編集' : '追加'}
+                </button>
               )}
             </div>
+
+            {retroEditing ? (
+              <div className="space-y-2">
+                <textarea
+                  value={retroText}
+                  onChange={(e) => setRetroText(e.target.value)}
+                  rows={4}
+                  autoFocus
+                  placeholder="イベントの振り返りを入力してください…"
+                  className="w-full border border-amber-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleRetroSave}
+                    disabled={retroSaving}
+                    className="text-sm bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white px-4 py-1.5 rounded-lg font-medium transition-colors"
+                  >
+                    {retroSaving ? '保存中…' : '保存'}
+                  </button>
+                  <button
+                    onClick={handleRetroCancel}
+                    disabled={retroSaving}
+                    className="text-sm text-gray-500 hover:text-gray-700 font-medium transition-colors"
+                  >
+                    キャンセル
+                  </button>
+                </div>
+              </div>
+            ) : event?.retrospective ? (
+              <p className="text-sm text-amber-900 whitespace-pre-wrap">{event.retrospective}</p>
+            ) : (
+              <p className="text-sm text-amber-600 italic">振り返りはまだ追加されていません。</p>
+            )}
           </div>
         )}
 
@@ -129,7 +233,7 @@ export default function ClubEventDetailPage() {
             )}
           </h2>
           <Link
-            href="/posts/new"
+            href={`/posts/new?eventId=${eventId}`}
             className="text-sm bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-1.5 rounded-lg font-semibold transition-colors"
           >
             投稿する

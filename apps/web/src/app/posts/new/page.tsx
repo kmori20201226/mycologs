@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { apiClient, type Event } from '@/lib/api'
 import { getStoredUser, getSelectedClubId } from '@/lib/auth'
@@ -45,6 +45,7 @@ function formatBytes(bytes: number) {
 
 export default function NewPostPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const dropZoneRef = useRef<HTMLDivElement>(null)
 
@@ -64,7 +65,14 @@ export default function NewPostPage() {
     const user = getStoredUser()
     if (!user) { setNotAuthed(true); return }
     const clubId = getSelectedClubId()
-    apiClient.getEvents(clubId ?? undefined).then(setEvents).catch(() => {})
+    const presetEventId = searchParams.get('eventId')
+    apiClient.getEvents(clubId ? { clubId } : undefined).then((evs) => {
+      setEvents(evs)
+      if (presetEventId) {
+        const id = Number(presetEventId)
+        if (evs.some((e) => e.id === id)) setEventId(id)
+      }
+    }).catch(() => {})
   }, [])
 
   // Revoke object URLs on unmount

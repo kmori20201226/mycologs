@@ -15,7 +15,15 @@ export default async function (fastify: FastifyInstance) {
         schema: {
             body: createPostSchema,
             response: {
-                201: postSchema
+                201: postSchema,
+                422: {
+                    type: 'object',
+                    properties: {
+                        status:   { type: 'string' },
+                        category: { type: 'string' },
+                        comment:  { type: 'string' },
+                    }
+                }
             }
         }
     }, async (request, reply) => {
@@ -40,13 +48,13 @@ export default async function (fastify: FastifyInstance) {
                 // Rejected — log and block
                 await fastify.prisma.userLog.create({
                     data: {
-                        userId,
-                        point:             modResult.point ?? -5,
+                        userId:            Number(userId),
+                        point:             Number(modResult.point ?? -5),
                         transactionType:   'POST',
                         rejectionCategory: modResult.category,
                         userPost:          contents,
                         comment:           modResult.comment ?? '',
-                        createdBy:         userId,
+                        createdBy:         Number(userId),
                     },
                 })
                 return reply.code(422).send({ status: 'rejected', comment: modResult.comment })
@@ -75,14 +83,14 @@ export default async function (fastify: FastifyInstance) {
         if (confirmedModeration && CATEGORY_POINTS[confirmedModeration.category] !== undefined) {
             await fastify.prisma.userLog.create({
                 data: {
-                    userId,
+                    userId:            Number(userId),
                     postId:            post.id,
-                    point:             CATEGORY_POINTS[confirmedModeration.category],
+                    point:             CATEGORY_POINTS[confirmedModeration.category] as number,
                     transactionType:   'POST',
                     rejectionCategory: confirmedModeration.category,
                     userPost:          contents,
                     comment:           confirmedModeration.comment ?? '',
-                    createdBy:         userId,
+                    createdBy:         Number(userId),
                 },
             })
         }

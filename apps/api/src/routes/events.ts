@@ -1,5 +1,9 @@
 import { FastifyInstance } from 'fastify'
+import path from 'path'
+import fs from 'fs'
 import { createEventSchema, eventSchema, updateEventSchema } from '../schemas/event'
+
+const UPLOADS_DIR = path.resolve(__dirname, '../../../../data/uploads')
 
 export default async function (fastify: FastifyInstance) {
 
@@ -141,6 +145,46 @@ export default async function (fastify: FastifyInstance) {
         } catch (error) {
             return reply.code(404).send({ message: 'Event not found' })
         }
+    })
+
+    // DELETE banner image
+    fastify.delete('/events/:id/banner', {
+        preHandler: [fastify.authenticate],
+        schema: {
+            params: {
+                type: 'object',
+                properties: { id: { type: 'integer' } },
+                required: ['id']
+            },
+            response: {
+                200: {
+                    type: 'object',
+                    properties: { bannerImage: { type: 'string', nullable: true } }
+                },
+                404: {
+                    type: 'object',
+                    properties: { message: { type: 'string' } }
+                }
+            }
+        }
+    }, async (request, reply) => {
+        const { id } = request.params as any
+        const event = await fastify.prisma.event.findUnique({ where: { id: Number(id) } })
+        if (!event) return reply.code(404).send({ message: 'Event not found' })
+
+        if (event.bannerImage) {
+            const filename = event.bannerImage.split('/uploads/')[1]
+            if (filename) {
+                const filePath = path.join(UPLOADS_DIR, filename)
+                if (fs.existsSync(filePath)) fs.unlinkSync(filePath)
+            }
+        }
+
+        const updated = await fastify.prisma.event.update({
+            where: { id: Number(id) },
+            data: { bannerImage: null }
+        })
+        return { bannerImage: updated.bannerImage }
     })
 
     // DELETE

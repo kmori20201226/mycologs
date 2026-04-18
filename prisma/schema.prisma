@@ -201,6 +201,8 @@ model Event {
   latitude          Float?
   startAt           DateTime?  @map("start_at")
   endAt             DateTime?  @map("end_at")
+  bannerImage       String?    @map("banner_image")
+  retrospective     String?
   createdAt         DateTime   @default(now()) @map("created_at")
 
   club              Club?      @relation(fields: [clubId], references: [id])

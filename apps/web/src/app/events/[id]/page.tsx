@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { apiClient, type Event } from '@/lib/api'
@@ -30,11 +30,23 @@ export default function UserEventEditPage() {
   const [startAt, setStartAt] = useState('')
   const [endAt, setEndAt] = useState('')
   const [notFound, setNotFound] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+
+  // Banner state
+  const [savedBanner, setSavedBanner] = useState<string | null>(null)
+  const [bannerFile, setBannerFile] = useState<File | null>(null)
+  const [bannerPreview, setBannerPreview] = useState<string | null>(null)
+  const [bannerDeleted, setBannerDeleted] = useState(false)
+  const bannerInputRef = useRef<HTMLInputElement>(null)
 
   const [geocoding, setGeocoding] = useState(false)
   const [candidates, setCandidates] = useState<GeoCandidate[]>([])
   const [toast, setToast] = useState('')
+
+  useEffect(() => {
+    return () => { if (bannerPreview) URL.revokeObjectURL(bannerPreview) }
+  }, [bannerPreview])
 
   useEffect(() => {
     const user = getStoredUser()
@@ -53,6 +65,7 @@ export default function UserEventEditPage() {
         setLatitude(ev.latitude != null ? String(ev.latitude) : '')
         setStartAt(toInputValue(ev.startAt))
         setEndAt(toInputValue(ev.endAt))
+        setSavedBanner(ev.bannerImage)
       })
       .catch(() => setNotFound(true))
   }, [eventId])
@@ -68,7 +81,9 @@ export default function UserEventEditPage() {
     longitude !== (original.longitude != null ? String(original.longitude) : '') ||
     latitude !== (original.latitude != null ? String(original.latitude) : '') ||
     startAt !== toInputValue(original.startAt) ||
-    endAt !== toInputValue(original.endAt)
+    endAt !== toInputValue(original.endAt) ||
+    bannerFile !== null ||
+    bannerDeleted
   )
 
   const canGuess = place.trim() !== '' && longitude === '' && latitude === ''
@@ -76,6 +91,23 @@ export default function UserEventEditPage() {
   function showToast(msg: string) {
     setToast(msg)
     setTimeout(() => setToast(''), 3000)
+  }
+
+  function handleBannerSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (bannerPreview) URL.revokeObjectURL(bannerPreview)
+    setBannerFile(file)
+    setBannerPreview(URL.createObjectURL(file))
+    setBannerDeleted(false)
+  }
+
+  function handleBannerRemove() {
+    if (bannerPreview) URL.revokeObjectURL(bannerPreview)
+    setBannerFile(null)
+    setBannerPreview(null)
+    if (savedBanner) setBannerDeleted(true)
+    if (bannerInputRef.current) bannerInputRef.current.value = ''
   }
 
   async function handleGuessCoords() {
@@ -110,30 +142,50 @@ export default function UserEventEditPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (dateError) return
+    setSaving(true)
+    try {
+      if (bannerFile) {
+        const result = await apiClient.uploadEventBanner(eventId, bannerFile)
+        setSavedBanner(result.bannerImage)
+        if (bannerPreview) URL.revokeObjectURL(bannerPreview)
+        setBannerFile(null)
+        setBannerPreview(null)
+      } else if (bannerDeleted && savedBanner) {
+        await apiClient.deleteEventBanner(eventId)
+        setSavedBanner(null)
+        setBannerDeleted(false)
+      }
 
-    await apiClient.updateEvent(eventId, {
-      name,
-      description: description || undefined,
-      place: place || null,
-      longitude: longitude !== '' ? Number(longitude) : null,
-      latitude: latitude !== '' ? Number(latitude) : null,
-      startAt: startAt ? new Date(startAt).toISOString() : null,
-      endAt: endAt ? new Date(endAt).toISOString() : null,
-    })
+      await apiClient.updateEvent(eventId, {
+        name,
+        description: description || undefined,
+        place: place || null,
+        longitude: longitude !== '' ? Number(longitude) : null,
+        latitude: latitude !== '' ? Number(latitude) : null,
+        startAt: startAt ? new Date(startAt).toISOString() : null,
+        endAt: endAt ? new Date(endAt).toISOString() : null,
+      })
 
-    setOriginal((prev) => prev ? {
-      ...prev,
-      name,
-      description: description || null,
-      place: place || null,
-      longitude: longitude !== '' ? Number(longitude) : null,
-      latitude: latitude !== '' ? Number(latitude) : null,
-      startAt: startAt ? new Date(startAt).toISOString() : null,
-      endAt: endAt ? new Date(endAt).toISOString() : null,
-    } : prev)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
+      setOriginal((prev) => prev ? {
+        ...prev,
+        name,
+        description: description || null,
+        place: place || null,
+        longitude: longitude !== '' ? Number(longitude) : null,
+        latitude: latitude !== '' ? Number(latitude) : null,
+        startAt: startAt ? new Date(startAt).toISOString() : null,
+        endAt: endAt ? new Date(endAt).toISOString() : null,
+      } : prev)
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+    } catch {
+      showToast('保存に失敗しました。')
+    } finally {
+      setSaving(false)
+    }
   }
+
+  const displayBanner = bannerPreview ?? (bannerDeleted ? null : savedBanner)
 
   if (notFound) {
     return (
@@ -198,7 +250,7 @@ export default function UserEventEditPage() {
                   type="text"
                   value={place}
                   onChange={(e) => { setPlace(e.target.value); setCandidates([]) }}
-                  placeholder="e.g. Shinjuku Gyoen, Tokyo"
+                  placeholder="例: 新宿御苑、東京"
                   className="flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
                 {canGuess && (
@@ -240,7 +292,7 @@ export default function UserEventEditPage() {
                   step="any"
                   value={longitude}
                   onChange={(e) => setLongitude(e.target.value)}
-                  placeholder="e.g. 139.7101"
+                  placeholder="例: 139.7101"
                   className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
               </div>
@@ -251,7 +303,7 @@ export default function UserEventEditPage() {
                   step="any"
                   value={latitude}
                   onChange={(e) => setLatitude(e.target.value)}
-                  placeholder="e.g. 35.6851"
+                  placeholder="例: 35.6851"
                   className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
               </div>
@@ -282,13 +334,57 @@ export default function UserEventEditPage() {
               <p className="text-red-500 text-xs">{dateError}</p>
             )}
 
+            {/* Banner image */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">バナー画像</label>
+              {displayBanner ? (
+                <div className="space-y-2">
+                  <img src={displayBanner} alt="バナープレビュー" className="w-full rounded-lg object-cover max-h-48" />
+                  {bannerFile && (
+                    <p className="text-xs text-sky-600">選択中: {bannerFile.name}（未保存）</p>
+                  )}
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => bannerInputRef.current?.click()}
+                      className="text-sm text-sky-600 hover:text-sky-700 font-medium transition-colors"
+                    >
+                      差し替え
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleBannerRemove}
+                      className="text-sm text-red-400 hover:text-red-600 font-medium transition-colors"
+                    >
+                      削除
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => bannerInputRef.current?.click()}
+                  className="w-full border-2 border-dashed border-gray-200 hover:border-emerald-400 rounded-lg py-6 text-sm text-gray-400 hover:text-emerald-600 transition-colors"
+                >
+                  クリックして画像を選択
+                </button>
+              )}
+              <input
+                ref={bannerInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleBannerSelect}
+              />
+            </div>
+
             <div className="flex items-center gap-3 pt-1">
               <button
                 type="submit"
-                disabled={!isDirty || !!dateError}
+                disabled={!isDirty || !!dateError || saving}
                 className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white px-5 py-2 rounded-lg text-sm font-semibold transition-colors"
               >
-                保存
+                {saving ? '保存中…' : '保存'}
               </button>
               {saved && <span className="text-emerald-600 text-sm">保存しました！</span>}
             </div>

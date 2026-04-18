@@ -103,10 +103,11 @@ export default function PostPage() {
       userId: user.id,
       description: aiResult as unknown as Record<string, unknown>
     })
-    await apiClient.acceptIdentification(created.id)
+    const createdIdent = created as { id: number }
+    await apiClient.acceptIdentification(createdIdent.id)
     const newIdent: Identification = { ...(created as any), accepted: true, description: aiResult }
     setIdentifications((prev) => [...prev.map((i) => ({ ...i, accepted: false })), newIdent])
-    setAcceptedId(created.id)
+    setAcceptedId(createdIdent.id)
     setAiAccepted(false)
     setAiResult(null)
   }

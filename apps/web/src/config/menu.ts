@@ -1,61 +1,90 @@
 import { UserRole } from '@/lib/auth'
 
-// Who can see a menu item:
-//   'public'        — everyone, including guests
-//   'authenticated' — any logged-in user
-//   UserRole        — only users that have that specific role
 export type MenuVisibility = 'public' | 'authenticated' | UserRole
 
-export interface MenuItem {
+export interface MenuLeaf {
+  type: 'item'
   label: string
   href: string
   visibleTo: MenuVisibility[]
 }
 
-export const menuItems: MenuItem[] = [
+export interface MenuGroup {
+  type: 'group'
+  label: string
+  visibleTo: MenuVisibility[]
+  children: MenuLeaf[]
+}
+
+export type MenuEntry = MenuLeaf | MenuGroup
+
+export const menuEntries: MenuEntry[] = [
   {
+    type: 'item',
     label: 'ホーム',
     href: '/',
     visibleTo: ['public'],
   },
   {
-    label: 'フィールドガイド',
-    href: '/taxonomy',
-    visibleTo: ['public'],
-  },
-  {
-    label: 'クラブイベント',
-    href: '/admin/events',
-    visibleTo: ['ADMIN', 'DEVELOPER', 'CLUBMANAGER'],
-  },
-  {
-    label: 'メンバー申請',
-    href: '/admin/requests',
-    visibleTo: ['ADMIN', 'DEVELOPER', 'CLUBMANAGER'],
-  },
-  {
+    type: 'item',
     label: 'マイイベント',
     href: '/events',
     visibleTo: ['authenticated'],
   },
   {
-    label: 'クラブに参加',
-    href: '/club-request',
-    visibleTo: ['authenticated'],
-  },
-  {
+    type: 'item',
     label: 'プロフィール',
     href: '/profile',
     visibleTo: ['authenticated'],
   },
   {
-    label: 'クラブ',
-    href: '/admin/clubs',
-    visibleTo: ['ADMIN', 'DEVELOPER', 'CLUBMANAGER'],
+    type: 'item',
+    label: 'クラブに参加',
+    href: '/club-request',
+    visibleTo: ['authenticated'],
   },
   {
-    label: '分類管理',
-    href: '/admin/taxonomy',
+    type: 'group',
+    label: 'クラブマネージャ',
+    visibleTo: ['ADMIN', 'DEVELOPER', 'CLUBMANAGER'],
+    children: [
+      {
+        type: 'item',
+        label: 'クラブイベント',
+        href: '/admin/events',
+        visibleTo: ['ADMIN', 'DEVELOPER', 'CLUBMANAGER'],
+      },
+      {
+        type: 'item',
+        label: 'メンバー申請処理',
+        href: '/admin/requests',
+        visibleTo: ['ADMIN', 'DEVELOPER', 'CLUBMANAGER'],
+      },
+    ],
+  },
+  {
+    type: 'group',
+    label: 'サイトマネージャ',
     visibleTo: ['ADMIN', 'DEVELOPER'],
+    children: [
+      {
+        type: 'item',
+        label: 'クラブ管理',
+        href: '/admin/clubs',
+        visibleTo: ['ADMIN', 'DEVELOPER'],
+      },
+      {
+        type: 'item',
+        label: '分類管理',
+        href: '/admin/taxonomy',
+        visibleTo: ['ADMIN', 'DEVELOPER'],
+      },
+    ],
   },
 ]
+
+// Legacy flat list kept for any consumers that still import menuItems
+export type MenuItem = MenuLeaf
+export const menuItems: MenuItem[] = menuEntries.flatMap((e) =>
+  e.type === 'item' ? [e] : e.children
+)
