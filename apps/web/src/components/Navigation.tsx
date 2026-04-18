@@ -132,14 +132,14 @@ export default function Navigation() {
             </button>
 
             <Link href="/" className="text-2xl font-bold text-emerald-600">
-              🍄 Mycologs
+              🍄 <span className="hidden sm:inline">Mycologs</span>
             </Link>
           </div>
 
           {/* Centre: club selector */}
           {user && (
             <div className="flex items-center gap-2 text-sm">
-              <span className="text-gray-400">クラブ：</span>
+              <span className="hidden sm:inline text-gray-400">クラブ：</span>
               {clubs.length === 0 && (
                 <span className="text-gray-400 italic">—</span>
               )}
@@ -158,7 +158,7 @@ export default function Navigation() {
                 </select>
               )}
               {clubs.length === 1 && selectedClub && (
-                <span className="text-xs text-gray-400">({selectedClub.role})</span>
+                <span className="hidden sm:inline text-xs text-gray-400">({selectedClub.role})</span>
               )}
             </div>
           )}
@@ -166,7 +166,7 @@ export default function Navigation() {
           {/* Right: auth */}
           {user ? (
             <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-600">こんにちは、{user.name}</span>
+              <span className="hidden sm:inline text-sm text-gray-600">こんにちは、{user.name}</span>
               <button
                 onClick={handleLogout}
                 className="text-sm text-gray-700 hover:text-red-600 font-medium transition-colors"
@@ -181,7 +181,7 @@ export default function Navigation() {
               </Link>
               <Link
                 href="/register"
-                className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
+                className="hidden sm:inline-flex bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
               >
                 新規登録
               </Link>
