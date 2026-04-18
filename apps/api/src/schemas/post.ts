@@ -48,6 +48,14 @@ export const updatePostSchema = {
     type: 'object',
     properties: {
         eventId: { type: 'number' },
-        contents: { type: 'string' }
+        contents: { type: 'string' },
+        userId: { type: 'number' },
+        confirmedModeration: {
+            type: 'object',
+            properties: {
+                category: { type: 'string' },
+                comment:  { type: 'string' }
+            }
+        }
     }
 }

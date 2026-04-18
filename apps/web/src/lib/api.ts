@@ -228,6 +228,37 @@ class ApiClient {
     return { ok: true, id: post.id }
   }
 
+  async updatePost(id: number, data: {
+    userId: number
+    contents?: string
+    eventId?: number
+    confirmedModeration?: { category: string; comment: string }
+  }): Promise<
+    | { ok: true }
+    | { ok: false; status: 'rejected'; comment: string }
+    | { ok: false; status: 'warning'; category: string; comment: string }
+  > {
+    const url = `${this.baseURL}/posts/${id}`
+    let authHeader: Record<string, string> = {}
+    if (typeof document !== 'undefined') {
+      const match = document.cookie.match(/(?:^|; )token=([^;]*)/)
+      if (match) authHeader = { Authorization: `Bearer ${decodeURIComponent(match[1])}` }
+    }
+    const response = await fetch(url, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', ...authHeader },
+      body: JSON.stringify(data),
+    })
+    if (response.status === 422) {
+      const body = await response.json()
+      return { ok: false, ...body }
+    }
+    if (!response.ok) {
+      throw new Error(`API request failed: ${url} => ${response.status} ${response.statusText}`)
+    }
+    return { ok: true }
+  }
+
   // Events
   async getEvents(filter?: { clubId?: number; userId?: number }): Promise<Event[]> {
     const params = new URLSearchParams()

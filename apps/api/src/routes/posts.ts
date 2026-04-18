@@ -79,21 +79,23 @@ export default async function (fastify: FastifyInstance) {
             }
         })
 
-        // If the user confirmed a warning, write the log now that we have a postId
-        if (confirmedModeration && CATEGORY_POINTS[confirmedModeration.category] !== undefined) {
-            await fastify.prisma.userLog.create({
-                data: {
-                    userId:            Number(userId),
-                    postId:            post.id,
-                    point:             CATEGORY_POINTS[confirmedModeration.category] as number,
-                    transactionType:   'POST',
-                    rejectionCategory: confirmedModeration.category,
-                    userPost:          contents,
-                    comment:           confirmedModeration.comment ?? '',
-                    createdBy:         Number(userId),
-                },
-            })
-        }
+        // Log the post: confirmed warning gets negative points, PASS gets 0
+        const logCategory = confirmedModeration?.category ?? 'NONE'
+        const logPoint    = confirmedModeration && CATEGORY_POINTS[confirmedModeration.category] !== undefined
+            ? CATEGORY_POINTS[confirmedModeration.category] as number
+            : 0
+        await fastify.prisma.userLog.create({
+            data: {
+                userId:            Number(userId),
+                postId:            post.id,
+                point:             logPoint,
+                transactionType:   'POST',
+                rejectionCategory: logCategory as any,
+                userPost:          contents,
+                comment:           confirmedModeration?.comment ?? '',
+                createdBy:         Number(userId),
+            },
+        })
 
         return reply.code(201).send(post)
     })
@@ -187,13 +189,63 @@ export default async function (fastify: FastifyInstance) {
                     properties: {
                         message: { type: 'string' }
                     }
+                },
+                422: {
+                    type: 'object',
+                    properties: {
+                        status:   { type: 'string' },
+                        category: { type: 'string' },
+                        comment:  { type: 'string' },
+                    }
                 }
             }
         }
     }, async (request, reply) => {
         const { id } = request.params as any
-        const updateData = request.body as any
+        const { userId, confirmedModeration, ...updateData } = request.body as any
 
+        // ── Moderation check (only when contents is changing) ────────────────
+        if (updateData.contents && !confirmedModeration) {
+            let modResult: any
+            try {
+                const res = await fetch(`${AI_SERVICE_URL}/api/moderation/evaluate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ post: updateData.contents }),
+                })
+                modResult = await res.json()
+            } catch {
+                modResult = { allowed: true, category: 'PASS', comment: '' }
+            }
+
+            if (!modResult.allowed) {
+                if (userId) {
+                    await fastify.prisma.userLog.create({
+                        data: {
+                            userId:            Number(userId),
+                            postId:            Number(id),
+                            point:             Number(modResult.point ?? -5),
+                            transactionType:   'UPDATE',
+                            rejectionCategory: modResult.category,
+                            userPost:          updateData.contents,
+                            comment:           modResult.comment ?? '',
+                            createdBy:         Number(userId),
+                        },
+                    })
+                }
+                return reply.code(422).send({ status: 'rejected', comment: modResult.comment })
+            }
+
+            if (modResult.category !== 'PASS') {
+                return reply.code(422).send({
+                    status:   'warning',
+                    category: modResult.category,
+                    comment:  modResult.comment,
+                })
+            }
+        }
+
+        // ── Apply update ─────────────────────────────────────────────────────
         try {
             const post = await fastify.prisma.post.update({
                 where: { id: Number(id) },
@@ -203,6 +255,26 @@ export default async function (fastify: FastifyInstance) {
                     event: { select: { id: true, name: true } }
                 }
             })
+
+            // Log the update
+            if (userId) {
+                const logCategory = confirmedModeration?.category ?? 'NONE'
+                const logPoint    = confirmedModeration && CATEGORY_POINTS[confirmedModeration.category] !== undefined
+                    ? CATEGORY_POINTS[confirmedModeration.category] as number
+                    : 0
+                await fastify.prisma.userLog.create({
+                    data: {
+                        userId:            Number(userId),
+                        postId:            post.id,
+                        point:             logPoint,
+                        transactionType:   'UPDATE',
+                        rejectionCategory: logCategory as any,
+                        userPost:          post.contents,
+                        comment:           confirmedModeration?.comment ?? '',
+                        createdBy:         Number(userId),
+                    },
+                })
+            }
 
             return post
         } catch (error) {
@@ -238,9 +310,32 @@ export default async function (fastify: FastifyInstance) {
     }, async (request, reply) => {
         const { id } = request.params as any
 
+        // Fetch post first to capture contents and userId for the log
+        const existing = await fastify.prisma.post.findUnique({
+            where: { id: Number(id) },
+            select: { userId: true, contents: true }
+        })
+
+        if (!existing) {
+            return reply.code(404).send({ message: 'Post not found' })
+        }
+
         try {
             await fastify.prisma.post.delete({
                 where: { id: Number(id) }
+            })
+
+            // Log the deletion (postId intentionally omitted — post no longer exists)
+            await fastify.prisma.userLog.create({
+                data: {
+                    userId:            existing.userId,
+                    point:             0,
+                    transactionType:   'DELETE',
+                    rejectionCategory: 'NONE',
+                    userPost:          existing.contents,
+                    comment:           '',
+                    createdBy:         existing.userId,
+                },
             })
 
             return { message: 'Post deleted' }

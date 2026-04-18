@@ -32,7 +32,7 @@ interface UserLog {
   postId: number | null
   followupId: number | null
   point: number
-  transactionType: 'POST' | 'RESET'
+  transactionType: 'POST' | 'UPDATE' | 'DELETE' | 'RESET'
   rejectionCategory: 'OFFENSIVE_SEXUAL' | 'POTENTIALLY_OFFENSIVE' | 'OFF_TOPIC_IMAGE' | 'NONE' | null
   userPost: string
   comment: string
@@ -172,7 +172,15 @@ export default function UserLogsPage() {
                         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">
                           リセット
                         </span>
-                      ) : log.rejectionCategory ? (
+                      ) : log.transactionType === 'DELETE' ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-200 text-gray-600">
+                          削除
+                        </span>
+                      ) : log.transactionType === 'UPDATE' && log.rejectionCategory === 'NONE' ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-700">
+                          編集
+                        </span>
+                      ) : log.rejectionCategory && log.rejectionCategory !== 'NONE' ? (
                         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${
                           log.rejectionCategory === 'OFFENSIVE_SEXUAL'
                             ? 'bg-red-100 text-red-700'
@@ -181,6 +189,10 @@ export default function UserLogsPage() {
                             : 'bg-yellow-100 text-yellow-700'
                         }`}>
                           {CATEGORY_LABEL[log.rejectionCategory] ?? log.rejectionCategory}
+                        </span>
+                      ) : log.transactionType === 'POST' ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700">
+                          投稿
                         </span>
                       ) : (
                         <span className="text-gray-400 text-xs">—</span>
