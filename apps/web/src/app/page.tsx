@@ -1,5 +1,6 @@
 import Link from "next/link";
 import ClubEventsButton from "@/components/ClubEventsButton";
+import MyEventsButton from "@/components/MyEventsButton";
 
 export default function Home() {
   return (
@@ -26,6 +27,7 @@ export default function Home() {
             >
               きのこを同定する
             </Link>
+            <MyEventsButton />
             <ClubEventsButton />
           </div>
         </div>

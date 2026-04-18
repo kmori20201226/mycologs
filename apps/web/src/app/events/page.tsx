@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { apiClient, type Event } from '@/lib/api'
 import { getStoredUser } from '@/lib/auth'
 
@@ -88,7 +89,7 @@ export default function UserEventListPage() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b">
                 <tr>
-                  <th className="text-left px-4 py-3 font-semibold text-gray-600 w-28">開始日</th>
+                  <th className="text-left px-4 py-3 font-semibold text-gray-600 w-28">日付</th>
                   <th className="text-left px-4 py-3 font-semibold text-gray-600">名前・説明</th>
                   <th className="px-4 py-3" />
                 </tr>
@@ -105,6 +106,12 @@ export default function UserEventListPage() {
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-4">
+                        <Link
+                          href={`/club-events/${ev.id}`}
+                          className="text-sm bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-1.5 rounded-lg font-semibold transition-colors"
+                        >
+                          投稿
+                        </Link>
                         <button
                           onClick={() => router.push(`/events/${ev.id}`)}
                           className="text-emerald-600 hover:text-emerald-700 font-medium transition-colors"

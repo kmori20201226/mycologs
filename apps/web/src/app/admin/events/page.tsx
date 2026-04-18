@@ -86,7 +86,7 @@ export default function EventListPage() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b">
                 <tr>
-                  <th className="text-left px-4 py-3 font-semibold text-gray-600 w-28">開始日</th>
+                  <th className="text-left px-4 py-3 font-semibold text-gray-600 w-28">日付</th>
                   <th className="text-left px-4 py-3 font-semibold text-gray-600">名前・説明</th>
                   <th className="px-4 py-3" />
                 </tr>
