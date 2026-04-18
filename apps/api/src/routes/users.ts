@@ -218,6 +218,68 @@ export default async function (fastify: FastifyInstance) {
     })
 
     // DELETE /users/:id
+    // GET /users/:id/logs — user behaviour logs (ADMIN/DEVELOPER only)
+    fastify.get('/users/:id/logs', {
+        preHandler: [fastify.authenticate],
+        schema: {
+            params: {
+                type: 'object',
+                properties: { id: { type: 'integer' } },
+                required: ['id']
+            },
+            querystring: {
+                type: 'object',
+                properties: {
+                    limit:  { type: 'integer' },
+                    offset: { type: 'integer' }
+                }
+            },
+            response: {
+                200: {
+                    type: 'array',
+                    items: {
+                        type: 'object',
+                        properties: {
+                            id:                { type: 'number' },
+                            userId:            { type: 'number' },
+                            postId:            { type: 'number', nullable: true },
+                            followupId:        { type: 'number', nullable: true },
+                            point:             { type: 'number' },
+                            transactionType:   { type: 'string' },
+                            rejectionCategory: { type: 'string', nullable: true },
+                            userPost:          { type: 'string' },
+                            comment:           { type: 'string' },
+                            createdBy:         { type: 'number' },
+                            createdAt:         { type: 'string', format: 'date-time' },
+                            creator: {
+                                type: 'object',
+                                properties: {
+                                    id:   { type: 'number' },
+                                    name: { type: 'string' }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }, async (request, reply) => {
+        const { id } = request.params as any
+        const { limit = 50, offset = 0 } = request.query as any
+
+        const logs = await fastify.prisma.userLog.findMany({
+            where: { userId: Number(id) },
+            orderBy: { createdAt: 'desc' },
+            take: Number(limit),
+            skip: Number(offset),
+            include: {
+                creator: { select: { id: true, name: true } }
+            }
+        })
+
+        return logs
+    })
+
     fastify.delete('/users/:id', async (request, reply) => {
         const { id } = request.params as { id: string }
 

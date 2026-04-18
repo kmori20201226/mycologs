@@ -79,6 +79,12 @@ export const menuEntries: MenuEntry[] = [
         href: '/admin/taxonomy',
         visibleTo: ['ADMIN', 'DEVELOPER'],
       },
+      {
+        type: 'item',
+        label: 'ユーザーログ',
+        href: '/admin/user-logs',
+        visibleTo: ['ADMIN', 'DEVELOPER'],
+      },
     ],
   },
 ]
