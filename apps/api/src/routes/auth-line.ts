@@ -139,8 +139,20 @@ export default async function (fastify: FastifyInstance) {
         let localUser: { id: number; name: string; email: string; role: string | null }
 
         if (existingOAuth) {
-            // Already linked — just sign in
+            // Already linked — sign in, and upgrade placeholder email if real one is now available
             localUser = existingOAuth.user
+            if (email && existingOAuth.user.email.endsWith('@line.user')) {
+                // Check no other account already uses this email before updating
+                const conflict = await fastify.prisma.user.findUnique({ where: { email } })
+                if (!conflict) {
+                    const updated = await fastify.prisma.user.update({
+                        where: { id: existingOAuth.user.id },
+                        data: { email },
+                        select: { id: true, name: true, email: true, role: true },
+                    })
+                    localUser = updated
+                }
+            }
         } else {
             // 2. Try to find an existing user by email and link them
             let user = email

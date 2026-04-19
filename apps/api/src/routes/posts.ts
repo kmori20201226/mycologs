@@ -75,7 +75,7 @@ export default async function (fastify: FastifyInstance) {
             data: { eventId, userId, contents },
             include: {
                 user: { select: { id: true, name: true, handleName: true, email: true } },
-                event: { select: { id: true, name: true } }
+                event: { select: { id: true, name: true, startAt: true } }
             }
         })
 
@@ -127,7 +127,7 @@ export default async function (fastify: FastifyInstance) {
             where: { id: Number(id) },
             include: {
                 user: { select: { id: true, name: true, handleName: true, email: true } },
-                event: { select: { id: true, name: true } }
+                event: { select: { id: true, name: true, startAt: true } }
             }
         })
 
@@ -163,7 +163,7 @@ export default async function (fastify: FastifyInstance) {
             },
             include: {
                 user: { select: { id: true, name: true, handleName: true, email: true } },
-                event: { select: { id: true, name: true } }
+                event: { select: { id: true, name: true, startAt: true } }
             },
             orderBy: { createdAt: 'desc' }
         })
@@ -252,7 +252,7 @@ export default async function (fastify: FastifyInstance) {
                 data: updateData,
                 include: {
                     user: { select: { id: true, name: true, handleName: true, email: true } },
-                    event: { select: { id: true, name: true } }
+                    event: { select: { id: true, name: true, startAt: true } }
                 }
             })
 

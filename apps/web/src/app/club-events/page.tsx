@@ -21,6 +21,11 @@ function formatDate(iso: string | null): string {
   return new Date(iso).toLocaleString('ja-JP', { dateStyle: 'medium', timeStyle: 'short' })
 }
 
+function formatDateOnly(iso: string | null): string {
+  if (!iso) return ''
+  return new Date(iso).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })
+}
+
 function EventCard({ ev }: { ev: EventWithPostCount }) {
   const now = new Date()
   const start = ev.startAt ? new Date(ev.startAt) : null
@@ -32,7 +37,7 @@ function EventCard({ ev }: { ev: EventWithPostCount }) {
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1 flex-wrap">
-            <p className="font-semibold text-gray-900">{ev.name}</p>
+            <p className="font-semibold text-gray-900">{ev.startAt ? `${formatDateOnly(ev.startAt)} ${ev.name}` : ev.name}</p>
             {isOngoing && (
               <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">
                 開催中

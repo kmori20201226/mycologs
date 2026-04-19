@@ -279,7 +279,7 @@ export default function NewPostPage() {
                 >
                   <option value="">イベントなし</option>
                   {events.map((ev) => (
-                    <option key={ev.id} value={ev.id}>{ev.name}</option>
+                    <option key={ev.id} value={ev.id}>{ev.startAt ? `${new Date(ev.startAt).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })} ${ev.name}` : ev.name}</option>
                   ))}
                 </select>
               </div>

@@ -11,6 +11,11 @@ function formatDate(iso: string | null): string {
   return new Date(iso).toLocaleDateString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
+function formatDateOnly(iso: string | null): string {
+  if (!iso) return ''
+  return new Date(iso).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })
+}
+
 export default function UserEventListPage() {
   const router = useRouter()
   const [events, setEvents] = useState<Event[]>([])
@@ -99,7 +104,7 @@ export default function UserEventListPage() {
                   <tr key={ev.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-4 py-4 text-sm text-gray-500 whitespace-nowrap align-top">{formatDate(ev.startAt)}</td>
                     <td className="px-4 py-4 align-top">
-                      <p className="font-medium text-gray-800 text-sm">{ev.name}</p>
+                      <p className="font-medium text-gray-800 text-sm">{ev.startAt ? `${formatDateOnly(ev.startAt)} ${ev.name}` : ev.name}</p>
                       {ev.description && (
                         <p className="text-xs text-gray-400 mt-0.5 line-clamp-2">{ev.description}</p>
                       )}

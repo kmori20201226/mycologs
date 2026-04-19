@@ -45,6 +45,39 @@ export default function EventEditPage() {
   const [geocoding, setGeocoding] = useState(false)
   const [candidates, setCandidates] = useState<GeoCandidate[]>([])
   const [toast, setToast] = useState('')
+  const [pasteCoords, setPasteCoords] = useState('')
+  const [coordsError, setCoordsError] = useState('')
+
+  function parseDMSCoords(raw: string): { lat: number; lng: number } | null {
+    const s = raw.trim()
+    // DMS: 33°38'40.9"N 130°42'56.2"E
+    const dms = s.match(
+      /(\d+)[°＊]\s*(\d+)['\u2019]\s*([\d.]+)["\u2033\u201D]?\s*([NS])[,\s]+(\d+)[°＊]\s*(\d+)['\u2019]\s*([\d.]+)["\u2033\u201D]?\s*([EW])/i
+    )
+    if (dms) {
+      const lat = (Number(dms[1]) + Number(dms[2]) / 60 + Number(dms[3]) / 3600) * (dms[4].toUpperCase() === 'S' ? -1 : 1)
+      const lng = (Number(dms[5]) + Number(dms[6]) / 60 + Number(dms[7]) / 3600) * (dms[8].toUpperCase() === 'W' ? -1 : 1)
+      return { lat, lng }
+    }
+    // Decimal: 33.32527, 130.92961
+    const dec = s.match(/^(-?[\d.]+)\s*,\s*(-?[\d.]+)$/)
+    if (dec) {
+      return { lat: Number(dec[1]), lng: Number(dec[2]) }
+    }
+    return null
+  }
+
+  function handlePasteCoords() {
+    const result = parseDMSCoords(pasteCoords)
+    if (!result) {
+      setCoordsError('形式が認識できません。例: 33°38\'40.9"N 130°42\'56.2"E')
+      return
+    }
+    setCoordsError('')
+    setLatitude(result.lat.toFixed(6))
+    setLongitude(result.lng.toFixed(6))
+    setPasteCoords('')
+  }
 
   // Revoke object URL when replaced or unmounted
   useEffect(() => {
@@ -318,6 +351,38 @@ export default function EventEditPage() {
                   className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
               </div>
+            </div>
+            {latitude && longitude && (
+              <div>
+                <a
+                  href={`https://www.google.com/maps?q=${latitude},${longitude}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 underline"
+                >
+                  Google マップで開く
+                </a>
+              </div>
+            )}
+            <div className="space-y-1">
+              <label className="block text-sm font-medium text-gray-700">Google マップの座標を貼り付け</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={pasteCoords}
+                  onChange={(e) => { setPasteCoords(e.target.value); setCoordsError('') }}
+                  placeholder='例: 33°38′40.9″N 130°42′56.2″E'
+                  className="flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+                <button
+                  type="button"
+                  onClick={handlePasteCoords}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-lg transition-colors"
+                >
+                  変換
+                </button>
+              </div>
+              {coordsError && <p className="text-red-600 text-xs">{coordsError}</p>}
             </div>
 
             <div className="grid grid-cols-2 gap-4">

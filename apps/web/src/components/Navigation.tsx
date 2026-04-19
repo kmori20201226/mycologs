@@ -124,7 +124,7 @@ export default function Navigation() {
               <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
               </svg>
-              {pendingRequestCount > 0 && (
+              {pendingRequestCount > 0 && clubs.some((c) => c.role === 'CLUBMANAGER') && (
                 <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
                   {pendingRequestCount > 9 ? '9+' : pendingRequestCount}
                 </span>
