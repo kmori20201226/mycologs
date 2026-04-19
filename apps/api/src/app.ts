@@ -8,6 +8,7 @@ import staticFiles from '@fastify/static'
 import dbPlugin from './plugins/db'
 import jwtPlugin from './plugins/jwt'
 import authRoutes from './routes/auth'
+import authLineRoutes from './routes/auth-line'
 import userRoutes from './routes/users'
 import clubRoutes from './routes/clubs'
 import roleRoutes from './routes/roles'
@@ -48,6 +49,7 @@ export async function buildApp() {
     await app.register(dbPlugin)
     await app.register(jwtPlugin)
     await app.register(authRoutes)
+    await app.register(authLineRoutes)
     await app.register(userRoutes)
     await app.register(clubRoutes)
     await app.register(roleRoutes)
