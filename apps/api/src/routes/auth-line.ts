@@ -6,26 +6,36 @@ const LINE_CHANNEL_SECRET = process.env.LINE_CHANNEL_SECRET!
 const CALLBACK_URL        = process.env.LINE_CALLBACK_URL ?? 'http://localhost:3000/auth/line/callback'
 const FRONTEND_URL        = process.env.FRONTEND_URL      ?? 'http://localhost:3001'
 
-// In-memory state store (dev only — replace with Redis for production)
-const stateStore = new Map<string, number>() // state → timestamp (ms)
-const STATE_TTL  = 10 * 60 * 1000            // 10 minutes
+// In-memory session store: state → { timestamp, nonce }
+// Dev only — replace with Redis for production
+const sessionStore = new Map<string, { ts: number; nonce: string }>()
+const SESSION_TTL  = 10 * 60 * 1000  // 10 minutes
 
-function pruneStates() {
+function pruneSessions() {
     const now = Date.now()
-    for (const [k, ts] of stateStore) {
-        if (now - ts > STATE_TTL) stateStore.delete(k)
+    for (const [k, v] of sessionStore) {
+        if (now - v.ts > SESSION_TTL) sessionStore.delete(k)
     }
 }
 
-// Decode LINE's ID token payload without verifying (we trust LINE's token endpoint)
-function decodeIdTokenPayload(idToken: string): Record<string, any> | null {
+// Verify ID token via LINE's official verify endpoint.
+// Returns the claims payload, or null on failure.
+async function verifyIdToken(
+    idToken: string,
+    nonce: string,
+): Promise<Record<string, any> | null> {
     try {
-        const parts = idToken.split('.')
-        if (parts.length !== 3) return null
-        const raw     = parts[1]!
-        const padded  = raw.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(raw.length / 4) * 4, '=')
-        const payload = Buffer.from(padded, 'base64').toString('utf8')
-        return JSON.parse(payload)
+        const res = await fetch('https://api.line.me/oauth2/v2.1/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+                id_token:  idToken,
+                client_id: LINE_CHANNEL_ID,
+                nonce,
+            }),
+        })
+        if (!res.ok) return null
+        return await res.json()
     } catch {
         return null
     }
@@ -34,17 +44,19 @@ function decodeIdTokenPayload(idToken: string): Record<string, any> | null {
 export default async function (fastify: FastifyInstance) {
 
     // GET /auth/line/authorize
-    // Redirects the browser to LINE's authorization endpoint
+    // Generates state + nonce, stores them, then redirects to LINE.
     fastify.get('/auth/line/authorize', async (request, reply) => {
-        pruneStates()
+        pruneSessions()
         const state = crypto.randomBytes(16).toString('hex')
-        stateStore.set(state, Date.now())
+        const nonce = crypto.randomBytes(16).toString('hex')
+        sessionStore.set(state, { ts: Date.now(), nonce })
 
         const params = new URLSearchParams({
             response_type: 'code',
             client_id:     LINE_CHANNEL_ID,
             redirect_uri:  CALLBACK_URL,
             state,
+            nonce,
             scope:         'profile openid email',
         })
 
@@ -52,21 +64,22 @@ export default async function (fastify: FastifyInstance) {
     })
 
     // GET /auth/line/callback
-    // LINE redirects here after the user approves. We exchange the code for tokens,
-    // retrieve the user's profile, then create/link/find the local user.
+    // LINE redirects here after the user approves.
     fastify.get('/auth/line/callback', async (request, reply) => {
-        const { code, state, error } = request.query as Record<string, string>
+        const { code, state, error } = request.query as { code?: string; state?: string; error?: string }
 
         // ── Error from LINE ──────────────────────────────────────────────────
         if (error) {
             return reply.redirect(`${FRONTEND_URL}/login?error=line_denied`)
         }
 
-        // ── Validate state ───────────────────────────────────────────────────
-        if (!state || !stateStore.has(state)) {
+        // ── Validate state and retrieve nonce ────────────────────────────────
+        const session = state ? sessionStore.get(state) : undefined
+        if (!session || !state || !code) {
             return reply.redirect(`${FRONTEND_URL}/login?error=invalid_state`)
         }
-        stateStore.delete(state)
+        sessionStore.delete(state)
+        const { nonce } = session
 
         // ── Exchange code for tokens ─────────────────────────────────────────
         let lineTokens: any
@@ -76,7 +89,7 @@ export default async function (fastify: FastifyInstance) {
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                 body: new URLSearchParams({
                     grant_type:    'authorization_code',
-                    code:          code as string,
+                    code,
                     redirect_uri:  CALLBACK_URL,
                     client_id:     LINE_CHANNEL_ID,
                     client_secret: LINE_CHANNEL_SECRET,
@@ -91,7 +104,14 @@ export default async function (fastify: FastifyInstance) {
             return reply.redirect(`${FRONTEND_URL}/login?error=line_token_failed`)
         }
 
-        // ── Get LINE profile ─────────────────────────────────────────────────
+        // ── Verify ID token via LINE's verify endpoint ───────────────────────
+        // This validates signature, expiry, audience, and nonce in one call.
+        let idClaims: Record<string, any> | null = null
+        if (lineTokens.id_token) {
+            idClaims = await verifyIdToken(lineTokens.id_token, nonce)
+        }
+
+        // ── Get LINE profile (always available with profile scope) ───────────
         let lineProfile: any
         try {
             const profileRes = await fetch('https://api.line.me/v2/profile', {
@@ -102,16 +122,11 @@ export default async function (fastify: FastifyInstance) {
             return reply.redirect(`${FRONTEND_URL}/login?error=line_profile_failed`)
         }
 
-        const lineUserId    = lineProfile.userId as string
-        const displayName   = lineProfile.displayName as string
-        const pictureUrl    = lineProfile.pictureUrl as string | undefined
+        const lineUserId  = lineProfile.userId    as string
+        const displayName = lineProfile.displayName as string
 
-        // Extract email from ID token if present (requires email permission)
-        let email: string | null = null
-        if (lineTokens.id_token) {
-            const payload = decodeIdTokenPayload(lineTokens.id_token)
-            if (payload?.email) email = payload.email as string
-        }
+        // Email comes from the verified ID token claims (requires email permission)
+        const email: string | null = idClaims?.email ?? null
 
         // ── Find or create local user ────────────────────────────────────────
 
@@ -169,7 +184,6 @@ export default async function (fastify: FastifyInstance) {
         // ── Issue our own JWT and redirect to frontend ───────────────────────
         const token = fastify.jwt.sign({ id: localUser.id, email: localUser.email })
 
-        // Pass token to frontend via query param; frontend stores it as a cookie
         const params = new URLSearchParams({
             token,
             id:    String(localUser.id),
