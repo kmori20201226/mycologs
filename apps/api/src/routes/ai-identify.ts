@@ -77,6 +77,7 @@ export default async function (fastify: FastifyInstance) {
         const body: Record<string, unknown> = { images: encodedImages }
         if (event?.latitude != null)  body.latitude  = event.latitude
         if (event?.longitude != null) body.longitude = event.longitude
+        if (post?.identificationHint) body.hint = post.identificationHint
 
         const response = await fetch(`${AI_SERVICE_URL}/api/identification/evaluate`, {
             method: 'POST',

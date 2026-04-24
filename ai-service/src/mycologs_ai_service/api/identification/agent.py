@@ -3,7 +3,7 @@ import anthropic as _anthropic
 from mycologs_ai_service.core.anthropic_client import client
 from mycologs_ai_service.api.identification.schemas import IdentificationRequest, IdentificationResult
 
-MODEL = "claude-sonnet-4-6"
+MODEL = "claude-opus-4-7"
 
 SYSTEM_PROMPT = """\
 You are a mycologist specialising in Japanese fungi.
@@ -17,6 +17,8 @@ Required keys:
   shape             string   One of: Cap, Bracket, Coral, Tooth, Jelly, Cup,
                              Puffball, Stinkhorn, Crust, Truffle
   edibility         string   One of: edible, toxic, inedible, unknown
+  dialect_names     list     Regional/dialect Japanese names (方言名) if any exist,
+                             otherwise an empty list
   key_features      list     2–4 visual features that led to this identification
   similar_species   list     0–2 species that could be confused with this one
   disclaimer        string   Always include a safety disclaimer about not
@@ -61,10 +63,11 @@ def evaluate(payload: IdentificationRequest) -> IdentificationResult:
         if has_coords
         else "No GPS provided. Assume somewhere in Japan."
     )
+    hint_line = f"\n投稿者からのヒント: {payload.hint}" if payload.hint else ""
     user_text = (
-        f"{location_line}\n複数の画像を総合的に見て同定してください。"
+        f"{location_line}{hint_line}\n複数の画像を総合的に見て同定してください。"
         if len(payload.images) > 1
-        else location_line
+        else f"{location_line}{hint_line}"
     )
 
     text_block: _anthropic.TextBlockParam = {"type": "text", "text": user_text}

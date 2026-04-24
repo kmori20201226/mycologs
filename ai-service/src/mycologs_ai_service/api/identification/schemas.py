@@ -15,11 +15,13 @@ class IdentificationRequest(BaseModel):
     images:    list[IdentificationImage] = Field(..., min_length=1)
     latitude:  float | None = None
     longitude: float | None = None
+    hint:      str | None = None
 
 
 class IdentificationResult(BaseModel):
     scientific_name: str
     japanese_name:   str
+    dialect_names:   list[str]
     confidence:      ConfidenceLevel
     shape:           str
     edibility:       EdibilityLevel

@@ -5,6 +5,7 @@ export const postSchema = {
         eventId: { type: 'number', nullable: true },
         userId: { type: 'number' },
         contents: { type: 'string' },
+        identificationHint: { type: 'string', nullable: true },
         createdAt: { type: 'string', format: 'date-time' },
         updatedAt: { type: 'string', format: 'date-time' },
         user: {
@@ -49,6 +50,7 @@ export const updatePostSchema = {
     properties: {
         eventId: { type: 'number' },
         contents: { type: 'string' },
+        identificationHint: { type: 'string', nullable: true },
         userId: { type: 'number' },
         confirmedModeration: {
             type: 'object',

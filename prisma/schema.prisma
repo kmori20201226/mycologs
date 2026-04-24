@@ -213,12 +213,13 @@ model Event {
 }
 
 model Post {
-  id                Int       @id @default(autoincrement())
-  eventId           Int?      @map("event_id")
-  userId            Int       @map("user_id")
-  contents          String
-  createdAt         DateTime  @default(now()) @map("created_at")
-  updatedAt         DateTime  @updatedAt @map("updated_at")
+  id                 Int       @id @default(autoincrement())
+  eventId            Int?      @map("event_id")
+  userId             Int       @map("user_id")
+  contents           String
+  identificationHint String?   @map("identification_hint")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
 
   user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   event             Event?    @relation(fields: [eventId], references: [id])

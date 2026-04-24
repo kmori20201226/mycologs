@@ -9,6 +9,7 @@ import { getStoredUser } from '@/lib/auth'
 interface Post {
   id: number
   contents: string
+  identificationHint: string | null
   createdAt: string
   user: { id: number; name: string; handleName: string | null }
   event: { id: number; name: string; startAt: string | null } | null
@@ -49,6 +50,11 @@ export default function PostPage() {
   const [commentText, setCommentText] = useState('')
   const [commentSubmitting, setCommentSubmitting] = useState(false)
 
+  // Identification hint state
+  const [hint, setHint] = useState('')
+  const [hintSaving, setHintSaving] = useState(false)
+  const [hintSaved, setHintSaved] = useState(false)
+
   // AI identification state
   const [aiResult, setAiResult] = useState<AiIdentification | null>(null)
   const [aiLoading, setAiLoading] = useState(false)
@@ -59,7 +65,7 @@ export default function PostPage() {
 
   useEffect(() => {
     apiClient.request<Post>(`/posts/${postId}`)
-      .then((p) => setPost(p))
+      .then((p) => { setPost(p); setHint(p.identificationHint ?? '') })
       .catch(() => setNotFound(true))
 
     apiClient.getPostMedia(postId)
@@ -137,12 +143,32 @@ export default function PostPage() {
     }
   }
 
+  async function handleSaveHint() {
+    const user = getStoredUser()
+    if (!user) return
+    setHintSaving(true)
+    try {
+      await apiClient.updatePost(postId, { userId: user.id, identificationHint: hint || null })
+      setPost((prev) => prev ? { ...prev, identificationHint: hint || null } : prev)
+      setHintSaved(true)
+      setTimeout(() => setHintSaved(false), 2000)
+    } finally {
+      setHintSaving(false)
+    }
+  }
+
   async function handleAiIdentify() {
     const images = media.filter((m) => m.type === 'IMAGE')
     if (images.length === 0) {
       showToast('きのこを同定するには写真が必要です')
       return
     }
+    // Save hint first if it has unsaved changes
+    if (hint !== (post.identificationHint ?? '')) {
+      await handleSaveHint()
+    }
+    setAcceptedId(null)
+    setAiAccepted(false)
     setAiLoading(true)
     setAiError('')
     setAiResult(null)
@@ -220,7 +246,7 @@ export default function PostPage() {
                   <span className="mx-2">·</span>
                   <span>{new Date(post.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}</span>
                 </div>
-                {!acceptedId && !aiAccepted && <button
+                {(!acceptedId && !aiAccepted || hint !== (post.identificationHint ?? '')) && <button
                   onClick={handleAiIdentify}
                   disabled={aiLoading}
                   className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors"
@@ -249,6 +275,45 @@ export default function PostPage() {
               )}
 
               <p className="text-gray-800 whitespace-pre-wrap">{post.contents}</p>
+
+              {/* Identification hint */}
+              {(() => {
+                const user = getStoredUser()
+                const isOwner = user?.id === post.user.id
+                return (
+                  <div className="mt-4 pt-4 border-t border-gray-100">
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                      同定ヒント
+                    </label>
+                    {isOwner ? (
+                      <div className="flex flex-col gap-2">
+                        <textarea
+                          value={hint}
+                          onChange={(e) => { setHint(e.target.value); setHintSaved(false) }}
+                          rows={3}
+                          placeholder="色、臭い、採取場所の環境、季節など、同定に役立つ情報を自由に記入してください…"
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                        />
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={handleSaveHint}
+                            disabled={hintSaving || hint === (post.identificationHint ?? '')}
+                            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white text-xs font-semibold rounded-lg transition-colors"
+                          >
+                            {hintSaving ? '保存中…' : '保存'}
+                          </button>
+                          {hintSaved && <span className="text-xs text-emerald-600">保存しました</span>}
+                        </div>
+                      </div>
+                    ) : (
+                      post.identificationHint
+                        ? <p className="text-sm text-gray-700 whitespace-pre-wrap">{post.identificationHint}</p>
+                        : <p className="text-sm text-gray-400">ヒントなし</p>
+                    )}
+                  </div>
+                )
+              })()}
             </div>
 
             {/* Media gallery */}
@@ -279,7 +344,7 @@ export default function PostPage() {
               const details: AiIdentification | null =
                 acceptedDbIdent?.description ?? (aiAccepted ? aiResult : null)
               const name = acceptedDbIdent?.species?.scientificName ?? acceptedDbIdent?.description?.scientific_name as string ?? aiResult?.scientific_name ?? ''
-              const japaneseName = aiResult?.japanese_name ?? null
+              const japaneseName = details?.japanese_name ?? null
               return (
                 <div className="bg-emerald-50 border-2 border-emerald-400 rounded-xl shadow p-5 mb-6 space-y-3">
                   <div className="flex items-center gap-2">
@@ -295,6 +360,9 @@ export default function PostPage() {
                   <div>
                     <p className="text-xl font-bold text-gray-900 italic">{name}</p>
                     {japaneseName && <p className="text-base text-gray-700">{japaneseName}</p>}
+                    {details?.dialect_names?.length > 0 && (
+                      <p className="text-sm text-gray-500">方言名: {details.dialect_names.join('、')}</p>
+                    )}
                     {acceptedDbIdent && (
                       <p className="text-sm text-gray-500 mt-1">
                         {acceptedDbIdent.user.handleName ?? acceptedDbIdent.user.name} が提案 · {new Date(acceptedDbIdent.createdAt).toLocaleDateString('ja-JP')}
@@ -428,6 +496,9 @@ export default function PostPage() {
                           <p className="mt-2 text-lg font-bold text-gray-900 italic">{aiResult.scientific_name}</p>
                           {aiResult.japanese_name && (
                             <p className="text-base text-gray-700 not-italic">{aiResult.japanese_name}</p>
+                          )}
+                          {aiResult.dialect_names?.length > 0 && (
+                            <p className="text-sm text-gray-500">方言名: {aiResult.dialect_names.join('、')}</p>
                           )}
                         </>
                       ) : (

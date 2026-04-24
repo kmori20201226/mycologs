@@ -44,6 +44,7 @@ export interface TaxSpecies {
 export interface AiIdentification {
   scientific_name: string
   japanese_name: string
+  dialect_names: string[]
   confidence: 'high' | 'medium' | 'low'
   shape: string
   edibility: string
@@ -232,6 +233,7 @@ class ApiClient {
     userId: number
     contents?: string
     eventId?: number
+    identificationHint?: string | null
     confirmedModeration?: { category: string; comment: string }
   }): Promise<
     | { ok: true }
