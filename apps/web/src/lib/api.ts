@@ -46,6 +46,7 @@ export interface AiIdentification {
   japanese_name: string
   dialect_names: string[]
   confidence: 'high' | 'medium' | 'low'
+  score: number
   shape: string
   edibility: string
   key_features: (string | Record<string, string>)[]
@@ -233,7 +234,6 @@ class ApiClient {
     userId: number
     contents?: string
     eventId?: number
-    identificationHint?: string | null
     confirmedModeration?: { category: string; comment: string }
   }): Promise<
     | { ok: true }
@@ -259,6 +259,10 @@ class ApiClient {
       throw new Error(`API request failed: ${url} => ${response.status} ${response.statusText}`)
     }
     return { ok: true }
+  }
+
+  async deletePost(id: number): Promise<void> {
+    return this.request(`/posts/${id}`, { method: 'DELETE' })
   }
 
   // Events
@@ -391,8 +395,11 @@ class ApiClient {
   }
 
   // AI identification
-  async aiIdentify(postId: number): Promise<AiIdentification> {
-    return this.request(`/posts/${postId}/ai-identify`, { method: 'POST' })
+  async aiIdentify(postId: number, hint?: string): Promise<AiIdentification> {
+    return this.request(`/posts/${postId}/ai-identify`, {
+      method: 'POST',
+      body: hint ? JSON.stringify({ hint }) : undefined,
+    })
   }
 
   // Media
@@ -429,6 +436,8 @@ class ApiClient {
     postId: number;
     userId: number;
     specieId?: number;
+    identificationHint?: string | null;
+    score?: number | null;
     description?: Record<string, unknown>;
   }): Promise<unknown> {
     return this.request('/identifications', {

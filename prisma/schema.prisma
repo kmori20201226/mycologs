@@ -217,7 +217,7 @@ model Post {
   eventId            Int?      @map("event_id")
   userId             Int       @map("user_id")
   contents           String
-  identificationHint String?   @map("identification_hint")
+  deletedAt          DateTime? @map("deleted_at")
   createdAt          DateTime  @default(now()) @map("created_at")
   updatedAt          DateTime  @updatedAt @map("updated_at")
 
@@ -234,6 +234,7 @@ model Followup {
   postId            Int       @map("post_id")
   userId            Int?      @map("user_id")
   contents          String
+  deletedAt         DateTime? @map("deleted_at")
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @updatedAt @map("updated_at")
 
@@ -245,10 +246,13 @@ model Identification {
   id                Int       @id @default(autoincrement())
   postId            Int       @map("post_id")
   userId            Int       @map("user_id")
+  identificationHint String?   @map("identification_hint")
   specieId          Int?      @map("specie_id")
   description       Json?     @map("description")
   accepted          Boolean   @default(false) @map("accepted")
   confidence        Float?    // Calculated at query time
+  score             Float?    // AI inference score
+  deletedAt         DateTime? @map("deleted_at")
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @updatedAt @map("updated_at")
 

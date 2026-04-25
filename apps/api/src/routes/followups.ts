@@ -52,8 +52,8 @@ export default async function (fastify: FastifyInstance) {
     }, async (request, reply) => {
         const { id } = request.params as any
 
-        const followup = await fastify.prisma.followup.findUnique({
-            where: { id: Number(id) },
+        const followup = await fastify.prisma.followup.findFirst({
+            where: { id: Number(id), deletedAt: null },
             include: {
                 user: { select: { id: true, name: true, handleName: true } },
                 post: { select: { id: true, contents: true } }
@@ -79,6 +79,7 @@ export default async function (fastify: FastifyInstance) {
         }
     }, async (request, reply) => {
         const followups = await fastify.prisma.followup.findMany({
+            where: { deletedAt: null },
             include: {
                 user: { select: { id: true, name: true, handleName: true } },
                 post: { select: { id: true, contents: true } }
@@ -110,7 +111,7 @@ export default async function (fastify: FastifyInstance) {
         const { postId } = request.params as any
 
         const followups = await fastify.prisma.followup.findMany({
-            where: { postId: Number(postId) },
+            where: { postId: Number(postId), deletedAt: null },
             include: {
                 user: { select: { id: true, name: true, handleName: true } },
                 post: { select: { id: true, contents: true } }
@@ -191,8 +192,9 @@ export default async function (fastify: FastifyInstance) {
         const { id } = request.params as any
 
         try {
-            await fastify.prisma.followup.delete({
-                where: { id: Number(id) }
+            await fastify.prisma.followup.update({
+                where: { id: Number(id) },
+                data: { deletedAt: new Date() }
             })
 
             return { message: 'Followup deleted' }

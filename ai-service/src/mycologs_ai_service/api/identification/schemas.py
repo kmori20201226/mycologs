@@ -23,6 +23,7 @@ class IdentificationResult(BaseModel):
     japanese_name:   str
     dialect_names:   list[str]
     confidence:      ConfidenceLevel
+    score:           float
     shape:           str
     edibility:       EdibilityLevel
     key_features:    list[str | dict]

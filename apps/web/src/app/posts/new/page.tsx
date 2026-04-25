@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { apiClient, type Event } from '@/lib/api'
-import { getStoredUser, getSelectedClubId } from '@/lib/auth'
+import { getStoredUser } from '@/lib/auth'
 
 interface FileEntry {
   id: string        // local key
@@ -52,6 +52,8 @@ export default function NewPostPage() {
   const [contents, setContents] = useState('')
   const [eventId, setEventId] = useState<number | ''>('')
   const [events, setEvents] = useState<Event[]>([])
+  const [clubEventIds, setClubEventIds] = useState<Set<number>>(new Set())
+  const [myEventIds, setMyEventIds] = useState<Set<number>>(new Set())
   const [files, setFiles] = useState<FileEntry[]>([])
   const [phase, setPhase] = useState<SubmitPhase>('idle')
   const [uploadProgress, setUploadProgress] = useState({ done: 0, total: 0 })
@@ -60,19 +62,47 @@ export default function NewPostPage() {
   const [notAuthed, setNotAuthed] = useState(false)
   const [dragging, setDragging] = useState(false)
   const [warning, setWarning] = useState<ModerationWarning | null>(null)
+  const [noMediaWarning, setNoMediaWarning] = useState(false)
 
   useEffect(() => {
     const user = getStoredUser()
     if (!user) { setNotAuthed(true); return }
-    const clubId = getSelectedClubId()
-    const presetEventId = searchParams.get('eventId')
-    apiClient.getEvents(clubId ? { clubId } : undefined).then((evs) => {
-      setEvents(evs)
+    const presetEventId = searchParams.get('eventId');
+
+    (async () => {
+    const now = new Date()
+    const memberClubs = await apiClient.request<{ id: number }[]>('/me/clubs').catch(() => [] as { id: number }[])
+    const clubFetches = memberClubs.map((c) => apiClient.getEvents({ clubId: c.id }).catch(() => [] as Event[]))
+    const myFetch = apiClient.getEvents({ userId: user.id }).catch(() => [] as Event[])
+
+    Promise.all([Promise.all(clubFetches), myFetch]).then(([clubResults, myEvs]) => {
+      const clubEvs = clubResults.flat()
+      const clubIds = new Set(clubEvs.map((e) => e.id))
+      const myIds = new Set(myEvs.map((e) => e.id))
+
+      const seen = new Set<number>()
+      const merged: Event[] = []
+      for (const ev of [...clubEvs, ...myEvs]) {
+        if (!seen.has(ev.id)) { seen.add(ev.id); merged.push(ev) }
+      }
+
+      const past = merged
+        .filter((ev) => !ev.startAt || new Date(ev.startAt) <= now)
+        .sort((a, b) => {
+          const ta = a.startAt ? new Date(a.startAt).getTime() : 0
+          const tb = b.startAt ? new Date(b.startAt).getTime() : 0
+          return tb - ta
+        })
+
+      setClubEventIds(clubIds)
+      setMyEventIds(myIds)
+      setEvents(past)
       if (presetEventId) {
         const id = Number(presetEventId)
-        if (evs.some((e) => e.id === id)) setEventId(id)
+        if (past.some((e) => e.id === id)) setEventId(id)
       }
-    }).catch(() => {})
+    })
+    })()
   }, [])
 
   // Revoke object URLs on unmount
@@ -167,6 +197,7 @@ export default function NewPostPage() {
     e.preventDefault()
     const user = getStoredUser()
     if (!user) { setNotAuthed(true); return }
+    if (files.length === 0) { setNoMediaWarning(true); return }
     setError('')
     setWarning(null)
     setUploadFailCount(0)
@@ -278,9 +309,13 @@ export default function NewPostPage() {
                   disabled={submitting}
                 >
                   <option value="">イベントなし</option>
-                  {events.map((ev) => (
-                    <option key={ev.id} value={ev.id}>{ev.startAt ? `${new Date(ev.startAt).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })} ${ev.name}` : ev.name}</option>
-                  ))}
+                  {events.map((ev) => {
+                    const isClub = clubEventIds.has(ev.id)
+                    const isMine = myEventIds.has(ev.id)
+                    const prefix = isClub ? '👨‍👩‍👧‍👧 ' : '😊 '
+                    const date = ev.startAt ? `${new Date(ev.startAt).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })} ` : ''
+                    return <option key={ev.id} value={ev.id}>{prefix}{date}{ev.name}</option>
+                  })}
                 </select>
               </div>
             )}
@@ -411,6 +446,44 @@ export default function NewPostPage() {
 
       </div>
     </div>
+
+    {/* No media warning dialog */}
+    {noMediaWarning && (
+      <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 space-y-4">
+          <div className="flex items-start gap-3">
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-yellow-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+            </svg>
+            <h2 className="text-base font-semibold text-gray-900">写真が添付されていません</h2>
+          </div>
+          <p className="text-sm text-gray-700 leading-relaxed">
+            きのこの同定には写真が必要です。写真を追加すると、AIや他のユーザーによる同定が可能になります。
+          </p>
+          <div className="flex gap-3 pt-1">
+            <button
+              onClick={() => {
+                setNoMediaWarning(false)
+                setError('')
+                setWarning(null)
+                setUploadFailCount(0)
+                setPhase('moderating')
+                doCreatePost().catch(() => { setError('投稿の作成に失敗しました。もう一度お試しください。'); setPhase('idle') })
+              }}
+              className="flex-1 px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white text-sm font-semibold rounded-lg transition-colors"
+            >
+              このまま投稿する
+            </button>
+            <button
+              onClick={() => setNoMediaWarning(false)}
+              className="flex-1 px-4 py-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 text-sm font-semibold rounded-lg transition-colors"
+            >
+              写真を追加する
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
 
     {/* Moderation warning dialog */}
 

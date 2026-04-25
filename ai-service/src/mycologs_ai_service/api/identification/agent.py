@@ -14,6 +14,7 @@ Required keys:
   scientific_name   string   Best-guess binomial (e.g. "Amanita muscaria")
   japanese_name     string   Standard Japanese name in katakana/kanji, or ""
   confidence        string   One of: "high", "medium", "low"
+  score             number   confidence expressed in a number between 0.0 to 1.0.
   shape             string   One of: Cap, Bracket, Coral, Tooth, Jelly, Cup,
                              Puffball, Stinkhorn, Crust, Truffle
   edibility         string   One of: edible, toxic, inedible, unknown

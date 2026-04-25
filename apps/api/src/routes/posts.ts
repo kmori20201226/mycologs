@@ -123,8 +123,8 @@ export default async function (fastify: FastifyInstance) {
     }, async (request, reply) => {
         const { id } = request.params as any
 
-        const post = await fastify.prisma.post.findUnique({
-            where: { id: Number(id) },
+        const post = await fastify.prisma.post.findFirst({
+            where: { id: Number(id), deletedAt: null },
             include: {
                 user: { select: { id: true, name: true, handleName: true, email: true } },
                 event: { select: { id: true, name: true, startAt: true } }
@@ -159,6 +159,7 @@ export default async function (fastify: FastifyInstance) {
 
         const posts = await fastify.prisma.post.findMany({
             where: {
+                deletedAt: null,
                 ...(eventId ? { eventId: Number(eventId) } : {})
             },
             include: {
@@ -321,14 +322,15 @@ export default async function (fastify: FastifyInstance) {
         }
 
         try {
-            await fastify.prisma.post.delete({
-                where: { id: Number(id) }
+            await fastify.prisma.post.update({
+                where: { id: Number(id) },
+                data: { deletedAt: new Date() }
             })
 
-            // Log the deletion (postId intentionally omitted — post no longer exists)
             await fastify.prisma.userLog.create({
                 data: {
                     userId:            existing.userId,
+                    postId:            Number(id),
                     point:             0,
                     transactionType:   'DELETE',
                     rejectionCategory: 'NONE',

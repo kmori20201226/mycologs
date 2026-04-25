@@ -12,6 +12,7 @@
     "start:ai": "cd ai-service && mycologs-ai-service --daemon",
     "stop:ai": "cd ai-service && mycologs-ai-service --stop",
     "db:up": "docker compose -f docker/postgres/docker-compose.yml up -d",
+    "db:psql": "psql postgresql://postgres:password@localhost:5432/mycologs",
     "db:down": "docker compose -f docker/postgres/docker-compose.yml down",
     "migrate": "bash scripts/migrate.sh",
     "do-migrate": "npx prisma migrate dev",

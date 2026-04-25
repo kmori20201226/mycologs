@@ -45,9 +45,14 @@ export default async function (fastify: FastifyInstance) {
                 properties: { postId: { type: 'integer' } },
                 required: ['postId'],
             },
+            body: {
+                type: 'object',
+                properties: { hint: { type: 'string' } },
+            },
         },
     }, async (request, reply) => {
         const { postId } = request.params as { postId: number }
+        const { hint } = (request.body ?? {}) as { hint?: string }
 
         // Fetch the post with its event (for location data)
         const post = await fastify.prisma.post.findUnique({
@@ -77,7 +82,7 @@ export default async function (fastify: FastifyInstance) {
         const body: Record<string, unknown> = { images: encodedImages }
         if (event?.latitude != null)  body.latitude  = event.latitude
         if (event?.longitude != null) body.longitude = event.longitude
-        if (post?.identificationHint) body.hint = post.identificationHint
+        if (hint)                     body.hint       = hint
 
         const response = await fetch(`${AI_SERVICE_URL}/api/identification/evaluate`, {
             method: 'POST',

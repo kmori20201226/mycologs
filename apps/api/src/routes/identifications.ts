@@ -29,13 +29,25 @@ export default async function (fastify: FastifyInstance) {
             }
         }
     }, async (request, reply) => {
-        const { postId, userId, specieId, description } = request.body as any
+        const { postId, userId, specieId: _specieId, identificationHint, score: _score, description } = request.body as any
+        const score = _score ?? (description as any)?.score ?? null
+
+        let specieId: number | null = _specieId ?? null
+        if (specieId == null && (description as any)?.scientific_name) {
+            const species = await fastify.prisma.species.findFirst({
+                where: { scientificName: (description as any).scientific_name, deletedAt: null },
+                select: { id: true }
+            })
+            if (species) specieId = species.id
+        }
 
         const identification = await fastify.prisma.identification.create({
             data: {
                 postId,
                 userId,
                 specieId,
+                identificationHint: identificationHint ?? null,
+                score,
                 description: description ?? null
             },
             include: {
@@ -78,8 +90,8 @@ export default async function (fastify: FastifyInstance) {
     }, async (request, reply) => {
         const { id } = request.params as any
 
-        const identification = await fastify.prisma.identification.findUnique({
-            where: { id: Number(id) },
+        const identification = await fastify.prisma.identification.findFirst({
+            where: { id: Number(id), deletedAt: null },
             include: {
                 user: { select: { id: true, name: true, handleName: true } },
                 post: { select: { id: true, contents: true } },
@@ -109,6 +121,7 @@ export default async function (fastify: FastifyInstance) {
         }
     }, async (request, reply) => {
         const identifications = await fastify.prisma.identification.findMany({
+            where: { deletedAt: null },
             include: {
                 user: { select: { id: true, name: true, handleName: true } },
                 post: { select: { id: true, contents: true } },
@@ -149,7 +162,7 @@ export default async function (fastify: FastifyInstance) {
         const { postId } = request.params as any
 
         const identifications = await fastify.prisma.identification.findMany({
-            where: { postId: Number(postId) },
+            where: { postId: Number(postId), deletedAt: null },
             include: {
                 user: { select: { id: true, name: true, handleName: true } },
                 post: { select: { id: true, contents: true } },
@@ -214,7 +227,7 @@ export default async function (fastify: FastifyInstance) {
         }
     })
 
-    // ACCEPT — unaccepts all siblings, accepts this one
+    // ACCEPT — toggles accepted on this identification only
     fastify.post('/identifications/:id/accept', {
         schema: {
             params: {
@@ -230,18 +243,14 @@ export default async function (fastify: FastifyInstance) {
     }, async (request, reply) => {
         const { id } = request.params as any
 
-        const target = await fastify.prisma.identification.findUnique({ where: { id: Number(id) } })
-        if (!target) return reply.code(404).send({ message: 'Identification not found' })
-
-        // Unaccept all identifications for the same post, then accept this one
-        await fastify.prisma.identification.updateMany({
-            where: { postId: target.postId },
-            data: { accepted: false }
+        const target = await fastify.prisma.identification.findFirst({
+            where: { id: Number(id), deletedAt: null }
         })
+        if (!target) return reply.code(404).send({ message: 'Identification not found' })
 
         const identification = await fastify.prisma.identification.update({
             where: { id: Number(id) },
-            data: { accepted: true },
+            data: { accepted: !target.accepted },
             include: {
                 user: { select: { id: true, name: true, handleName: true } },
                 post: { select: { id: true, contents: true } },
@@ -282,8 +291,9 @@ export default async function (fastify: FastifyInstance) {
         const { id } = request.params as any
 
         try {
-            await fastify.prisma.identification.delete({
-                where: { id: Number(id) }
+            await fastify.prisma.identification.update({
+                where: { id: Number(id) },
+                data: { deletedAt: new Date() }
             })
 
             return { message: 'Identification deleted' }
