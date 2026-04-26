@@ -164,10 +164,12 @@ export default async function (fastify: FastifyInstance) {
 
             // 3. No existing user — create one from LINE profile
             if (!user) {
+                const freeTierCredits = Number(process.env.FREE_TIER_CREDITS ?? 50)
                 user = await fastify.prisma.user.create({
                     data: {
-                        name:  displayName,
-                        email: email ?? `line-${lineUserId}@line.user`,
+                        name:   displayName,
+                        email:  email ?? `line-${lineUserId}@line.user`,
+                        credit: freeTierCredits,
                     },
                     select: { id: true, name: true, email: true, role: true },
                 })

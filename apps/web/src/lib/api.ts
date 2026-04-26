@@ -395,10 +395,14 @@ class ApiClient {
   }
 
   // AI identification
-  async aiIdentify(postId: number, hint?: string): Promise<AiIdentification> {
+  async aiIdentify(postId: number, hint?: string, userId?: number, clubId?: number): Promise<AiIdentification> {
+    const body: Record<string, unknown> = {}
+    if (hint)   body.hint   = hint
+    if (userId) body.userId = userId
+    if (clubId) body.clubId = clubId
     return this.request(`/posts/${postId}/ai-identify`, {
       method: 'POST',
-      body: hint ? JSON.stringify({ hint }) : undefined,
+      body: JSON.stringify(body),
     })
   }
 
@@ -512,6 +516,18 @@ class ApiClient {
 
   async deleteFollowup(id: number): Promise<void> {
     return this.request(`/followups/${id}`, { method: 'DELETE' })
+  }
+
+  async createCheckoutSession(data: { planId: string; userId?: number; clubId?: number }): Promise<{ url: string }> {
+    return this.request('/subscriptions/checkout', { method: 'POST', body: JSON.stringify(data) })
+  }
+
+  async openBillingPortal(data: { userId?: number; clubId?: number }): Promise<{ url: string }> {
+    return this.request('/subscriptions/portal', { method: 'POST', body: JSON.stringify(data) })
+  }
+
+  async getActiveSubscription(userId: number): Promise<{ active: boolean }> {
+    return this.request(`/users/${userId}/subscription/active`)
   }
 }
 

@@ -162,17 +162,21 @@ export default function PostPage() {
       showToast('きのこを同定するには写真が必要です')
       return
     }
+    const currentUser = getStoredUser()
     setAiLoading(true)
     setAiError('')
     setAiResult(null)
     setCommittedHint(hint)
     try {
-      const result = await apiClient.aiIdentify(postId, hint || undefined)
+      const result = await apiClient.aiIdentify(postId, hint || undefined, currentUser?.id)
       setAiResult(result)
-      // Scroll to identification section
       setTimeout(() => identSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
-    } catch {
-      setAiError('同定に失敗しました。もう一度お試しください。')
+    } catch (err: any) {
+      if (err?.message?.includes('402')) {
+        setAiError('クレジットが不足しています。サブスクリプションを購入するとクレジットが追加されます。')
+      } else {
+        setAiError('同定に失敗しました。もう一度お試しください。')
+      }
     } finally {
       setAiLoading(false)
     }

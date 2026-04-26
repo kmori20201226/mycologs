@@ -44,6 +44,12 @@ export const menuEntries: MenuEntry[] = [
     visibleTo: ['authenticated'],
   },
   {
+    type: 'item',
+    label: 'サブスクリプション',
+    href: '/subscription',
+    visibleTo: ['authenticated'],
+  },
+  {
     type: 'group',
     label: 'クラブマネージャ',
     visibleTo: ['ADMIN', 'DEVELOPER', 'CLUBMANAGER'],

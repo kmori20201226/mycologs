@@ -205,6 +205,52 @@ export default async function (fastify: FastifyInstance) {
         }
     })
 
+    // GET credit balance
+    fastify.get('/clubs/:id/credit', {
+        schema: {
+            params: { type: 'object', required: ['id'], properties: { id: { type: 'integer' } } },
+            response: {
+                200: { type: 'object', properties: { clubId: { type: 'integer' }, credit: { type: 'integer' } } },
+                404: { type: 'object', properties: { message: { type: 'string' } } }
+            }
+        }
+    }, async (request, reply) => {
+        const { id } = request.params as any
+        const club = await fastify.prisma.club.findUnique({ where: { id: Number(id) }, select: { id: true, credit: true } })
+        if (!club) return reply.code(404).send({ message: 'Club not found' })
+        return { clubId: club.id, credit: club.credit }
+    })
+
+    // ADJUST credit (admin use / webhook)
+    fastify.post('/clubs/:id/credit/adjust', {
+        schema: {
+            params: { type: 'object', required: ['id'], properties: { id: { type: 'integer' } } },
+            body: {
+                type: 'object',
+                required: ['delta'],
+                properties: { delta: { type: 'integer' } }
+            },
+            response: {
+                200: { type: 'object', properties: { clubId: { type: 'integer' }, credit: { type: 'integer' } } },
+                404: { type: 'object', properties: { message: { type: 'string' } } }
+            }
+        }
+    }, async (request, reply) => {
+        const { id } = request.params as any
+        const { delta } = request.body as { delta: number }
+
+        try {
+            const club = await fastify.prisma.club.update({
+                where: { id: Number(id) },
+                data: { credit: { increment: delta } },
+                select: { id: true, credit: true }
+            })
+            return { clubId: club.id, credit: club.credit }
+        } catch {
+            return reply.code(404).send({ message: 'Club not found' })
+        }
+    })
+
     // DELETE
     fastify.delete('/clubs/:id', async (request, reply) => {
         const { id } = request.params as { id: string }

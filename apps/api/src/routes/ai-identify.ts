@@ -37,6 +37,8 @@ async function encodeImage(filename: string): Promise<{ data: string; mediaType:
     return { data: buf.toString('base64'), mediaType: 'image/jpeg' }
 }
 
+const AI_COST = Number(process.env.AI_IDENTIFICATION_COST ?? 10)
+
 export default async function (fastify: FastifyInstance) {
     fastify.post('/posts/:postId/ai-identify', {
         schema: {
@@ -47,12 +49,35 @@ export default async function (fastify: FastifyInstance) {
             },
             body: {
                 type: 'object',
-                properties: { hint: { type: 'string' } },
+                properties: {
+                    hint:   { type: 'string' },
+                    userId: { type: 'integer' },
+                    clubId: { type: 'integer' },
+                },
             },
         },
     }, async (request, reply) => {
         const { postId } = request.params as { postId: number }
-        const { hint } = (request.body ?? {}) as { hint?: string }
+        const { hint, userId, clubId } = (request.body ?? {}) as { hint?: string; userId?: number; clubId?: number }
+
+        // ── Credit check ─────────────────────────────────────────────────────
+        if (clubId) {
+            const deducted = await fastify.prisma.club.updateMany({
+                where: { id: Number(clubId), credit: { gte: AI_COST } },
+                data:  { credit: { decrement: AI_COST } },
+            })
+            if (deducted.count === 0) {
+                return reply.code(402).send({ message: 'クラブのクレジットが不足しています。サブスクリプションを更新してください。' })
+            }
+        } else if (userId) {
+            const deducted = await fastify.prisma.user.updateMany({
+                where: { id: Number(userId), credit: { gte: AI_COST } },
+                data:  { credit: { decrement: AI_COST } },
+            })
+            if (deducted.count === 0) {
+                return reply.code(402).send({ message: 'クレジットが不足しています。サブスクリプションを購入してください。' })
+            }
+        }
 
         // Fetch the post with its event (for location data)
         const post = await fastify.prisma.post.findUnique({

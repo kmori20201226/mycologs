@@ -13,13 +13,20 @@ datasource db {
 }
 
 model Club {
-  id            Int            @id @default(autoincrement())
+  id            Int               @id @default(autoincrement())
   name          String
-  createdAt     DateTime       @default(now()) @map("created_at")
+  credit        Int               @default(0)
+  createdAt     DateTime          @default(now()) @map("created_at")
+  updatedAt     DateTime          @updatedAt @map("updated_at")
+  deletedAt     DateTime?         @map("deleted_at")
+
+  stripeCustomerId String?        @unique @map("stripe_customer_id")
 
   clubUsers     ClubUser[]
   events        Event[]
   userRequests  UserRequest[]
+  subscriptions Subscription[]
+  payments      Payment[]
 
   @@map("clubs")
 }
@@ -77,12 +84,14 @@ model User {
   address           String?
   tel               String?
   line_id           String?
+  credit            Int               @default(0)
   meta              Json?
   role              UserRole?         @map("role")
   roleId            Int?              @map("role_id")
   voteWeight        Int?              @map("vote_weight")
   createdAt         DateTime          @default(now()) @map("created_at")
   updatedAt         DateTime          @updatedAt @map("updated_at")
+  deletedAt         DateTime?         @map("deleted_at")
   roleRef           Role?             @relation(fields: [roleId], references: [id])
   clubUsers         ClubUser[]
   oauthAccounts     OAuthAccount[]
@@ -95,6 +104,9 @@ model User {
   repliedRequests   UserRequest[]   @relation("UserRequestReplier")
   userLogs          UserLog[]       @relation("UserLogs")
   createdLogs       UserLog[]       @relation("CreatedLogs")
+  stripeCustomerId  String?         @unique @map("stripe_customer_id")
+  subscriptions     Subscription[]
+  payments          Payment[]
 
   @@map("users")
 }
@@ -114,6 +126,82 @@ model User {
 //       "RESET" is a special record which an administrator adds.
 //   userPost: User post which is rejected.
 //   comment: Text how the AI agent judged
+
+enum SubscriptionStatus {
+  trialing
+  active
+  past_due
+  unpaid
+  canceled
+  inactive
+}
+
+enum PaymentStatus {
+  paid
+  failed
+  refunded
+}
+
+model Subscription {
+  id                     String              @id @default(uuid())
+  userId                 Int?
+  user                   User?               @relation(fields: [userId], references: [id])
+  clubId                 Int?                @map("club_id")
+  club                   Club?               @relation(fields: [clubId], references: [id])
+
+  status                 SubscriptionStatus
+
+  planId                 String
+
+  currentPeriodStart     DateTime?
+  currentPeriodEnd       DateTime?
+
+  cancelAtPeriodEnd      Boolean             @default(false)
+  canceledAt             DateTime?
+
+  trialStart             DateTime?
+  trialEnd               DateTime?
+
+  // Optimization for fast access checks
+  accessUntil            DateTime?
+
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
+
+  payments               Payment[]
+
+  @@index([userId])
+  @@index([clubId])
+  @@index([status])
+}
+
+model Payment {
+  id               String         @id @default(uuid())
+
+  userId           Int?           @map("user_id")
+  clubId           Int?           @map("club_id")
+  user             User?          @relation(fields: [userId], references: [id])
+  club             Club?          @relation(fields: [clubId], references: [id])
+
+  subscriptionId   String?
+  subscription     Subscription?  @relation(fields: [subscriptionId], references: [id])
+
+  amount           Int            // smallest currency unit (e.g. yen)
+  currency         String
+
+  status           PaymentStatus
+
+  provider         String         // e.g. "stripe"
+  providerRef      String?        // charge/session id
+
+  paidAt           DateTime?
+  createdAt        DateTime       @default(now())
+
+  @@index([userId])
+  @@index([clubId])
+  @@index([subscriptionId])
+  @@index([provider, providerRef])
+}
 
 enum TransactionType {
   POST

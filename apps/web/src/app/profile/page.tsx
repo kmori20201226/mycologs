@@ -32,6 +32,9 @@ export default function ProfilePage() {
   const [handleSaving, setHandleSaving] = useState(false)
   const [handleError, setHandleError] = useState('')
   const [handleSuccess, setHandleSuccess] = useState(false)
+  const [credit, setCredit] = useState<number | null>(null)
+  const [subActive, setSubActive] = useState(false)
+  const [portalLoading, setPortalLoading] = useState(false)
 
   useEffect(() => {
     const user = getStoredUser()
@@ -42,7 +45,24 @@ export default function ProfilePage() {
     apiClient.getUserProfile(user.id)
       .then((p) => { setProfile(p); setHandleInput(p.handleName ?? '') })
       .catch(() => setNotFound(true))
+    apiClient.request<{ userId: number; credit: number }>(`/users/${user.id}/credit`)
+      .then((r) => setCredit(r.credit))
+      .catch(() => {})
+    apiClient.getActiveSubscription(user.id)
+      .then((r) => setSubActive(r.active))
+      .catch(() => {})
   }, [router])
+
+  async function handleManageSubscription() {
+    const user = getStoredUser()
+    if (!user) return
+    setPortalLoading(true)
+    try {
+      const { url } = await apiClient.openBillingPortal({ userId: user.id })
+      if (url) window.location.href = url
+    } catch { /* ignore */ }
+    finally { setPortalLoading(false) }
+  }
 
   async function handleSaveHandleName(e: React.FormEvent) {
     e.preventDefault()
@@ -157,6 +177,40 @@ export default function ProfilePage() {
             </svg>
             クラブへの参加申請
           </Link>
+        </div>
+
+        {/* Credit & subscription */}
+        <div className="bg-white rounded-xl shadow p-6 mb-6">
+          <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-4">クレジット・サブスクリプション</h2>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-2xl font-bold text-emerald-600">
+                {credit !== null ? credit.toLocaleString() : '—'}
+              </p>
+              <p className="text-xs text-gray-500 mt-0.5">残クレジット</p>
+            </div>
+            <div className="text-right">
+              {subActive ? (
+                <div className="flex flex-col items-end gap-2">
+                  <span className="inline-block px-2 py-0.5 bg-green-100 text-green-700 text-xs font-medium rounded-full">有効</span>
+                  <button
+                    onClick={handleManageSubscription}
+                    disabled={portalLoading}
+                    className="text-xs text-emerald-600 hover:underline disabled:opacity-50"
+                  >
+                    {portalLoading ? '移動中...' : 'サブスクリプションを管理'}
+                  </button>
+                </div>
+              ) : (
+                <div className="flex flex-col items-end gap-2">
+                  <span className="inline-block px-2 py-0.5 bg-gray-100 text-gray-500 text-xs font-medium rounded-full">未加入</span>
+                  <Link href="/subscription" className="text-xs text-emerald-600 hover:underline">
+                    プランを見る
+                  </Link>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Stats */}

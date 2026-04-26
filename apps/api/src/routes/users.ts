@@ -319,4 +319,50 @@ export default async function (fastify: FastifyInstance) {
         }
     })
 
+    // GET credit balance
+    fastify.get('/users/:id/credit', {
+        schema: {
+            params: { type: 'object', required: ['id'], properties: { id: { type: 'integer' } } },
+            response: {
+                200: { type: 'object', properties: { userId: { type: 'integer' }, credit: { type: 'integer' } } },
+                404: { type: 'object', properties: { message: { type: 'string' } } }
+            }
+        }
+    }, async (request, reply) => {
+        const { id } = request.params as any
+        const user = await fastify.prisma.user.findUnique({ where: { id: Number(id) }, select: { id: true, credit: true } })
+        if (!user) return reply.code(404).send({ message: 'User not found' })
+        return { userId: user.id, credit: user.credit }
+    })
+
+    // ADJUST credit (admin use / webhook)
+    fastify.post('/users/:id/credit/adjust', {
+        schema: {
+            params: { type: 'object', required: ['id'], properties: { id: { type: 'integer' } } },
+            body: {
+                type: 'object',
+                required: ['delta'],
+                properties: { delta: { type: 'integer' } }
+            },
+            response: {
+                200: { type: 'object', properties: { userId: { type: 'integer' }, credit: { type: 'integer' } } },
+                404: { type: 'object', properties: { message: { type: 'string' } } }
+            }
+        }
+    }, async (request, reply) => {
+        const { id } = request.params as any
+        const { delta } = request.body as { delta: number }
+
+        try {
+            const user = await fastify.prisma.user.update({
+                where: { id: Number(id) },
+                data: { credit: { increment: delta } },
+                select: { id: true, credit: true }
+            })
+            return { userId: user.id, credit: user.credit }
+        } catch {
+            return reply.code(404).send({ message: 'User not found' })
+        }
+    })
+
 }
