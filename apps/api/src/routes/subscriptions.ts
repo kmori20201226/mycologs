@@ -212,10 +212,15 @@ export default async function (fastify: FastifyInstance) {
             return reply.code(400).send({ message: 'userId or clubId required' })
         }
 
+        const ownerMeta = clubId
+            ? { clubId: String(clubId), userId: '' }
+            : { clubId: '', userId: String(userId) }
+
         const session = await stripe.checkout.sessions.create({
             customer: stripeCustomerId,
             mode: 'subscription',
             line_items: [{ price: planId, quantity: 1 }],
+            subscription_data: { metadata: ownerMeta },
             success_url: `${FRONTEND_URL}/subscription/success?session_id={CHECKOUT_SESSION_ID}`,
             cancel_url:  `${FRONTEND_URL}/subscription/cancel`,
         })

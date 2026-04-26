@@ -365,4 +365,31 @@ export default async function (fastify: FastifyInstance) {
         }
     })
 
+    // DEBUG — full user record + club memberships
+    fastify.get('/debug/users', async (_request, reply) => {
+        return fastify.prisma.user.findMany({
+            select: { id: true, name: true, email: true },
+            orderBy: { id: 'asc' }
+        })
+    })
+
+    fastify.get('/debug/users/:id', async (request, reply) => {
+        const { id } = request.params as any
+
+        const user = await fastify.prisma.user.findUnique({
+            where: { id: Number(id) },
+            include: {
+                clubUsers: {
+                    include: {
+                        club: true,
+                        role: true,
+                    }
+                }
+            }
+        })
+
+        if (!user) return reply.code(404).send({ message: 'User not found' })
+        return user
+    })
+
 }

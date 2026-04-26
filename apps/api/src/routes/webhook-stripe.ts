@@ -23,6 +23,15 @@ function mapStatus(s: string): SubscriptionStatus {
     return map[s] ?? SubscriptionStatus.inactive
 }
 
+function resolveOwnerFromMeta(meta: Record<string, string> | null | undefined) {
+    if (!meta) return null
+    const clubId  = meta.clubId  ? Number(meta.clubId)  : null
+    const userId  = meta.userId  ? Number(meta.userId)  : null
+    if (clubId)  return { userId: null  as null,   clubId }
+    if (userId)  return { userId,        clubId: null as null }
+    return null
+}
+
 async function resolveOwner(prisma: any, customerId: string) {
     const user = await prisma.user.findUnique({
         where: { stripeCustomerId: customerId },
@@ -71,13 +80,16 @@ export default async function (fastify: FastifyInstance) {
 
                     const customerId  = obj.customer as string
                     const stripeSubId = obj.subscription as string
-                    const owner = await resolveOwner(prisma, customerId)
+
+                    const stripeSub = await stripe.subscriptions.retrieve(stripeSubId) as any
+                    const owner =
+                        resolveOwnerFromMeta(stripeSub.metadata) ??
+                        await resolveOwner(prisma, customerId)
                     if (!owner) {
                         fastify.log.warn(`checkout.session.completed: unknown customer ${customerId}`)
                         break
                     }
 
-                    const stripeSub = await stripe.subscriptions.retrieve(stripeSubId) as any
                     const trialStart = stripeSub.trial_start ? new Date(stripeSub.trial_start * 1000) : null
                     const trialEnd   = stripeSub.trial_end   ? new Date(stripeSub.trial_end   * 1000) : null
 
@@ -94,23 +106,119 @@ export default async function (fastify: FastifyInstance) {
                             trialEnd,
                         },
                         update: {
+                            userId:            owner.userId,
+                            clubId:            owner.clubId,
                             status:            mapStatus(stripeSub.status),
                             cancelAtPeriodEnd: stripeSub.cancel_at_period_end,
                         }
                     })
+
                     break
                 }
 
-                // ── Recurring payment succeeded ────────────────────────────────
+                // ── Recurring payment succeeded (v2026+: InvoicePayment object) ──
+                case 'invoice_payment.paid': {
+                    // obj is InvoicePayment — no customer/subscription on the object itself.
+                    // Retrieve the parent invoice to get those fields.
+                    const invoiceId = typeof obj.invoice === 'string' ? obj.invoice : (obj.invoice as any)?.id
+                    fastify.log.info({ invoicePaymentId: obj.id, invoiceId }, 'invoice_payment.paid received')
+                    if (!invoiceId) { fastify.log.warn('invoice_payment.paid: no invoiceId'); break }
+
+                    const invoice = await stripe.invoices.retrieve(invoiceId) as any
+                    const stripeSubId: string | null =
+                        invoice.parent?.subscription_details?.subscription
+                        ?? invoice.subscription
+                        ?? null
+                    const customerId = invoice.customer as string
+                    fastify.log.info({ stripeSubId, customerId }, 'invoice_payment.paid: invoice retrieved')
+                    if (!stripeSubId) { fastify.log.warn('invoice_payment.paid: stripeSubId is null, skipping'); break }
+
+                    // Prefer subscription metadata (set at checkout) over customer lookup
+                    const stripeSub = await stripe.subscriptions.retrieve(stripeSubId) as any
+                    const owner =
+                        resolveOwnerFromMeta(stripeSub.metadata) ??
+                        await resolveOwner(prisma, customerId)
+                    fastify.log.info({ owner }, 'invoice_payment.paid: owner resolved')
+                    if (!owner) { fastify.log.warn(`invoice_payment.paid: no owner for customer ${customerId}`); break }
+
+                    const periodStart = invoice.period_start ? new Date(invoice.period_start * 1000) : null
+                    const periodEnd   = invoice.period_end   ? new Date(invoice.period_end   * 1000) : null
+
+                    await prisma.subscription.update({
+                        where: { id: stripeSubId },
+                        data: {
+                            status:             SubscriptionStatus.active,
+                            currentPeriodStart: periodStart,
+                            currentPeriodEnd:   periodEnd,
+                            accessUntil:        periodEnd,
+                        }
+                    }).catch(() => {})
+
+                    // v2026: price moved to line.pricing.price_details.price
+                    const linePrice = invoice.lines?.data?.[0]?.pricing?.price_details?.price
+                    const planId: string = (typeof linePrice === 'string' ? linePrice : linePrice?.id) ?? ''
+                    fastify.log.info({ planId, PRICE_PERSONAL, PRICE_CLUB }, 'invoice_payment.paid: resolved planId')
+                    if (owner.userId) {
+                        const creditAmount = planId === PRICE_PERSONAL ? PERSONAL_PLAN_CREDITS : 0
+                        if (creditAmount > 0) {
+                            await prisma.user.update({
+                                where: { id: owner.userId },
+                                data:  { credit: creditAmount },
+                            }).catch(() => {})
+                        }
+                    } else if (owner.clubId) {
+                        const creditAmount = planId === PRICE_CLUB ? CLUB_PLAN_CREDITS : 0
+                        if (creditAmount > 0) {
+                            await prisma.club.update({
+                                where: { id: owner.clubId },
+                                data:  { credit: creditAmount },
+                            }).catch(() => {})
+                        }
+                    }
+
+                    const chargeId = typeof obj.payment?.charge === 'string' ? obj.payment.charge : (obj.payment?.charge as any)?.id ?? null
+                    const paidAt   = obj.status_transitions?.paid_at
+                        ? new Date(obj.status_transitions.paid_at * 1000)
+                        : new Date()
+
+                    fastify.log.info({ invoicePaymentId: obj.id, stripeSubId, planId }, 'invoice_payment.paid: upserting payment')
+                    await prisma.payment.upsert({
+                        where: { id: obj.id },
+                        create: {
+                            id:             obj.id,
+                            userId:         owner.userId,
+                            clubId:         owner.clubId,
+                            subscriptionId: stripeSubId,
+                            amount:         obj.amount_paid,
+                            currency:       obj.currency,
+                            status:         PaymentStatus.paid,
+                            provider:       'stripe',
+                            providerRef:    chargeId,
+                            paidAt,
+                        },
+                        update: {}
+                    })
+                    break
+                }
+
+                // ── Recurring payment succeeded (legacy Invoice object) ────────
                 case 'invoice.payment_succeeded': {
-                    const stripeSubId  = obj.subscription as string | null
+                    // In Stripe API v2026+, subscription moved to parent.subscription_details.subscription
+                    const stripeSubId: string | null =
+                        obj.parent?.subscription_details?.subscription
+                        ?? obj.subscription
+                        ?? null
                     const customerId   = obj.customer as string
-                    if (!stripeSubId) break
+                    fastify.log.info({ stripeSubId, customerId, parentType: obj.parent?.type, invoiceId: obj.id }, 'invoice.payment_succeeded received')
+                    if (!stripeSubId) { fastify.log.warn('invoice.payment_succeeded: stripeSubId is null, skipping'); break }
 
-                    const owner = await resolveOwner(prisma, customerId)
-                    if (!owner) break
+                    const legacySub = await stripe.subscriptions.retrieve(stripeSubId) as any
+                    const owner =
+                        resolveOwnerFromMeta(legacySub.metadata) ??
+                        await resolveOwner(prisma, customerId)
+                    fastify.log.info({ owner }, 'invoice.payment_succeeded: owner resolved')
+                    if (!owner) { fastify.log.warn(`invoice.payment_succeeded: no owner for customer ${customerId}`); break }
 
-                    // Invoice carries period_start / period_end in v22
                     const periodStart = obj.period_start ? new Date(obj.period_start * 1000) : null
                     const periodEnd   = obj.period_end   ? new Date(obj.period_end   * 1000) : null
 
@@ -124,14 +232,15 @@ export default async function (fastify: FastifyInstance) {
                         }
                     }).catch(() => {})
 
-                    // Top up credits based on plan
-                    const planId = obj.lines?.data?.[0]?.price?.id ?? ''
+                    const legacyLinePrice = obj.lines?.data?.[0]?.pricing?.price_details?.price
+                        ?? obj.lines?.data?.[0]?.price
+                    const planId: string = (typeof legacyLinePrice === 'string' ? legacyLinePrice : legacyLinePrice?.id) ?? ''
                     if (owner.userId) {
                         const creditAmount = planId === PRICE_PERSONAL ? PERSONAL_PLAN_CREDITS : 0
                         if (creditAmount > 0) {
                             await prisma.user.update({
                                 where: { id: owner.userId },
-                                data:  { credit: { increment: creditAmount } },
+                                data:  { credit: creditAmount },
                             }).catch(() => {})
                         }
                     } else if (owner.clubId) {
@@ -139,12 +248,12 @@ export default async function (fastify: FastifyInstance) {
                         if (creditAmount > 0) {
                             await prisma.club.update({
                                 where: { id: owner.clubId },
-                                data:  { credit: { increment: creditAmount } },
+                                data:  { credit: creditAmount },
                             }).catch(() => {})
                         }
                     }
 
-                    // Record payment — idempotent via invoice id
+                    fastify.log.info({ invoiceId: obj.id, stripeSubId, planId }, 'invoice.payment_succeeded: upserting payment')
                     const chargeId = typeof obj.charge === 'string' ? obj.charge : obj.charge?.id ?? null
                     const paidAt   = obj.status_transitions?.paid_at
                         ? new Date(obj.status_transitions.paid_at * 1000)
@@ -171,7 +280,10 @@ export default async function (fastify: FastifyInstance) {
 
                 // ── Payment failed ─────────────────────────────────────────────
                 case 'invoice.payment_failed': {
-                    const stripeSubId = obj.subscription as string | null
+                    const stripeSubId: string | null =
+                        obj.parent?.subscription_details?.subscription
+                        ?? obj.subscription
+                        ?? null
                     if (!stripeSubId) break
 
                     await prisma.subscription.update({

@@ -172,8 +172,9 @@ export default function PostPage() {
       setAiResult(result)
       setTimeout(() => identSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
     } catch (err: any) {
-      if (err?.message?.includes('402')) {
-        setAiError('クレジットが不足しています。サブスクリプションを購入するとクレジットが追加されます。')
+      if (err?.status === 402) {
+        const isClub = err?.apiMessage?.includes('クラブ')
+        setAiError(isClub ? 'insufficient_credit_club' : 'insufficient_credit_user')
       } else {
         setAiError('同定に失敗しました。もう一度お試しください。')
       }
@@ -459,7 +460,23 @@ export default function PostPage() {
 
               {aiError && (
                 <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-red-700 text-sm">
-                  {aiError}
+                  {aiError === 'insufficient_credit_user' ? (
+                    <>
+                      個人クレジットが不足しています。
+                      <Link href="/subscription" className="underline hover:text-red-900">
+                        サブスクリプションを購入
+                      </Link>
+                      するとクレジットが追加されます。
+                    </>
+                  ) : aiError === 'insufficient_credit_club' ? (
+                    <>
+                      クラブのクレジットが不足しています。
+                      <Link href="/subscription" className="underline hover:text-red-900">
+                        クラブのサブスクリプションを更新
+                      </Link>
+                      するとクレジットが追加されます。
+                    </>
+                  ) : aiError}
                 </div>
               )}
 

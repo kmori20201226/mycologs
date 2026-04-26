@@ -160,6 +160,11 @@ export default function Navigation() {
               {clubs.length === 1 && selectedClub && (
                 <span className="hidden sm:inline text-xs text-gray-400">({selectedClub.role})</span>
               )}
+              {selectedClub && (
+                <span className="hidden sm:inline text-xs text-emerald-600 font-mono">
+                  {(selectedClub.credit ?? 0).toLocaleString()} cr
+                </span>
+              )}
             </div>
           )}
 

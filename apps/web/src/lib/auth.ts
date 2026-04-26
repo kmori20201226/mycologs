@@ -27,6 +27,7 @@ export interface ClubMembership {
   id: number
   name: string
   createdAt: string
+  credit: number
   role: string
 }
 

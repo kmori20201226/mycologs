@@ -70,6 +70,19 @@ export const menuEntries: MenuEntry[] = [
   },
   {
     type: 'group',
+    label: 'デバッグ',
+    visibleTo: ['DEVELOPER'],
+    children: [
+      {
+        type: 'item',
+        label: 'ユーザー / クラブ',
+        href: '/debug/user',
+        visibleTo: ['DEVELOPER'],
+      },
+    ],
+  },
+  {
+    type: 'group',
     label: 'サイトマネージャ',
     visibleTo: ['ADMIN', 'DEVELOPER'],
     children: [

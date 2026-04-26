@@ -52,18 +52,24 @@ export default async function (fastify: FastifyInstance) {
                 properties: {
                     hint:   { type: 'string' },
                     userId: { type: 'integer' },
-                    clubId: { type: 'integer' },
                 },
             },
         },
     }, async (request, reply) => {
         const { postId } = request.params as { postId: number }
-        const { hint, userId, clubId } = (request.body ?? {}) as { hint?: string; userId?: number; clubId?: number }
+        const { hint, userId } = (request.body ?? {}) as { hint?: string; userId?: number }
+
+        // Fetch the post with its event (for location data + credit ownership)
+        const post = await fastify.prisma.post.findUnique({
+            where: { id: Number(postId) },
+            include: { event: true },
+        })
 
         // ── Credit check ─────────────────────────────────────────────────────
-        if (clubId) {
+        const eventClubId = post?.event?.clubId ?? null
+        if (eventClubId) {
             const deducted = await fastify.prisma.club.updateMany({
-                where: { id: Number(clubId), credit: { gte: AI_COST } },
+                where: { id: eventClubId, credit: { gte: AI_COST } },
                 data:  { credit: { decrement: AI_COST } },
             })
             if (deducted.count === 0) {
@@ -78,12 +84,6 @@ export default async function (fastify: FastifyInstance) {
                 return reply.code(402).send({ message: 'クレジットが不足しています。サブスクリプションを購入してください。' })
             }
         }
-
-        // Fetch the post with its event (for location data)
-        const post = await fastify.prisma.post.findUnique({
-            where: { id: Number(postId) },
-            include: { event: true },
-        })
 
         // Fetch images attached to this post
         const images = await fastify.prisma.media.findMany({

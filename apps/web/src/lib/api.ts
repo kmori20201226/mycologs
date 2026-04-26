@@ -134,7 +134,12 @@ class ApiClient {
     });
 
     if (!response.ok) {
-      throw new Error(`API request failed: ${url} => ${response.status} ${response.statusText}`);
+      let apiMessage: string | undefined
+      try { apiMessage = (await response.json()).message } catch { /* ignore */ }
+      const err: any = new Error(apiMessage ?? `API request failed: ${url} => ${response.status} ${response.statusText}`)
+      err.status = response.status
+      err.apiMessage = apiMessage
+      throw err
     }
 
     return response.json();
@@ -395,11 +400,10 @@ class ApiClient {
   }
 
   // AI identification
-  async aiIdentify(postId: number, hint?: string, userId?: number, clubId?: number): Promise<AiIdentification> {
+  async aiIdentify(postId: number, hint?: string, userId?: number): Promise<AiIdentification> {
     const body: Record<string, unknown> = {}
     if (hint)   body.hint   = hint
     if (userId) body.userId = userId
-    if (clubId) body.clubId = clubId
     return this.request(`/posts/${postId}/ai-identify`, {
       method: 'POST',
       body: JSON.stringify(body),

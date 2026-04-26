@@ -252,6 +252,14 @@ export default async function (fastify: FastifyInstance) {
     })
 
     // DELETE
+    // DEBUG — full club record
+    fastify.get('/debug/clubs/:id', async (request, reply) => {
+        const { id } = request.params as any
+        const club = await fastify.prisma.club.findUnique({ where: { id: Number(id) } })
+        if (!club) return reply.code(404).send({ message: 'Club not found' })
+        return club
+    })
+
     fastify.delete('/clubs/:id', async (request, reply) => {
         const { id } = request.params as { id: string }
 

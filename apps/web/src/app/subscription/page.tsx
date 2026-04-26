@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { apiClient } from '@/lib/api'
-import { getStoredUser } from '@/lib/auth'
+import { getStoredUser, getSelectedClubId } from '@/lib/auth'
 
 interface Plan {
   id: string
@@ -70,10 +70,20 @@ export default function SubscriptionPage() {
       return
     }
 
+    const isClubPlan = planId === (process.env.NEXT_PUBLIC_STRIPE_PRICE_CLUB ?? '')
+    const clubId = isClubPlan ? getSelectedClubId() : null
+    if (isClubPlan && !clubId) {
+      setError('クラブプランにはクラブを選択してください。')
+      return
+    }
+
     setLoading(planId)
     setError('')
     try {
-      const { url } = await apiClient.createCheckoutSession({ planId, userId: user.id })
+      const params = isClubPlan
+        ? { planId, clubId: clubId! }
+        : { planId, userId: user.id }
+      const { url } = await apiClient.createCheckoutSession(params)
       if (url) window.location.href = url
     } catch {
       setError('チェックアウトの開始に失敗しました。もう一度お試しください。')
