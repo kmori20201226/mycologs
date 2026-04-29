@@ -1,0 +1,77 @@
+name: mycologs
+
+services:
+
+  postgres:
+    image: postgres:18
+    container_name: mycologs-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: mycologs
+    volumes:
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  ai-service:
+    build:
+      context: .
+      dockerfile: docker/ai-service/Dockerfile
+    container_name: mycologs-ai-service
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:3002/health')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/api/Dockerfile
+    container_name: mycologs-api
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://postgres:password@postgres:5432/mycologs
+      AI_SERVICE_URL: http://ai-service:3002
+      FRONTEND_URL: http://localhost:3001
+      API_URL: ${API_URL:-http://localhost:3000}
+      JWT_SECRET: ${JWT_SECRET}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      STRIPE_PRICE_PERSONAL: ${STRIPE_PRICE_PERSONAL:-}
+      STRIPE_PRICE_CLUB: ${STRIPE_PRICE_CLUB:-}
+      FREE_TIER_CREDITS: ${FREE_TIER_CREDITS:-50}
+      AI_IDENTIFICATION_COST: ${AI_IDENTIFICATION_COST:-10}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ai-service:
+        condition: service_healthy
+    volumes:
+      - uploads:/app/data/uploads
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3000}
+        NEXT_PUBLIC_STRIPE_PRICE_PERSONAL: ${NEXT_PUBLIC_STRIPE_PRICE_PERSONAL:-}
+        NEXT_PUBLIC_STRIPE_PRICE_CLUB: ${NEXT_PUBLIC_STRIPE_PRICE_CLUB:-}
+    container_name: mycologs-web
+    ports:
+      - "3001:3001"
+    depends_on:
+      - api
+
+volumes:
+  pgdata:
+  uploads:

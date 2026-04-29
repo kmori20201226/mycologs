@@ -1,0 +1,10 @@
+// Clubs and users for sandbox testing.
+// Club rows must appear before user rows that reference them.
+
+#type,name,email,password,role,belonging-clubs,credits
+club,きのこ愛好会,,,,,500
+club,菌類研究会,,,,,0
+user,山田太郎,yamada@example.com,password,,+きのこ愛好会/菌類研究会,200
+user,鈴木花子,suzuki@example.com,password,,きのこ愛好会/+菌類研究会,100
+user,田中一郎,tanaka@example.com,password,,きのこ愛好会,5
+user,管理太郎,kanri@example.com,password,ADMIN,,0

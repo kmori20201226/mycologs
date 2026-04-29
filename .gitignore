@@ -85,3 +85,10 @@ temp/
 # User uploads
 # =========================
 /data/uploads/
+
+# =========================
+# Test sandbox
+# =========================
+test-sandbox/.env
+test-sandbox/pgdata/
+test-sandbox/uploads/

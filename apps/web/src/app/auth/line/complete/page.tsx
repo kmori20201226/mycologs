@@ -1,10 +1,11 @@
 'use client'
 
+import { Suspense } from 'react'
 import { useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { setToken, setStoredUser, type UserLevelRole } from '@/lib/auth'
 
-export default function LineCompletePage() {
+function LineCompleteInner() {
   const searchParams = useSearchParams()
 
   useEffect(() => {
@@ -27,5 +28,17 @@ export default function LineCompletePage() {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center">
       <p className="text-gray-500 text-sm">LINEログイン処理中…</p>
     </div>
+  )
+}
+
+export default function LineCompletePage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <p className="text-gray-500 text-sm">LINEログイン処理中…</p>
+      </div>
+    }>
+      <LineCompleteInner />
+    </Suspense>
   )
 }

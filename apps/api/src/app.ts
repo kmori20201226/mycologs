@@ -39,7 +39,7 @@ export async function buildApp() {
     })
 
     await app.register(cors, {
-        origin: 'http://localhost:3001',
+        origin: process.env.FRONTEND_URL ?? 'http://localhost:3001',
         methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
         allowedHeaders: ['Content-Type', 'Authorization']
     })

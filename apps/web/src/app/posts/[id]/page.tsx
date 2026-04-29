@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { Suspense, useEffect, useRef, useState } from 'react'
 import { useParams, useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { apiClient, type MediaItem, type AiIdentification } from '@/lib/api'
@@ -31,7 +31,7 @@ interface Followup {
   user: { id: number; name: string; handleName: string | null }
 }
 
-export default function PostPage() {
+function PostPageInner() {
   const params = useParams()
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -765,6 +765,14 @@ export default function PostPage() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function PostPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-gray-50" />}>
+      <PostPageInner />
+    </Suspense>
   )
 }
 

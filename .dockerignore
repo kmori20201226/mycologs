@@ -1,0 +1,17 @@
+**/node_modules/
+**/.next/
+dist/
+generated/prisma/
+.git/
+.env
+.env.*
+/data/uploads/
+.pids/
+*.pid
+ai-service/src/mycologs_ai_service/*.log
+ai-service/src/mycologs_ai_service/*.pid
+workspace/
+tmp/
+temp/
+*.tsbuildinfo
+coverage/

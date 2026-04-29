@@ -1,20 +1,20 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { Suspense, useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { apiClient } from '@/lib/api'
 import { setToken, setStoredUser } from '@/lib/auth'
 
 const LINE_ERROR_MESSAGES: Record<string, string> = {
-  line_denied:        'LINEログインがキャンセルされました。',
-  invalid_state:      'セッションが無効です。もう一度お試しください。',
-  line_token_failed:  'LINEとの認証に失敗しました。もう一度お試しください。',
-  line_profile_failed:'LINEプロフィールの取得に失敗しました。',
-  line_failed:        'LINEログインに失敗しました。もう一度お試しください。',
+  line_denied: 'LINEログインがキャンセルされました。',
+  invalid_state: 'セッションが無効です。もう一度お試しください。',
+  line_token_failed: 'LINEとの認証に失敗しました。もう一度お試しください。',
+  line_profile_failed: 'LINEプロフィールの取得に失敗しました。',
+  line_failed: 'LINEログインに失敗しました。もう一度お試しください。',
 }
 
-export default function LoginPage() {
+function LoginPageInner() {
   const searchParams = useSearchParams()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -116,5 +116,13 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-gray-50" />}>
+      <LoginPageInner />
+    </Suspense>
   )
 }
