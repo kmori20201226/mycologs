@@ -33,7 +33,8 @@ test('POST, GET, LIST, PATCH and DELETE /followups', async (t) => {
         method: 'POST',
         url: '/followups',
         payload: {
-            postId: post.id,
+            parentPostId: post.id,
+            userId: user.id,
             contents: `Can you provide more details about the location? Followup test ${timestamp}.`
         }
     })
@@ -41,7 +42,7 @@ test('POST, GET, LIST, PATCH and DELETE /followups', async (t) => {
     assert.equal(createRes.statusCode, 201)
     const createdFollowup = createRes.json() as any
     assert.equal(createdFollowup.contents, `Can you provide more details about the location? Followup test ${timestamp}.`)
-    assert.equal(createdFollowup.postId, post.id)
+    assert.equal(createdFollowup.parentPostId, post.id)
     assert.ok(createdFollowup.id)
 
     // READ BY ID

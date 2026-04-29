@@ -30,7 +30,6 @@ interface UserLog {
   id: number
   userId: number
   postId: number | null
-  followupId: number | null
   point: number
   transactionType: 'POST' | 'UPDATE' | 'DELETE' | 'RESET'
   rejectionCategory: 'OFFENSIVE_SEXUAL' | 'POTENTIALLY_OFFENSIVE' | 'OFF_TOPIC_IMAGE' | 'NONE' | null

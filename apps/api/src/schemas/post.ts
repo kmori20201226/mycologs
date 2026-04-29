@@ -3,6 +3,7 @@ export const postSchema = {
     properties: {
         id: { type: 'number' },
         eventId: { type: 'number', nullable: true },
+        parentPostId: { type: 'number', nullable: true },
         userId: { type: 'number' },
         contents: { type: 'string' },
         createdAt: { type: 'string', format: 'date-time' },

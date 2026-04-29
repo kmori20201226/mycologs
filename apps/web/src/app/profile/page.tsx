@@ -14,7 +14,7 @@ interface ProfileData {
   createdAt: string
   postCount: number
   identificationCount: number
-  followupCount: number
+  replyCount: number
   recentPosts: {
     id: number
     contents: string
@@ -217,7 +217,7 @@ export default function ProfilePage() {
         <div className="grid grid-cols-3 gap-4 mb-6">
           <StatCard label="投稿" value={profile.postCount} />
           <StatCard label="同定" value={profile.identificationCount} />
-          <StatCard label="コメント" value={profile.followupCount} />
+          <StatCard label="コメント" value={profile.replyCount} />
         </div>
 
         {/* Recent posts */}

@@ -178,7 +178,7 @@ class ApiClient {
 
   async getUserProfile(id: number): Promise<{
     id: number; name: string; handleName: string | null; email: string; createdAt: string;
-    postCount: number; identificationCount: number; followupCount: number;
+    postCount: number; identificationCount: number; replyCount: number;
     recentPosts: { id: number; contents: string; createdAt: string; event: { id: number; name: string } | null; _count: { media: number; identifications: number } }[]
   }> {
     return this.request(`/users/${id}/profile`)
@@ -510,11 +510,11 @@ class ApiClient {
   }
 
   // Followups (comments)
-  async getPostFollowups(postId: number): Promise<{ id: number; contents: string; createdAt: string; user: { id: number; name: string } | null }[]> {
+  async getPostFollowups(postId: number): Promise<{ id: number; contents: string; createdAt: string; user: { id: number; name: string; handleName: string | null } }[]> {
     return this.request(`/posts/${postId}/followups`)
   }
 
-  async createFollowup(data: { postId: number; userId: number; contents: string }): Promise<{ id: number; contents: string; createdAt: string; user: { id: number; name: string } | null }> {
+  async createFollowup(data: { parentPostId: number; userId: number; contents: string }): Promise<{ id: number; contents: string; createdAt: string; user: { id: number; name: string; handleName: string | null } }> {
     return this.request('/followups', { method: 'POST', body: JSON.stringify(data) })
   }
 

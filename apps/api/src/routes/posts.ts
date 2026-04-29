@@ -160,6 +160,7 @@ export default async function (fastify: FastifyInstance) {
         const posts = await fastify.prisma.post.findMany({
             where: {
                 deletedAt: null,
+                parentPostId: null,
                 ...(eventId ? { eventId: Number(eventId) } : {})
             },
             include: {

@@ -12,21 +12,16 @@ export default async function (fastify: FastifyInstance) {
             }
         }
     }, async (request, reply) => {
-        const { postId, userId, contents } = request.body as any
+        const { parentPostId, userId, contents } = request.body as any
 
-        const followup = await fastify.prisma.followup.create({
-            data: {
-                postId,
-                userId,
-                contents
-            },
+        const post = await fastify.prisma.post.create({
+            data: { parentPostId, userId, contents },
             include: {
-                user: { select: { id: true, name: true, handleName: true } },
-                post: { select: { id: true, contents: true } }
+                user: { select: { id: true, name: true, handleName: true } }
             }
         })
 
-        return reply.code(201).send(followup)
+        return reply.code(201).send(post)
     })
 
     // READ BY ID
@@ -34,60 +29,48 @@ export default async function (fastify: FastifyInstance) {
         schema: {
             params: {
                 type: 'object',
-                properties: {
-                    id: { type: 'integer' }
-                },
+                properties: { id: { type: 'integer' } },
                 required: ['id']
             },
             response: {
                 200: followupSchema,
-                404: {
-                    type: 'object',
-                    properties: {
-                        message: { type: 'string' }
-                    }
-                }
+                404: { type: 'object', properties: { message: { type: 'string' } } }
             }
         }
     }, async (request, reply) => {
         const { id } = request.params as any
 
-        const followup = await fastify.prisma.followup.findFirst({
-            where: { id: Number(id), deletedAt: null },
+        const post = await fastify.prisma.post.findFirst({
+            where: { id: Number(id), deletedAt: null, parentPostId: { not: null } },
             include: {
-                user: { select: { id: true, name: true, handleName: true } },
-                post: { select: { id: true, contents: true } }
+                user: { select: { id: true, name: true, handleName: true } }
             }
         })
 
-        if (!followup) {
+        if (!post) {
             return reply.code(404).send({ message: 'Followup not found' })
         }
 
-        return followup
+        return post
     })
 
     // LIST ALL
     fastify.get('/followups', {
         schema: {
             response: {
-                200: {
-                    type: 'array',
-                    items: followupSchema
-                }
+                200: { type: 'array', items: followupSchema }
             }
         }
     }, async (request, reply) => {
-        const followups = await fastify.prisma.followup.findMany({
-            where: { deletedAt: null },
+        const posts = await fastify.prisma.post.findMany({
+            where: { deletedAt: null, parentPostId: { not: null } },
             include: {
-                user: { select: { id: true, name: true, handleName: true } },
-                post: { select: { id: true, contents: true } }
+                user: { select: { id: true, name: true, handleName: true } }
             },
             orderBy: { createdAt: 'desc' }
         })
 
-        return followups
+        return posts
     })
 
     // LIST BY POST
@@ -95,31 +78,25 @@ export default async function (fastify: FastifyInstance) {
         schema: {
             params: {
                 type: 'object',
-                properties: {
-                    postId: { type: 'integer' }
-                },
+                properties: { postId: { type: 'integer' } },
                 required: ['postId']
             },
             response: {
-                200: {
-                    type: 'array',
-                    items: followupSchema
-                }
+                200: { type: 'array', items: followupSchema }
             }
         }
     }, async (request, reply) => {
         const { postId } = request.params as any
 
-        const followups = await fastify.prisma.followup.findMany({
-            where: { postId: Number(postId), deletedAt: null },
+        const posts = await fastify.prisma.post.findMany({
+            where: { parentPostId: Number(postId), deletedAt: null },
             include: {
-                user: { select: { id: true, name: true, handleName: true } },
-                post: { select: { id: true, contents: true } }
+                user: { select: { id: true, name: true, handleName: true } }
             },
             orderBy: { createdAt: 'asc' }
         })
 
-        return followups
+        return posts
     })
 
     // UPDATE
@@ -127,20 +104,13 @@ export default async function (fastify: FastifyInstance) {
         schema: {
             params: {
                 type: 'object',
-                properties: {
-                    id: { type: 'integer' }
-                },
+                properties: { id: { type: 'integer' } },
                 required: ['id']
             },
             body: updateFollowupSchema,
             response: {
                 200: followupSchema,
-                404: {
-                    type: 'object',
-                    properties: {
-                        message: { type: 'string' }
-                    }
-                }
+                404: { type: 'object', properties: { message: { type: 'string' } } }
             }
         }
     }, async (request, reply) => {
@@ -148,17 +118,16 @@ export default async function (fastify: FastifyInstance) {
         const updateData = request.body as any
 
         try {
-            const followup = await fastify.prisma.followup.update({
+            const post = await fastify.prisma.post.update({
                 where: { id: Number(id) },
                 data: updateData,
                 include: {
-                    user: { select: { id: true, name: true, handleName: true } },
-                    post: { select: { id: true, contents: true } }
+                    user: { select: { id: true, name: true, handleName: true } }
                 }
             })
 
-            return followup
-        } catch (error) {
+            return post
+        } catch {
             return reply.code(404).send({ message: 'Followup not found' })
         }
     })
@@ -168,37 +137,25 @@ export default async function (fastify: FastifyInstance) {
         schema: {
             params: {
                 type: 'object',
-                properties: {
-                    id: { type: 'integer' }
-                },
+                properties: { id: { type: 'integer' } },
                 required: ['id']
             },
             response: {
-                200: {
-                    type: 'object',
-                    properties: {
-                        message: { type: 'string' }
-                    }
-                },
-                404: {
-                    type: 'object',
-                    properties: {
-                        message: { type: 'string' }
-                    }
-                }
+                200: { type: 'object', properties: { message: { type: 'string' } } },
+                404: { type: 'object', properties: { message: { type: 'string' } } }
             }
         }
     }, async (request, reply) => {
         const { id } = request.params as any
 
         try {
-            await fastify.prisma.followup.update({
+            await fastify.prisma.post.update({
                 where: { id: Number(id) },
                 data: { deletedAt: new Date() }
             })
 
             return { message: 'Followup deleted' }
-        } catch (error) {
+        } catch {
             return reply.code(404).send({ message: 'Followup not found' })
         }
     })

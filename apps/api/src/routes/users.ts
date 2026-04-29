@@ -175,7 +175,7 @@ export default async function (fastify: FastifyInstance) {
                         createdAt: { type: 'string', format: 'date-time' },
                         postCount: { type: 'number' },
                         identificationCount: { type: 'number' },
-                        followupCount: { type: 'number' },
+                        replyCount: { type: 'number' },
                         recentPosts: {
                             type: 'array',
                             items: {
@@ -220,10 +220,10 @@ export default async function (fastify: FastifyInstance) {
         })
         if (!user) return reply.code(404).send({ message: 'Not found' })
 
-        const [postCount, identificationCount, followupCount, recentPosts] = await Promise.all([
-            fastify.prisma.post.count({ where: { userId: uid } }),
+        const [postCount, identificationCount, replyCount, recentPosts] = await Promise.all([
+            fastify.prisma.post.count({ where: { userId: uid, parentPostId: null } }),
             fastify.prisma.identification.count({ where: { userId: uid } }),
-            fastify.prisma.followup.count({ where: { userId: uid } }),
+            fastify.prisma.post.count({ where: { userId: uid, parentPostId: { not: null } } }),
             fastify.prisma.post.findMany({
                 where: { userId: uid },
                 orderBy: { createdAt: 'desc' },
@@ -238,7 +238,7 @@ export default async function (fastify: FastifyInstance) {
             })
         ])
 
-        return { ...user, postCount, identificationCount, followupCount, recentPosts }
+        return { ...user, postCount, identificationCount, replyCount, recentPosts }
     })
 
     // DELETE /users/:id
@@ -267,7 +267,6 @@ export default async function (fastify: FastifyInstance) {
                             id:                { type: 'number' },
                             userId:            { type: 'number' },
                             postId:            { type: 'number', nullable: true },
-                            followupId:        { type: 'number', nullable: true },
                             point:             { type: 'number' },
                             transactionType:   { type: 'string' },
                             rejectionCategory: { type: 'string', nullable: true },

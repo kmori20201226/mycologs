@@ -96,7 +96,6 @@ model User {
   clubUsers         ClubUser[]
   oauthAccounts     OAuthAccount[]
   posts             Post[]
-  followups         Followup[]
   identifications   Identification[]
   votes             Vote[]
   events            Event[]
@@ -222,7 +221,6 @@ model UserLog {
   userId             Int                @map("user_id")
   user               User               @relation("UserLogs", fields: [userId], references: [id])
   postId             Int?               @map("post_id")
-  followupId         Int?               @map("followup_id")
   point              Int                @default(0)
   transactionType    TransactionType    @map("transaction_type")
   rejectionCategory  RejectionCategory? @map("rejection_category")
@@ -304,6 +302,7 @@ model Post {
   id                 Int       @id @default(autoincrement())
   eventId            Int?      @map("event_id")
   userId             Int       @map("user_id")
+  parentPostId       Int?      @map("parent_post_id")
   contents           String
   deletedAt          DateTime? @map("deleted_at")
   createdAt          DateTime  @default(now()) @map("created_at")
@@ -311,23 +310,11 @@ model Post {
 
   user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   event             Event?    @relation(fields: [eventId], references: [id])
+  parent            Post?     @relation("PostReplies", fields: [parentPostId], references: [id])
+  replies           Post[]    @relation("PostReplies")
   identifications   Identification[]
   votes             Vote[]
   media             Media[]
-  followups         Followup[]
-}
-
-model Followup {
-  id                Int       @id @default(autoincrement())
-  postId            Int       @map("post_id")
-  userId            Int?      @map("user_id")
-  contents          String
-  deletedAt         DateTime? @map("deleted_at")
-  createdAt         DateTime  @default(now()) @map("created_at")
-  updatedAt         DateTime  @updatedAt @map("updated_at")
-
-  user              User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  post              Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
 }
 
 model Identification {

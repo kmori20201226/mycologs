@@ -28,7 +28,7 @@ interface Followup {
   id: number
   contents: string
   createdAt: string
-  user: { id: number; name: string; handleName: string | null } | null
+  user: { id: number; name: string; handleName: string | null }
 }
 
 export default function PostPage() {
@@ -138,7 +138,7 @@ export default function PostPage() {
     if (!user || !commentText.trim()) return
     setCommentSubmitting(true)
     try {
-      const created = await apiClient.createFollowup({ postId, userId: user.id, contents: commentText.trim() })
+      const created = await apiClient.createFollowup({ parentPostId: postId, userId: user.id, contents: commentText.trim() })
       setFollowups((prev) => [...prev, created as Followup])
       setCommentText('')
     } finally {
@@ -605,15 +605,15 @@ export default function PostPage() {
                       {followups.map((f) => (
                         <li key={f.id} className="flex gap-3">
                           <div className="w-7 h-7 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
-                            {(f.user?.handleName ?? f.user?.name ?? '?')[0].toUpperCase()}
+                            {(f.user.handleName ?? f.user.name)[0].toUpperCase()}
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between gap-2 mb-0.5">
                               <div className="flex items-baseline gap-2">
-                                <span className="text-sm font-medium text-gray-800">{f.user?.handleName ?? f.user?.name ?? 'Unknown'}</span>
+                                <span className="text-sm font-medium text-gray-800">{f.user.handleName ?? f.user.name}</span>
                                 <span className="text-xs text-gray-400">{new Date(f.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}</span>
                               </div>
-                              {user && f.user && user.id === f.user.id && (
+                              {user && user.id === f.user.id && (
                                 <button
                                   onClick={() => setPendingDeleteFollowupId(f.id)}
                                   className="shrink-0 p-1 rounded text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors"
