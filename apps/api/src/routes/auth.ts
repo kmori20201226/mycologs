@@ -112,6 +112,47 @@ export default async function (fastify: FastifyInstance) {
         })
     })
 
+    // POST /auth/change-password
+    fastify.post('/auth/change-password', {
+        preHandler: [fastify.authenticate],
+        schema: {
+            body: {
+                type: 'object',
+                required: ['currentPassword', 'newPassword'],
+                properties: {
+                    currentPassword: { type: 'string' },
+                    newPassword: { type: 'string', minLength: 8 }
+                }
+            },
+            response: { 200: { type: 'object', properties: { message: { type: 'string' } } }, 401: errorSchema, 400: errorSchema }
+        }
+    }, async (request, reply) => {
+        const { id } = request.user as { id: number }
+        const { currentPassword, newPassword } = request.body as {
+            currentPassword: string
+            newPassword: string
+        }
+
+        const user = await fastify.prisma.user.findUnique({
+            where: { id },
+            select: { password_hash: true }
+        })
+
+        if (!user || !user.password_hash) {
+            return reply.code(401).send({ message: 'パスワードが設定されていません' })
+        }
+
+        const valid = await bcrypt.compare(currentPassword, user.password_hash)
+        if (!valid) {
+            return reply.code(401).send({ message: '現在のパスワードが正しくありません' })
+        }
+
+        const password_hash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS)
+        await fastify.prisma.user.update({ where: { id }, data: { password_hash } })
+
+        return reply.send({ message: 'パスワードを変更しました' })
+    })
+
     // GET /me/clubs — returns clubs the authenticated user belongs to
     fastify.get('/me/clubs', {
         preHandler: [fastify.authenticate]

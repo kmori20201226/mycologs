@@ -2,8 +2,13 @@ import { FastifyInstance } from 'fastify'
 import Stripe from 'stripe'
 import { subscriptionSchema, createSubscriptionSchema, updateSubscriptionSchema } from '../schemas/subscription'
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? '', { apiVersion: '2026-04-22.dahlia' })
 const FRONTEND_URL = process.env.FRONTEND_URL ?? 'http://localhost:3001'
+
+function getStripe() {
+    const key = process.env.STRIPE_SECRET_KEY
+    if (!key) throw new Error('STRIPE_SECRET_KEY is not configured')
+    return new Stripe(key, { apiVersion: '2026-04-22.dahlia' })
+}
 
 const notFound = {
     type: 'object',
@@ -182,7 +187,7 @@ export default async function (fastify: FastifyInstance) {
             if (user.stripeCustomerId) {
                 stripeCustomerId = user.stripeCustomerId
             } else {
-                const customer = await stripe.customers.create({ email: user.email, name: user.name })
+                const customer = await getStripe().customers.create({ email: user.email, name: user.name })
                 stripeCustomerId = customer.id
                 await fastify.prisma.user.update({
                     where: { id: user.id },
@@ -200,7 +205,7 @@ export default async function (fastify: FastifyInstance) {
             if (club.stripeCustomerId) {
                 stripeCustomerId = club.stripeCustomerId
             } else {
-                const customer = await stripe.customers.create({ name: club.name })
+                const customer = await getStripe().customers.create({ name: club.name })
                 stripeCustomerId = customer.id
                 await fastify.prisma.club.update({
                     where: { id: club.id },
@@ -216,7 +221,7 @@ export default async function (fastify: FastifyInstance) {
             ? { clubId: String(clubId), userId: '' }
             : { clubId: '', userId: String(userId) }
 
-        const session = await stripe.checkout.sessions.create({
+        const session = await getStripe().checkout.sessions.create({
             customer: stripeCustomerId,
             mode: 'subscription',
             line_items: [{ price: planId, quantity: 1 }],
@@ -268,7 +273,7 @@ export default async function (fastify: FastifyInstance) {
             return reply.code(404).send({ message: 'No subscription found' })
         }
 
-        const portalSession = await stripe.billingPortal.sessions.create({
+        const portalSession = await getStripe().billingPortal.sessions.create({
             customer: stripeCustomerId,
             return_url: `${FRONTEND_URL}/profile`,
         })

@@ -2,7 +2,9 @@ import { FastifyInstance } from 'fastify'
 import Stripe from 'stripe'
 import { SubscriptionStatus, PaymentStatus } from '../../../../generated/prisma/client'
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? '', { apiVersion: '2026-04-22.dahlia' })
+const stripe = process.env.STRIPE_SECRET_KEY
+    ? new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2026-04-22.dahlia' })
+    : null
 const WEBHOOK_SECRET          = process.env.STRIPE_WEBHOOK_SECRET ?? ''
 const PRICE_PERSONAL          = process.env.STRIPE_PRICE_PERSONAL ?? ''
 const PRICE_CLUB              = process.env.STRIPE_PRICE_CLUB ?? ''
@@ -60,6 +62,10 @@ export default async function (fastify: FastifyInstance) {
         const sig = request.headers['stripe-signature'] as string
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         let event: any
+
+        if (!stripe) {
+            return reply.code(400).send({ error: 'Stripe not configured' })
+        }
 
         try {
             event = stripe.webhooks.constructEvent(request.body as Buffer, sig, WEBHOOK_SECRET)
