@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { apiClient, type Event } from '@/lib/api'
@@ -28,11 +28,16 @@ export default function ClubEventDetailPage() {
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
   const [canEdit, setCanEdit] = useState(false)
+  const [isManager, setIsManager] = useState(false)
 
   // Retrospective edit state
   const [retroEditing, setRetroEditing] = useState(false)
   const [retroText, setRetroText] = useState('')
   const [retroSaving, setRetroSaving] = useState(false)
+
+  // Banner state
+  const [bannerUploading, setBannerUploading] = useState(false)
+  const bannerInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     async function load() {
@@ -45,19 +50,15 @@ export default function ClubEventDetailPage() {
         setRetroText(ev.retrospective ?? '')
         setPosts(ps as Post[])
 
-        // Check if user can edit retrospective
         const user = getStoredUser()
         if (user) {
-          if (user.role === 'ADMIN' || user.role === 'DEVELOPER') {
-            setCanEdit(true)
-          } else {
-            // Check club role for the event's club
-            const clubs = getStoredClubs()
-            const selectedId = getSelectedClubId()
-            const clubId = ev.clubId ?? selectedId
-            const membership = clubs.find((c) => c.id === clubId)
-            if (membership?.role === 'CLUBMANAGER') setCanEdit(true)
-          }
+          const clubs = getStoredClubs()
+          const selectedId = getSelectedClubId()
+          const clubId = ev.clubId ?? selectedId
+          const membership = clubs.find((c) => c.id === clubId)
+          const manager = membership?.role === 'CLUBMANAGER'
+          if (user.role === 'ADMIN' || user.role === 'DEVELOPER' || manager) setCanEdit(true)
+          if (manager) setIsManager(true)
         }
       } catch {
         setNotFound(true)
@@ -85,6 +86,30 @@ export default function ClubEventDetailPage() {
   function handleRetroCancel() {
     setRetroText(event?.retrospective ?? '')
     setRetroEditing(false)
+  }
+
+  async function handleBannerSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setBannerUploading(true)
+    try {
+      const result = await apiClient.uploadEventBanner(eventId, file)
+      setEvent((prev) => prev ? { ...prev, bannerImage: result.bannerImage } : prev)
+    } finally {
+      setBannerUploading(false)
+      if (bannerInputRef.current) bannerInputRef.current.value = ''
+    }
+  }
+
+  async function handleBannerDelete() {
+    if (!confirm('バナー画像を削除しますか？')) return
+    setBannerUploading(true)
+    try {
+      await apiClient.deleteEventBanner(eventId)
+      setEvent((prev) => prev ? { ...prev, bannerImage: null } : prev)
+    } finally {
+      setBannerUploading(false)
+    }
   }
 
   if (notFound) {
@@ -133,13 +158,51 @@ export default function ClubEventDetailPage() {
           </div>
         ) : event && (
           <div className="bg-white rounded-xl shadow mb-8">
-            {event.bannerImage && (
-              <img
-                src={event.bannerImage}
-                alt={event.name}
-                className="w-full rounded-t-xl object-cover max-h-56"
-              />
+            {/* Banner image */}
+            {event.bannerImage ? (
+              <div className="relative">
+                <img
+                  src={event.bannerImage}
+                  alt={event.name}
+                  className="w-full rounded-t-xl object-cover max-h-56"
+                />
+                {isManager && (
+                  <div className="absolute bottom-2 right-2 flex gap-1.5">
+                    <button
+                      onClick={() => bannerInputRef.current?.click()}
+                      disabled={bannerUploading}
+                      className="text-xs bg-white/90 hover:bg-white text-gray-700 px-2.5 py-1 rounded-lg shadow font-medium transition-colors disabled:opacity-50"
+                    >
+                      {bannerUploading ? '…' : '差し替え'}
+                    </button>
+                    <button
+                      onClick={handleBannerDelete}
+                      disabled={bannerUploading}
+                      className="text-xs bg-white/90 hover:bg-white text-red-500 px-2.5 py-1 rounded-lg shadow font-medium transition-colors disabled:opacity-50"
+                    >
+                      削除
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : isManager && (
+              <button
+                onClick={() => bannerInputRef.current?.click()}
+                disabled={bannerUploading}
+                className="w-full border-b border-dashed border-gray-200 hover:border-emerald-400 rounded-t-xl py-8 text-sm text-gray-400 hover:text-emerald-600 transition-colors disabled:opacity-50"
+              >
+                {bannerUploading ? 'アップロード中…' : 'クリックしてバナー画像を設定'}
+              </button>
             )}
+
+            <input
+              ref={bannerInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleBannerSelect}
+            />
+
             <div className="p-6">
               <div className="flex items-start gap-3 mb-3">
                 <h1 className="text-2xl font-bold text-gray-900 flex-1">{event.name}</h1>

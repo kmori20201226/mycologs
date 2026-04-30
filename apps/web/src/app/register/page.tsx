@@ -29,7 +29,7 @@ export default function RegisterPage() {
       const { email: confirmedEmail } = await apiClient.register({ name, email, password })
       router.push(`/verify-email?email=${encodeURIComponent(confirmedEmail)}`)
     } catch (err: unknown) {
-      if (err instanceof Error && err.message.includes('409')) {
+      if ((err as any)?.status === 409) {
         setError('このメールアドレスはすでに登録されています。')
       } else {
         setError('エラーが発生しました。もう一度お試しください。')

@@ -55,8 +55,9 @@ function generateCode(): string {
 }
 
 async function sendVerificationEmail(email: string, name: string, code: string): Promise<void> {
+    const from = process.env.MAIL_FROM ?? 'Mycologs <noreply@mycologs.com>'
     await resend.emails.send({
-        from: 'Mycologs <noreply@mycologs.com>',
+        from,
         to: email,
         subject: '【Mycologs】メールアドレスの確認',
         html: `
@@ -88,9 +89,22 @@ export default async function (fastify: FastifyInstance) {
             password: string
         }
 
-        const existing = await fastify.prisma.user.findUnique({ where: { email } })
+        const existing = await fastify.prisma.user.findUnique({
+            where: { email },
+            select: { id: true, emailVerified: true, name: true }
+        })
         if (existing) {
-            return reply.code(409).send({ message: 'Email already in use' })
+            // Already verified → hard conflict
+            if (existing.emailVerified) {
+                return reply.code(409).send({ message: 'Email already in use' })
+            }
+            // Registered but not yet verified → resend code and let them verify
+            await fastify.prisma.emailVerificationCode.deleteMany({ where: { userId: existing.id } })
+            const code = generateCode()
+            const expiresAt = new Date(Date.now() + CODE_EXPIRY_MINUTES * 60 * 1000)
+            await fastify.prisma.emailVerificationCode.create({ data: { userId: existing.id, code, expiresAt } })
+            await sendVerificationEmail(email, existing.name, code)
+            return reply.code(201).send({ message: 'Verification code resent', email })
         }
 
         const password_hash = await bcrypt.hash(password, BCRYPT_ROUNDS)
