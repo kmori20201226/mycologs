@@ -335,7 +335,7 @@ class ApiClient {
   }
 
   // Clubs
-  async getClubs(filter?: { managerId?: number }): Promise<{ id: number; name: string; createdAt: string }[]> {
+  async getClubs(filter?: { managerId?: number }): Promise<{ id: number; name: string; introduction: string | null; policy: string | null; createdAt: string }[]> {
     const params = new URLSearchParams()
     if (filter?.managerId) params.set('managerId', String(filter.managerId))
     const qs = params.toString() ? `?${params.toString()}` : ''
