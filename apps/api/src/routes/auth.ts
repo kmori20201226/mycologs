@@ -1,7 +1,12 @@
 import { FastifyInstance } from 'fastify'
 import bcrypt from 'bcrypt'
+import { Resend } from 'resend'
 
 const BCRYPT_ROUNDS = 12
+const CODE_EXPIRY_MINUTES = 15
+const MAX_ATTEMPTS = 5
+
+const resend = new Resend(process.env.RESEND_COM_API_KEY)
 
 const registerSchema = {
     type: 'object',
@@ -45,13 +50,36 @@ const errorSchema = {
     }
 }
 
+function generateCode(): string {
+    return String(Math.floor(100000 + Math.random() * 900000))
+}
+
+async function sendVerificationEmail(email: string, name: string, code: string): Promise<void> {
+    await resend.emails.send({
+        from: 'Mycologs <noreply@mycologs.com>',
+        to: email,
+        subject: '【Mycologs】メールアドレスの確認',
+        html: `
+            <p>${name} 様</p>
+            <p>Mycologsにご登録いただきありがとうございます。</p>
+            <p>以下の確認コードを入力してアカウントを有効化してください。</p>
+            <p style="font-size:32px;font-weight:bold;letter-spacing:8px;margin:24px 0">${code}</p>
+            <p>このコードは${CODE_EXPIRY_MINUTES}分間有効です。</p>
+            <p>このメールに心当たりがない場合は無視してください。</p>
+        `
+    })
+}
+
 export default async function (fastify: FastifyInstance) {
 
     // POST /auth/register
     fastify.post('/auth/register', {
         schema: {
             body: registerSchema,
-            response: { 201: authResponseSchema, 409: errorSchema }
+            response: {
+                201: { type: 'object', properties: { message: { type: 'string' }, email: { type: 'string' } } },
+                409: errorSchema
+            }
         }
     }, async (request, reply) => {
         const { name, email, password } = request.body as {
@@ -66,23 +94,128 @@ export default async function (fastify: FastifyInstance) {
         }
 
         const password_hash = await bcrypt.hash(password, BCRYPT_ROUNDS)
-
         const freeTierCredits = Number(process.env.FREE_TIER_CREDITS ?? 50)
+
         const user = await fastify.prisma.user.create({
             data: { name, email, password_hash, credit: freeTierCredits },
-            select: { id: true, name: true, email: true, role: true }
+            select: { id: true, name: true, email: true }
         })
 
-        const token = fastify.jwt.sign({ id: user.id, email: user.email })
+        const code = generateCode()
+        const expiresAt = new Date(Date.now() + CODE_EXPIRY_MINUTES * 60 * 1000)
 
-        return reply.code(201).send({ token, user })
+        await fastify.prisma.emailVerificationCode.deleteMany({ where: { userId: user.id } })
+        await fastify.prisma.emailVerificationCode.create({
+            data: { userId: user.id, code, expiresAt }
+        })
+
+        await sendVerificationEmail(email, name, code)
+
+        return reply.code(201).send({ message: 'Verification code sent', email })
+    })
+
+    // POST /auth/verify-email
+    fastify.post('/auth/verify-email', {
+        schema: {
+            body: {
+                type: 'object',
+                required: ['email', 'code'],
+                properties: {
+                    email: { type: 'string', format: 'email' },
+                    code: { type: 'string' }
+                }
+            },
+            response: { 200: authResponseSchema, 400: errorSchema, 404: errorSchema }
+        }
+    }, async (request, reply) => {
+        const { email, code } = request.body as { email: string; code: string }
+
+        const user = await fastify.prisma.user.findUnique({
+            where: { email },
+            select: { id: true, name: true, email: true, role: true, emailVerified: true }
+        })
+        if (!user) return reply.code(404).send({ message: 'User not found' })
+
+        if (user.emailVerified) {
+            const token = fastify.jwt.sign({ id: user.id, email: user.email })
+            return reply.send({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } })
+        }
+
+        const record = await fastify.prisma.emailVerificationCode.findFirst({
+            where: { userId: user.id }
+        })
+
+        if (!record) return reply.code(400).send({ message: '確認コードが見つかりません。再送信してください。' })
+        if (new Date() > record.expiresAt) {
+            await fastify.prisma.emailVerificationCode.delete({ where: { id: record.id } })
+            return reply.code(400).send({ message: '確認コードの有効期限が切れています。再送信してください。' })
+        }
+        if (record.attempts >= MAX_ATTEMPTS) {
+            await fastify.prisma.emailVerificationCode.delete({ where: { id: record.id } })
+            return reply.code(400).send({ message: '試行回数が上限に達しました。再送信してください。' })
+        }
+
+        if (record.code !== code.trim()) {
+            await fastify.prisma.emailVerificationCode.update({
+                where: { id: record.id },
+                data: { attempts: { increment: 1 } }
+            })
+            const remaining = MAX_ATTEMPTS - record.attempts - 1
+            return reply.code(400).send({ message: `確認コードが正しくありません。残り${remaining}回試行できます。` })
+        }
+
+        await fastify.prisma.user.update({
+            where: { id: user.id },
+            data: { emailVerified: new Date() }
+        })
+        await fastify.prisma.emailVerificationCode.delete({ where: { id: record.id } })
+
+        const token = fastify.jwt.sign({ id: user.id, email: user.email })
+        return reply.send({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } })
+    })
+
+    // POST /auth/resend-verification
+    fastify.post('/auth/resend-verification', {
+        schema: {
+            body: {
+                type: 'object',
+                required: ['email'],
+                properties: { email: { type: 'string', format: 'email' } }
+            },
+            response: { 200: { type: 'object', properties: { message: { type: 'string' } } }, 400: errorSchema, 404: errorSchema }
+        }
+    }, async (request, reply) => {
+        const { email } = request.body as { email: string }
+
+        const user = await fastify.prisma.user.findUnique({
+            where: { email },
+            select: { id: true, name: true, emailVerified: true }
+        })
+        if (!user) return reply.code(404).send({ message: 'User not found' })
+        if (user.emailVerified) return reply.code(400).send({ message: 'すでにメールアドレスが確認済みです。' })
+
+        const existing = await fastify.prisma.emailVerificationCode.findFirst({ where: { userId: user.id } })
+        if (existing) {
+            const secondsSinceSent = (Date.now() - existing.createdAt.getTime()) / 1000
+            if (secondsSinceSent < 60) {
+                return reply.code(400).send({ message: `再送信は${Math.ceil(60 - secondsSinceSent)}秒後に可能です。` })
+            }
+            await fastify.prisma.emailVerificationCode.delete({ where: { id: existing.id } })
+        }
+
+        const code = generateCode()
+        const expiresAt = new Date(Date.now() + CODE_EXPIRY_MINUTES * 60 * 1000)
+        await fastify.prisma.emailVerificationCode.create({ data: { userId: user.id, code, expiresAt } })
+        await sendVerificationEmail(email, user.name, code)
+
+        return reply.send({ message: 'Verification code resent' })
     })
 
     // POST /auth/login
     fastify.post('/auth/login', {
         schema: {
             body: loginSchema,
-            response: { 200: authResponseSchema, 401: errorSchema }
+            response: { 200: authResponseSchema, 401: errorSchema, 403: errorSchema }
         }
     }, async (request, reply) => {
         const { email, password } = request.body as {
@@ -92,7 +225,7 @@ export default async function (fastify: FastifyInstance) {
 
         const user = await fastify.prisma.user.findUnique({
             where: { email },
-            select: { id: true, name: true, email: true, role: true, password_hash: true }
+            select: { id: true, name: true, email: true, role: true, password_hash: true, emailVerified: true }
         })
 
         if (!user || !user.password_hash) {
@@ -104,12 +237,12 @@ export default async function (fastify: FastifyInstance) {
             return reply.code(401).send({ message: 'Invalid email or password' })
         }
 
-        const token = fastify.jwt.sign({ id: user.id, email: user.email })
+        if (!user.emailVerified) {
+            return reply.code(403).send({ message: 'EMAIL_NOT_VERIFIED' })
+        }
 
-        return reply.send({
-            token,
-            user: { id: user.id, name: user.name, email: user.email, role: user.role }
-        })
+        const token = fastify.jwt.sign({ id: user.id, email: user.email })
+        return reply.send({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } })
     })
 
     // POST /auth/change-password

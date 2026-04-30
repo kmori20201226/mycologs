@@ -146,8 +146,22 @@ class ApiClient {
   }
 
   // Auth
-  async register(data: { name: string; email: string; password: string }): Promise<AuthResponse> {
+  async register(data: { name: string; email: string; password: string }): Promise<{ message: string; email: string }> {
     return this.request('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async verifyEmail(data: { email: string; code: string }): Promise<AuthResponse> {
+    return this.request('/auth/verify-email', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async resendVerification(data: { email: string }): Promise<{ message: string }> {
+    return this.request('/auth/resend-verification', {
       method: 'POST',
       body: JSON.stringify(data),
     });

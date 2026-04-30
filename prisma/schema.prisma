@@ -103,9 +103,10 @@ model User {
   repliedRequests   UserRequest[]   @relation("UserRequestReplier")
   userLogs          UserLog[]       @relation("UserLogs")
   createdLogs       UserLog[]       @relation("CreatedLogs")
-  stripeCustomerId  String?         @unique @map("stripe_customer_id")
-  subscriptions     Subscription[]
-  payments          Payment[]
+  stripeCustomerId        String?                  @unique @map("stripe_customer_id")
+  subscriptions           Subscription[]
+  payments                Payment[]
+  emailVerificationCodes  EmailVerificationCode[]
 
   @@map("users")
 }
@@ -465,4 +466,17 @@ model Media {
   deletedAt     DateTime? @map("deleted_at") // Soft delete
   
   @@map("media")
+}
+
+model EmailVerificationCode {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  code      String
+  expiresAt DateTime @map("expires_at")
+  attempts  Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("email_verification_codes")
 }

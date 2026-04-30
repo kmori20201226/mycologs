@@ -2,6 +2,7 @@
 
 import { Suspense, useState, useEffect } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useSearchParams } from 'next/navigation'
 import { apiClient } from '@/lib/api'
 import { setToken, setStoredUser } from '@/lib/auth'
@@ -15,6 +16,7 @@ const LINE_ERROR_MESSAGES: Record<string, string> = {
 }
 
 function LoginPageInner() {
+  const router = useRouter()
   const searchParams = useSearchParams()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -36,8 +38,12 @@ function LoginPageInner() {
       setToken(token)
       setStoredUser(user)
       window.location.href = '/'
-    } catch {
-      setError('メールアドレスまたはパスワードが正しくありません。')
+    } catch (err: unknown) {
+      if (err instanceof Error && err.message.includes('403')) {
+        router.push(`/verify-email?email=${encodeURIComponent(email)}`)
+      } else {
+        setError('メールアドレスまたはパスワードが正しくありません。')
+      }
     } finally {
       setLoading(false)
     }
