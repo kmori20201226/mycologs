@@ -13,6 +13,7 @@ Usage (after pip install):
 import argparse
 import os
 import signal
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -23,13 +24,14 @@ import uvicorn
 # PID file helpers
 # ──────────────────────────────────────────────────────────────────────────────
 
-DEFAULT_PID_FILE = Path(__file__).parent / "mycologs_ai_service.pid"
-DEFAULT_LOG_FILE = Path(__file__).parent / "mycologs_ai_service.log"
+_PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
+DEFAULT_PID_FILE = _PROJECT_ROOT / ".pids" / "ai-service.pid"
+DEFAULT_LOG_FILE = _PROJECT_ROOT / "logs" / "ai-service.log"
 
 
-def _write_pid(pid_file: str) -> None:
+def _write_pid(pid_file: str, pid: int) -> None:
     with open(pid_file, "w") as f:
-        f.write(str(os.getpid()))
+        f.write(str(pid))
 
 
 def _read_pid(pid_file: str) -> int | None:
@@ -99,55 +101,69 @@ def cmd_status(pid_file: str) -> None:
         sys.exit(1)
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Daemonise (double-fork)
-# ──────────────────────────────────────────────────────────────────────────────
+def _start_as_daemon(args) -> None:
+    """Start the server as a detached background process.
 
-def _daemonize(pid_file: str, log_file: str) -> None:
+    Uses subprocess.Popen with start_new_session + close_fds so the child
+    starts with a clean set of file descriptors and no inherited sockets.
     """
-    Detach the process from the terminal using the Unix double-fork technique.
-
-    After this call returns the current process IS the daemon child.
-    stdin is redirected to /dev/null; stdout/stderr go to log_file.
-    """
-    # Guard: don't start a second daemon
-    existing = _read_pid(pid_file)
+    existing = _read_pid(str(args.pid_file))
     if existing and _is_running(existing):
         print(f"Daemon is already running (PID {existing}).")
         sys.exit(1)
 
-    # --- Fork 1: detach from terminal session ---
-    pid = os.fork()
-    if pid > 0:
-        print(f"Daemon started — PID {os.getpid()}, log: {log_file}")
-        sys.exit(0)
+    Path(args.log_file).parent.mkdir(parents=True, exist_ok=True)
+    Path(args.pid_file).parent.mkdir(parents=True, exist_ok=True)
 
-    os.setsid()   # become session leader
+    cmd = [sys.executable, "-m", "mycologs_ai_service",
+           "--host", args.host, "--port", str(args.port)]
 
-    # --- Fork 2: prevent re-acquiring a controlling terminal ---
-    pid = os.fork()
-    if pid > 0:
-        sys.exit(0)
+    with open(args.log_file, "a") as lf:
+        proc = subprocess.Popen(
+            cmd,
+            stdout=lf,
+            stderr=subprocess.STDOUT,
+            stdin=subprocess.DEVNULL,
+            start_new_session=True,
+            close_fds=True,
+        )
 
-    # We are now the daemon process.
-    os.umask(0o022)
-    os.chdir("/")
+    _write_pid(str(args.pid_file), proc.pid)
+    print(f"Daemon started — PID {proc.pid}, log: {args.log_file}")
+    sys.exit(0)
 
-    # Redirect standard file descriptors
-    sys.stdout.flush()
-    sys.stderr.flush()
 
-    with open("/dev/null", "r") as dev_null:
-        os.dup2(dev_null.fileno(), sys.stdin.fileno())
+# ──────────────────────────────────────────────────────────────────────────────
+# Logging config
+# ──────────────────────────────────────────────────────────────────────────────
 
-    log = open(log_file, "a", buffering=1)   # line-buffered
-    os.dup2(log.fileno(), sys.stdout.fileno())
-    os.dup2(log.fileno(), sys.stderr.fileno())
-
-    # Write PID file and arrange cleanup on exit
-    _write_pid(pid_file)
-    import atexit
-    atexit.register(_remove_pid, pid_file)
+_LOG_CONFIG = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "default": {
+            "()": "uvicorn.logging.DefaultFormatter",
+            "fmt": "%(asctime)s %(levelprefix)s %(message)s",
+            "datefmt": "%Y-%m-%d %H:%M:%S",
+            "use_colors": False,
+        },
+        "access": {
+            "()": "uvicorn.logging.AccessFormatter",
+            "fmt": '%(asctime)s %(levelprefix)s %(client_addr)s - "%(request_line)s" %(status_code)s',
+            "datefmt": "%Y-%m-%d %H:%M:%S",
+            "use_colors": False,
+        },
+    },
+    "handlers": {
+        "default": {"formatter": "default", "class": "logging.StreamHandler", "stream": "ext://sys.stderr"},
+        "access":  {"formatter": "access",  "class": "logging.StreamHandler", "stream": "ext://sys.stdout"},
+    },
+    "loggers": {
+        "uvicorn":        {"handlers": ["default"], "level": "INFO", "propagate": False},
+        "uvicorn.error":  {"level": "INFO"},
+        "uvicorn.access": {"handlers": ["access"],  "level": "INFO", "propagate": False},
+    },
+}
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -200,13 +216,14 @@ Examples:
         if args.reload:
             print("--reload is not supported in daemon mode.")
             sys.exit(1)
-        _daemonize(args.pid_file, args.log_file)
+        _start_as_daemon(args)
 
     uvicorn.run(
         "mycologs_ai_service.app:app",
         host=args.host,
         port=args.port,
         reload=args.reload,
+        log_config=_LOG_CONFIG,
     )
 
 

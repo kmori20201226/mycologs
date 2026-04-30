@@ -5,8 +5,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PID_DIR="$SCRIPT_DIR/.pids"
 API_PID="$PID_DIR/api.pid"
 WEB_PID="$PID_DIR/web.pid"
-API_LOG="/tmp/mycologs-api.log"
-WEB_LOG="/tmp/mycologs-web.log"
 
 # ── Load .env ──────────────────────────────────────────────────────────────────
 if [[ -f "$SCRIPT_DIR/.env" ]]; then
@@ -25,6 +23,10 @@ is_running() {
     local pid
     pid=$(cat "$pid_file" 2>/dev/null) || return 1
     kill -0 "$pid" 2>/dev/null
+}
+
+is_port_in_use() {
+    nc -z 127.0.0.1 "$1" 2>/dev/null
 }
 
 stop_pid_file() {
@@ -75,9 +77,11 @@ do_start() {
     # 1. API (port 3000) — must start before frontend so Next.js picks 3001
     if is_running "$API_PID"; then
         echo "  API is already running (PID $(cat "$API_PID"))."
+    elif is_port_in_use 3000; then
+        echo "  API port 3000 already in use — skipping start."
     else
         echo "  Starting API..."
-        nohup npm --workspace apps/api run dev >> "$API_LOG" 2>&1 &
+        nohup npm --workspace apps/api run dev > /dev/null 2>&1 &
         echo $! > "$API_PID"
         wait_for_port 3000 "API"
     fi
@@ -85,9 +89,11 @@ do_start() {
     # 2. Frontend (port 3001 — Next.js auto-picks next free port)
     if is_running "$WEB_PID"; then
         echo "  Frontend is already running (PID $(cat "$WEB_PID"))."
+    elif is_port_in_use 3001; then
+        echo "  Frontend port 3001 already in use — skipping start."
     else
         echo "  Starting Frontend..."
-        nohup npm --workspace apps/web run dev >> "$WEB_LOG" 2>&1 &
+        nohup npm --workspace apps/web run dev > /dev/null 2>&1 &
         echo $! > "$WEB_PID"
         wait_for_port 3001 "Frontend"
     fi
@@ -104,10 +110,7 @@ do_start() {
     echo "  Frontend  → http://localhost:3001"
     echo "  AI service→ http://localhost:3002"
     echo ""
-    echo "  Logs:"
-    echo "    API:      $API_LOG"
-    echo "    Frontend: $WEB_LOG"
-    echo "    AI svc:   $SCRIPT_DIR/ai-service/src/mycologs_ai_service/mycologs_ai_service.log"
+    echo "  Logs → $SCRIPT_DIR/logs/"
 }
 
 # ── Status ─────────────────────────────────────────────────────────────────────

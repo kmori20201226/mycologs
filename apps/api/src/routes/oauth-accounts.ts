@@ -97,7 +97,7 @@ export default async function (fastify: FastifyInstance) {
 
             return reply.code(200).send({ message: 'OAuth Account deleted', oauthAccount })
         } catch (err) {
-            console.error('Error deleting oauth account:', err)
+            request.log.error({ err }, 'Error deleting oauth account')
             return reply.status(404).send({ error: 'OAuth Account not found' })
         }
     })

@@ -72,7 +72,7 @@ export default async function (fastify: FastifyInstance) {
 
             return reply.code(200).send({ message: 'Role deleted', role })
         } catch (err) {
-            console.error('Error deleting role:', err)
+            request.log.error({ err }, 'Error deleting role')
             return reply.status(404).send({ error: 'Role not found' })
         }
     })

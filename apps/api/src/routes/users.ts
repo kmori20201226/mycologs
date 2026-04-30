@@ -313,7 +313,7 @@ export default async function (fastify: FastifyInstance) {
 
             return reply.code(200).send({ message: 'User deleted', user })
         } catch (err) {
-            console.error('Error deleting user:', err)
+            request.log.error({ err }, 'Error deleting user')
             return reply.status(404).send({ error: 'User not found' })
         }
     })

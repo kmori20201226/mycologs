@@ -270,7 +270,7 @@ export default async function (fastify: FastifyInstance) {
 
             return reply.code(200).send({ message: 'Club deleted', club })
         } catch (err) {
-            console.error('Error deleting club:', err)
+            request.log.error({ err }, 'Error deleting club')
             return reply.status(404).send({ error: 'Club not found' })
         }
     })

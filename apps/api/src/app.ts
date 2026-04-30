@@ -1,6 +1,7 @@
 import dotenv from 'dotenv'
 import path from 'path'
 dotenv.config({ path: path.resolve(__dirname, '../../../.env') })
+import fs from 'fs'
 import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import multipart from '@fastify/multipart'
@@ -34,8 +35,16 @@ import stripeWebhookRoutes from './routes/webhook-stripe'
 const UPLOADS_DIR = path.resolve(__dirname, '../../../data/uploads')
 
 export async function buildApp() {
+    const LOG_DIR = path.resolve(__dirname, '../../../logs')
+    fs.mkdirSync(LOG_DIR, { recursive: true })
+
     const app = Fastify({
-        logger: true
+        logger: {
+            transport: {
+                target: 'pino/file',
+                options: { destination: path.join(LOG_DIR, 'api.log') }
+            }
+        }
     })
 
     await app.register(cors, {
