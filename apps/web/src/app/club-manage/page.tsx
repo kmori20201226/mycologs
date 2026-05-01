@@ -68,6 +68,18 @@ export default function ClubManagePage() {
     setMembersLoading(true)
     try {
       const data = await apiClient.getClubMembers(id)
+      const currentUser = getStoredUser()
+      if (currentUser && !data.find((m) => m.user.id === currentUser.id)) {
+        const clubs = getStoredClubs()
+        const membership = clubs.find((c) => c.id === id)
+        if (membership) {
+          data.unshift({
+            id: -1,
+            user: { id: currentUser.id, name: currentUser.name, email: currentUser.email },
+            role: { id: -1, name: membership.role },
+          })
+        }
+      }
       setMembers(data)
     } finally {
       setMembersLoading(false)
