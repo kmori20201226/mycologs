@@ -83,8 +83,8 @@ export default function Home() {
                 <div className="bg-emerald-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
                   <span className="text-2xl">🧠</span>
                 </div>
-                <h4 className="font-semibold mb-2">相談する</h4>
-                <p className="text-sm text-gray-600">同定の提案を受ける</p>
+                <h4 className="font-semibold mb-2">同定する</h4>
+                <p className="text-sm text-gray-600">AIが種の同定候補を提案する</p>
               </div>
               <div>
                 <div className="bg-emerald-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
