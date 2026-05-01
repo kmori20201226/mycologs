@@ -153,10 +153,6 @@ export default function Navigation() {
           {/* Centre: club selector */}
           {user && (
             <div className="flex items-center gap-2 text-sm">
-              <span className="hidden sm:inline text-gray-400">クラブ：</span>
-              {clubs.length === 0 && (
-                <span className="text-gray-400 italic">—</span>
-              )}
               {clubs.length === 1 && (
                 <span className="font-medium text-gray-700">{clubs[0].name}</span>
               )}
@@ -171,21 +167,12 @@ export default function Navigation() {
                   ))}
                 </select>
               )}
-              {clubs.length === 1 && selectedClub && (
-                <span className="hidden sm:inline text-xs text-gray-400">({selectedClub.role})</span>
-              )}
-              {selectedClub && (
-                <span className="hidden sm:inline text-xs text-emerald-600 font-mono">
-                  {(selectedClub.credit ?? 0).toLocaleString()} cr
-                </span>
-              )}
             </div>
           )}
 
           {/* Right: auth */}
           {user ? (
             <div className="flex items-center space-x-4">
-              <span className="hidden sm:inline text-sm text-gray-600">こんにちは、{user.name}</span>
               <button
                 onClick={handleLogout}
                 className="text-sm text-gray-700 hover:text-red-600 font-medium transition-colors"
