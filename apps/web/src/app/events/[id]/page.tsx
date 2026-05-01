@@ -419,7 +419,7 @@ export default function UserEventEditPage() {
                     <button
                       type="button"
                       onClick={handleBannerRemove}
-                      className="text-sm text-red-400 hover:text-red-600 font-medium transition-colors"
+                      className="text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 px-2.5 py-1 rounded-lg transition-colors"
                     >
                       削除
                     </button>

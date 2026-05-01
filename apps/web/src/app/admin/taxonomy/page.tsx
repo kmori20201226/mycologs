@@ -189,11 +189,11 @@ function ShapesTab({ shapes, reload }: { shapes: TaxShape[]; reload: () => void 
               <>
                 <span className="flex-1 text-gray-800">{shape.name}</span>
                 {shape.japaneseName && <span className="text-xs text-gray-500">{shape.japaneseName}</span>}
-                <button onClick={() => { setEditId(shape.id); setEditName(shape.name); setEditJa(shape.japaneseName ?? '') }} className="text-gray-400 hover:text-emerald-600 transition-colors">
-                  <PencilIcon />
+                <button onClick={() => { setEditId(shape.id); setEditName(shape.name); setEditJa(shape.japaneseName ?? '') }} className="text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-lg transition-colors">
+                  編集
                 </button>
-                <button onClick={() => remove(shape.id)} disabled={busy} className="text-gray-400 hover:text-red-500 transition-colors">
-                  <TrashIcon />
+                <button onClick={() => remove(shape.id)} disabled={busy} className="text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 px-2.5 py-1 rounded-lg transition-colors disabled:opacity-40">
+                  削除
                 </button>
               </>
             )}
@@ -337,11 +337,11 @@ function FamiliesTab({ families, shapes, reload }: { families: TaxFamily[]; shap
                 <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
                   {shapes.find((s) => s.id === family.shapeId)?.name ?? '—'}
                 </span>
-                <button onClick={() => { setEditId(family.id); setEditSci(family.scientificName); setEditJa(family.japaneseName ?? ''); setEditShapeId(family.shapeId) }} className="text-gray-400 hover:text-emerald-600 transition-colors">
-                  <PencilIcon />
+                <button onClick={() => { setEditId(family.id); setEditSci(family.scientificName); setEditJa(family.japaneseName ?? ''); setEditShapeId(family.shapeId) }} className="text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-lg transition-colors">
+                  編集
                 </button>
-                <button onClick={() => remove(family.id)} disabled={busy} className="text-gray-400 hover:text-red-500 transition-colors">
-                  <TrashIcon />
+                <button onClick={() => remove(family.id)} disabled={busy} className="text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 px-2.5 py-1 rounded-lg transition-colors disabled:opacity-40">
+                  削除
                 </button>
               </>
             )}
@@ -485,11 +485,11 @@ function GeneraTab({ genera, families, reload }: { genera: TaxGenus[]; families:
                 <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
                   {families.find((f) => f.id === genus.familyId)?.scientificName ?? '—'}
                 </span>
-                <button onClick={() => { setEditId(genus.id); setEditSci(genus.scientificName); setEditJa(genus.japaneseName ?? ''); setEditFamilyId(genus.familyId) }} className="text-gray-400 hover:text-emerald-600 transition-colors">
-                  <PencilIcon />
+                <button onClick={() => { setEditId(genus.id); setEditSci(genus.scientificName); setEditJa(genus.japaneseName ?? ''); setEditFamilyId(genus.familyId) }} className="text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-lg transition-colors">
+                  編集
                 </button>
-                <button onClick={() => remove(genus.id)} disabled={busy} className="text-gray-400 hover:text-red-500 transition-colors">
-                  <TrashIcon />
+                <button onClick={() => remove(genus.id)} disabled={busy} className="text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 px-2.5 py-1 rounded-lg transition-colors disabled:opacity-40">
+                  削除
                 </button>
               </>
             )}
@@ -680,11 +680,11 @@ function SpeciesTab({ species, genera, reload }: { species: TaxSpecies[]; genera
                 )}
                 {!sp.deletedAt && (
                   <>
-                    <button onClick={() => { setEditId(sp.id); setEditSci(sp.scientificName); setEditJa(sp.japaneseName ?? ''); setEditEdibility(sp.edibility ?? ''); setEditGenusId(sp.genusId) }} className="text-gray-400 hover:text-emerald-600 transition-colors">
-                      <PencilIcon />
+                    <button onClick={() => { setEditId(sp.id); setEditSci(sp.scientificName); setEditJa(sp.japaneseName ?? ''); setEditEdibility(sp.edibility ?? ''); setEditGenusId(sp.genusId) }} className="text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-lg transition-colors">
+                      編集
                     </button>
-                    <button onClick={() => remove(sp.id)} disabled={busy} className="text-gray-400 hover:text-red-500 transition-colors">
-                      <TrashIcon />
+                    <button onClick={() => remove(sp.id)} disabled={busy} className="text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 px-2.5 py-1 rounded-lg transition-colors disabled:opacity-40">
+                      削除
                     </button>
                   </>
                 )}
@@ -698,20 +698,3 @@ function SpeciesTab({ species, genera, reload }: { species: TaxSpecies[]; genera
   )
 }
 
-// ─── Icons ────────────────────────────────────────────────────────────────────
-
-function PencilIcon() {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 112.828 2.828L11.828 15.828a2 2 0 01-1.414.586H7v-3a2 2 0 01.586-1.414z" />
-    </svg>
-  )
-}
-
-function TrashIcon() {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7h6m-7 0a1 1 0 001-1h4a1 1 0 001 1m-6 0h6" />
-    </svg>
-  )
-}

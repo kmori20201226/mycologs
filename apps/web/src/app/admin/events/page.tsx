@@ -110,7 +110,7 @@ export default function EventListPage() {
                       <div className="flex items-center justify-end gap-4">
                         <button
                           onClick={() => router.push(`/admin/events/${ev.id}`)}
-                          className="text-emerald-600 hover:text-emerald-700 font-medium transition-colors"
+                          className="text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-lg transition-colors"
                         >
                           編集
                         </button>
@@ -134,7 +134,7 @@ export default function EventListPage() {
                         ) : (
                           <button
                             onClick={() => setConfirmDeleteId(ev.id)}
-                            className="text-red-400 hover:text-red-600 font-medium transition-colors"
+                            className="text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 px-2.5 py-1 rounded-lg transition-colors"
                           >
                             削除
                           </button>

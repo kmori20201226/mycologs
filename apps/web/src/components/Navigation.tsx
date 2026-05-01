@@ -175,7 +175,7 @@ export default function Navigation() {
             <div className="flex items-center space-x-4">
               <button
                 onClick={handleLogout}
-                className="text-sm text-gray-700 hover:text-red-600 font-medium transition-colors"
+                className="text-sm font-medium text-gray-700 bg-gray-100 hover:bg-red-50 hover:text-red-600 px-3 py-1.5 rounded-lg transition-colors"
               >
                 ログアウト
               </button>

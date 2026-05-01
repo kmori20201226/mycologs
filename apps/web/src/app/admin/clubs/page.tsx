@@ -75,7 +75,7 @@ export default function ClubListPage() {
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => router.push(`/admin/clubs/${club.id}`)}
-                  className="text-sm text-emerald-600 hover:text-emerald-700 font-medium transition-colors"
+                  className="text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-lg transition-colors"
                 >
                   編集
                 </button>
@@ -99,7 +99,7 @@ export default function ClubListPage() {
                 ) : (
                   <button
                     onClick={() => setConfirmDeleteId(club.id)}
-                    className="text-sm text-red-400 hover:text-red-600 font-medium transition-colors"
+                    className="text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 px-2.5 py-1 rounded-lg transition-colors"
                   >
                     削除
                   </button>
