@@ -34,11 +34,11 @@ export default function Home() {
 
         <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
           <div className="bg-white p-8 rounded-xl shadow-lg">
-            <div className="text-4xl mb-4">🔍</div>
-            <h3 className="text-xl font-semibold mb-3">専門家による同定</h3>
+            <div className="text-4xl mb-4">🤖</div>
+            <h3 className="text-xl font-semibold mb-3">AIによる同定</h3>
             <p className="text-gray-600">
-              経験豊富な菌類学者のコミュニティにきのこの同定を依頼しましょう。
-              写真をシェアして、正確な種の同定を受けられます。
+              最新のAI技術がきのこの写真を解析し、種の同定候補を素早く提案します。
+              撮影した写真をアップロードするだけで、手軽に同定結果を得られます。
             </p>
           </div>
 
