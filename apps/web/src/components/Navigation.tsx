@@ -154,7 +154,9 @@ export default function Navigation() {
           {user && (
             <div className="flex items-center gap-2 text-sm">
               {clubs.length === 1 && (
-                <span className="font-medium text-gray-700">{clubs[0].name}</span>
+                <span className="font-medium text-gray-700">
+                  {clubs[0].role === 'CLUBMANAGER' && '🍀 '}{clubs[0].name}
+                </span>
               )}
               {clubs.length > 1 && (
                 <select
@@ -163,7 +165,7 @@ export default function Navigation() {
                   className="border rounded-lg px-2 py-1 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 >
                   {clubs.map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
+                    <option key={c.id} value={c.id}>{c.role === 'CLUBMANAGER' ? '🍀 ' : ''}{c.name}</option>
                   ))}
                 </select>
               )}
