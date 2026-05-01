@@ -173,6 +173,7 @@ export default function Navigation() {
           {/* Right: auth */}
           {user ? (
             <div className="flex items-center space-x-4">
+              <span className="hidden sm:inline text-sm text-gray-600">{user.name}</span>
               <button
                 onClick={handleLogout}
                 className="text-sm font-medium text-gray-700 bg-gray-100 hover:bg-red-50 hover:text-red-600 px-3 py-1.5 rounded-lg transition-colors"
