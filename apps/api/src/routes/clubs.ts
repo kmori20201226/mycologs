@@ -96,11 +96,16 @@ export default async function (fastify: FastifyInstance) {
         }
     }, async (request, reply) => {
         const { id } = request.params as any
-        const { name } = request.body as any
+        const { name, introduction, policy } = request.body as any
+
+        const data: any = {}
+        if (name !== undefined)         data.name = name
+        if (introduction !== undefined) data.introduction = introduction
+        if (policy !== undefined)       data.policy = policy
 
         const club = await fastify.prisma.club.update({
             where: { id: Number(id) },
-            data: { name }
+            data
         })
 
         return club

@@ -23,6 +23,10 @@ export default function ClubEditPage() {
 
   const [clubName, setClubName] = useState('')
   const [editName, setEditName] = useState('')
+  const [introduction, setIntroduction] = useState('')
+  const [policy, setPolicy] = useState('')
+  const [infoSaving, setInfoSaving] = useState(false)
+  const [infoSaved, setInfoSaved] = useState(false)
   const [members, setMembers] = useState<Member[]>([])
   const [users, setUsers] = useState<User[]>([])
   const [notFound, setNotFound] = useState(false)
@@ -41,9 +45,11 @@ export default function ClubEditPage() {
 
   async function loadClub() {
     try {
-      const club = await apiClient.request<{ id: number; name: string }>(`/clubs/${clubId}`)
+      const club = await apiClient.request<{ id: number; name: string; introduction: string | null; policy: string | null }>(`/clubs/${clubId}`)
       setClubName(club.name)
       setEditName(club.name)
+      setIntroduction(club.introduction ?? '')
+      setPolicy(club.policy ?? '')
     } catch {
       setNotFound(true)
     }
@@ -63,6 +69,19 @@ export default function ClubEditPage() {
     e.preventDefault()
     await apiClient.updateClub(clubId, { name: editName })
     setClubName(editName)
+  }
+
+  async function handleInfoSave(e: React.FormEvent) {
+    e.preventDefault()
+    setInfoSaving(true)
+    setInfoSaved(false)
+    await apiClient.updateClub(clubId, {
+      introduction: introduction.trim() || null,
+      policy: policy.trim() || null,
+    })
+    setInfoSaving(false)
+    setInfoSaved(true)
+    setTimeout(() => setInfoSaved(false), 2000)
   }
 
   // --- Drag and drop handlers ---
@@ -150,6 +169,43 @@ export default function ClubEditPage() {
             >
               保存
             </button>
+          </form>
+        </div>
+
+        {/* Introduction & Policy */}
+        <div className="bg-white rounded-xl shadow p-5 mb-6 max-w-lg">
+          <h2 className="font-semibold text-gray-700 mb-3">紹介文・クラブポリシー</h2>
+          <form onSubmit={handleInfoSave} className="space-y-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">紹介文</label>
+              <textarea
+                value={introduction}
+                onChange={(e) => setIntroduction(e.target.value)}
+                rows={3}
+                placeholder="クラブの紹介文を入力…"
+                className="w-full border rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-emerald-400"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">クラブポリシー</label>
+              <textarea
+                value={policy}
+                onChange={(e) => setPolicy(e.target.value)}
+                rows={5}
+                placeholder="クラブのポリシーや規則を入力…"
+                className="w-full border rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-emerald-400"
+              />
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                type="submit"
+                disabled={infoSaving}
+                className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
+              >
+                {infoSaving ? '保存中…' : '保存'}
+              </button>
+              {infoSaved && <span className="text-sm text-emerald-600">保存しました</span>}
+            </div>
           </form>
         </div>
 

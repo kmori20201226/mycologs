@@ -346,7 +346,7 @@ class ApiClient {
     return this.request('/clubs', { method: 'POST', body: JSON.stringify(data) })
   }
 
-  async updateClub(id: number, data: { name: string }): Promise<{ id: number; name: string }> {
+  async updateClub(id: number, data: { name?: string; introduction?: string | null; policy?: string | null }): Promise<{ id: number; name: string }> {
     return this.request(`/clubs/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
   }
 

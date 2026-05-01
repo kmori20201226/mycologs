@@ -134,7 +134,7 @@ export default function ClubRequestPage() {
                         onClick={() => setPolicyClub(club)}
                         className="text-xs text-emerald-600 hover:underline font-medium"
                       >
-                        クラブポリシーを見る →
+                        クラブの詳細情報 →
                       </button>
                     )}
                   </div>
@@ -247,7 +247,7 @@ export default function ClubRequestPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-              <h2 className="font-semibold text-gray-900">{policyClub.name} — クラブポリシー</h2>
+              <h2 className="font-semibold text-gray-900">{policyClub.name} — クラブの詳細情報</h2>
               <button
                 onClick={() => setPolicyClub(null)}
                 className="text-gray-400 hover:text-gray-600 transition-colors"

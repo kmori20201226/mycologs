@@ -1,9 +1,11 @@
 export const clubSchema = {
     type: 'object',
     properties: {
-        id: { type: 'number' },
-        name: { type: 'string' },
-        createdAt: { type: 'string', format: 'date-time' }
+        id:           { type: 'number' },
+        name:         { type: 'string' },
+        introduction: { type: ['string', 'null'] },
+        policy:       { type: ['string', 'null'] },
+        createdAt:    { type: 'string', format: 'date-time' }
     }
 }
 
@@ -18,6 +20,8 @@ export const createClubSchema = {
 export const updateClubSchema = {
     type: 'object',
     properties: {
-        name: { type: 'string' }
+        name:         { type: 'string' },
+        introduction: { type: ['string', 'null'] },
+        policy:       { type: ['string', 'null'] }
     }
 }
