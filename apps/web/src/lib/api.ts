@@ -96,7 +96,7 @@ export interface UserRequestItem {
   createdAt: string
   repliedAt: string | null
   requester: { id: number; name: string; email: string }
-  club: { id: number; name: string } | null
+  club: { id: number; name: string; introduction: string | null; policy: string | null } | null
   replier: { id: number; name: string } | null
 }
 
@@ -505,13 +505,18 @@ class ApiClient {
   }
 
   // User Requests
-  async getUserRequests(filter?: { requesterId?: number; clubId?: number; pending?: boolean }): Promise<UserRequestItem[]> {
+  async getUserRequests(filter?: { requesterId?: number; clubId?: number; pending?: boolean; requestType?: string }): Promise<UserRequestItem[]> {
     const params = new URLSearchParams()
     if (filter?.requesterId) params.set('requesterId', String(filter.requesterId))
     if (filter?.clubId) params.set('clubId', String(filter.clubId))
     if (filter?.pending) params.set('pending', 'true')
+    if (filter?.requestType) params.set('requestType', filter.requestType)
     const qs = params.toString() ? `?${params.toString()}` : ''
     return this.request(`/user-requests${qs}`)
+  }
+
+  async requestStartClub(data: { name: string; introduction?: string; policy?: string; message?: string }): Promise<UserRequestItem> {
+    return this.request('/clubs/request-start', { method: 'POST', body: JSON.stringify(data) })
   }
 
   async createUserRequest(data: { requesterId: number; clubId: number; request: Record<string, unknown> }): Promise<UserRequestItem> {

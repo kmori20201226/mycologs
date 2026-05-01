@@ -20,6 +20,9 @@ function RequestTypeBadge({ requestType }: { requestType: string | undefined }) 
   if (requestType === 'LeaveFromMember') {
     return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-700">退会</span>
   }
+  if (requestType === 'StartClub') {
+    return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700">クラブ立ち上げ</span>
+  }
   return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">参加</span>
 }
 
@@ -103,8 +106,10 @@ export default function ManagerRequestsPage() {
   const router = useRouter()
   const [clubName, setClubName] = useState<string>('')
   const [rows, setRows] = useState<RequestRow[]>([])
+  const [startRows, setStartRows] = useState<RequestRow[]>([])
   const [loading, setLoading] = useState(true)
   const [showResolved, setShowResolved] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
 
   function loadForClub(clubId: number, clubs: ClubMembership[]) {
     setClubName(clubs.find((c) => c.id === clubId)?.name ?? '')
@@ -118,6 +123,14 @@ export default function ManagerRequestsPage() {
   useEffect(() => {
     const user = getStoredUser()
     if (!user) { router.replace('/login'); return }
+
+    const adminRoles = ['ADMIN', 'DEVELOPER', 'MODERATOR']
+    if (adminRoles.includes(user.role ?? '')) {
+      setIsAdmin(true)
+      apiClient.getUserRequests({ requestType: 'StartClub' })
+        .then((items) => setStartRows(items.map((r) => ({ ...r, replyDraft: '', resolving: false }))))
+        .catch(() => {})
+    }
 
     // Fetch clubs from API directly to avoid race with Navigation's async storage
     apiClient.request<ClubMembership[]>('/me/clubs').then((clubs) => {
@@ -149,6 +162,7 @@ export default function ManagerRequestsPage() {
 
   function updateRow(id: number, patch: Partial<RequestRow>) {
     setRows((prev) => prev.map((r) => r.id === id ? { ...r, ...patch } : r))
+    setStartRows((prev) => prev.map((r) => r.id === id ? { ...r, ...patch } : r))
   }
 
   async function handleAccept(row: RequestRow) {
@@ -209,6 +223,115 @@ export default function ManagerRequestsPage() {
         ) : totalPending === 0 ? (
           <p className="text-sm text-gray-400 mb-8">保留中の申請はありません。</p>
         ) : null}
+
+        {/* Club start requests (admin only) */}
+        {isAdmin && (() => {
+          const pendingStart = startRows.filter((r) => r.accepted === null)
+          const resolvedStart = startRows.filter((r) => r.accepted !== null)
+          if (startRows.length === 0) return null
+          return (
+            <div className="mb-10">
+              <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3 flex items-center gap-2">
+                クラブ立ち上げ申請
+                {pendingStart.length > 0 && <span className="text-purple-600">{pendingStart.length}</span>}
+              </h2>
+              {pendingStart.length > 0 && (
+                <ul className="space-y-4 mb-4">
+                  {pendingStart.map((row) => (
+                    <li key={row.id} className="bg-white rounded-xl shadow p-5 border-l-4 border-purple-400">
+                      <div className="flex items-start gap-3 mb-3">
+                        <div className="w-9 h-9 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-sm font-bold shrink-0">
+                          {row.requester.name[0].toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-gray-900 text-sm">{row.requester.name}</p>
+                          <p className="text-xs text-gray-400">{row.requester.email}</p>
+                          <p className="text-xs text-gray-400 mt-0.5">
+                            {new Date(row.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+                          </p>
+                        </div>
+                        <RequestTypeBadge requestType="StartClub" />
+                      </div>
+
+                      {row.club && (
+                        <div className="mb-3 bg-purple-50 rounded-lg px-4 py-3 text-sm border border-purple-100 space-y-1">
+                          <p className="font-semibold text-gray-800">{row.club.name}</p>
+                          {row.club.introduction && <p className="text-gray-600 text-xs whitespace-pre-wrap">{row.club.introduction}</p>}
+                          {row.club.policy && (
+                            <details className="text-xs text-gray-500">
+                              <summary className="cursor-pointer text-purple-600 font-medium">ポリシーを見る</summary>
+                              <p className="mt-1 whitespace-pre-wrap">{row.club.policy}</p>
+                            </details>
+                          )}
+                        </div>
+                      )}
+
+                      {row.request?.message && (
+                        <div className="mb-3 bg-gray-50 rounded-lg px-4 py-3 text-sm text-gray-700 whitespace-pre-wrap border border-gray-100">
+                          {row.request.message}
+                        </div>
+                      )}
+
+                      <div className="mb-3">
+                        <textarea
+                          value={row.replyDraft}
+                          onChange={(e) => updateRow(row.id, { replyDraft: e.target.value })}
+                          placeholder="申請者へのメッセージ（任意）"
+                          rows={2}
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-purple-400"
+                        />
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleAccept(row)}
+                          disabled={row.resolving}
+                          className="flex items-center gap-1.5 px-4 py-1.5 disabled:opacity-50 bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold rounded-lg transition-colors"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                          </svg>
+                          承認・公開
+                        </button>
+                        <button
+                          onClick={() => handleDecline(row)}
+                          disabled={row.resolving}
+                          className="flex items-center gap-1.5 px-4 py-1.5 bg-white border border-red-400 hover:bg-red-50 disabled:opacity-50 text-red-500 text-sm font-semibold rounded-lg transition-colors"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                          </svg>
+                          却下
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {resolvedStart.length > 0 && (
+                <ul className="space-y-2">
+                  {resolvedStart.map((row) => (
+                    <li key={row.id} className="bg-white rounded-xl shadow p-4 opacity-70">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center text-sm font-bold shrink-0">
+                          {row.requester.name[0].toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-800">{row.club?.name ?? '—'}</p>
+                          <p className="text-xs text-gray-400">{row.requester.name} · {row.requester.email}</p>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <RequestTypeBadge requestType="StartClub" />
+                          <StatusBadge accepted={row.accepted} />
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )
+        })()}
 
         {/* Pending join requests */}
         {!loading && pendingJoin.length > 0 && (

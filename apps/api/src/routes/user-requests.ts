@@ -3,7 +3,7 @@ import { createUserRequestSchema, replyUserRequestSchema, userRequestSchema } fr
 
 const include = {
     requester: { select: { id: true, name: true, email: true } },
-    club: { select: { id: true, name: true } },
+    club: { select: { id: true, name: true, introduction: true, policy: true } },
     replier: { select: { id: true, name: true } }
 }
 
@@ -43,9 +43,10 @@ export default async function (fastify: FastifyInstance) {
             querystring: {
                 type: 'object',
                 properties: {
-                    requesterId: { type: 'integer' },
-                    clubId: { type: 'integer' },
-                    pending: { type: 'boolean' }
+                    requesterId:  { type: 'integer' },
+                    clubId:       { type: 'integer' },
+                    pending:      { type: 'boolean' },
+                    requestType:  { type: 'string' }
                 }
             },
             response: {
@@ -54,12 +55,13 @@ export default async function (fastify: FastifyInstance) {
         },
         preHandler: [fastify.authenticate]
     }, async (request, reply) => {
-        const { requesterId, clubId, pending } = request.query as any
+        const { requesterId, clubId, pending, requestType } = request.query as any
 
         const where: any = {}
         if (requesterId) where.requesterId = Number(requesterId)
         if (clubId) where.clubId = Number(clubId)
         if (pending === true || pending === 'true') where.accepted = null
+        if (requestType) where.request = { path: ['requestType'], equals: requestType }
 
         const requests = await fastify.prisma.userRequest.findMany({
             where,
@@ -112,7 +114,13 @@ export default async function (fastify: FastifyInstance) {
 
         const requestType = (target.request as any)?.requestType
 
-        if (requestType === 'LeaveFromMember') {
+        if (requestType === 'StartClub') {
+            // Activate the pending club
+            await fastify.prisma.club.update({
+                where: { id: target.clubId! },
+                data: { status: 'ACTIVE' }
+            })
+        } else if (requestType === 'LeaveFromMember') {
             // Remove from club
             await fastify.prisma.clubUser.deleteMany({
                 where: { clubId: target.clubId!, userId: target.requesterId }
@@ -155,6 +163,15 @@ export default async function (fastify: FastifyInstance) {
         const target = await fastify.prisma.userRequest.findUnique({ where: { id: Number(id) } })
         if (!target) return reply.code(404).send({ message: 'Not found' })
         if (target.accepted !== null) return reply.code(409).send({ message: 'Request already resolved' })
+
+        const requestType = (target.request as any)?.requestType
+        if (requestType === 'StartClub' && target.clubId) {
+            // Soft-delete the pending club so it disappears
+            await fastify.prisma.club.update({
+                where: { id: target.clubId },
+                data: { deletedAt: new Date() }
+            })
+        }
 
         const updated = await fastify.prisma.userRequest.update({
             where: { id: Number(id) },

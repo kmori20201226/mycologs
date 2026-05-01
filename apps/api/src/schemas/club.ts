@@ -5,6 +5,7 @@ export const clubSchema = {
         name:         { type: 'string' },
         introduction: { type: ['string', 'null'] },
         policy:       { type: ['string', 'null'] },
+        status:       { type: 'string' },
         createdAt:    { type: 'string', format: 'date-time' }
     }
 }

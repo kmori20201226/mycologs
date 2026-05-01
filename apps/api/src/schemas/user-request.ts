@@ -33,8 +33,10 @@ export const userRequestSchema = {
             type: 'object',
             nullable: true,
             properties: {
-                id: { type: 'number' },
-                name: { type: 'string' }
+                id:           { type: 'number' },
+                name:         { type: 'string' },
+                introduction: { type: 'string', nullable: true },
+                policy:       { type: 'string', nullable: true }
             }
         },
         replier: {

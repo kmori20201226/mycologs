@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import { apiClient, type UserRequestItem } from '@/lib/api'
 import { getStoredUser, getStoredClubs } from '@/lib/auth'
 
+const NEW_CLUB_SENTINEL = '__new__'
+
 interface Club {
   id: number
   name: string
@@ -51,10 +53,12 @@ export default function ClubRequestPage() {
       .catch(() => {})
   }, [router])
 
-  const isLeave = selectedClubId ? memberClubIds.has(Number(selectedClubId)) : false
+  const isNewClub = selectedClubId === NEW_CLUB_SENTINEL
+  const isLeave = !isNewClub && selectedClubId ? memberClubIds.has(Number(selectedClubId)) : false
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (isNewClub) { router.push('/club-start'); return }
     setError('')
     setSuccess('')
     const user = getStoredUser()
@@ -114,6 +118,7 @@ export default function ClubRequestPage() {
                 {clubs.map((c) => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
+                <option value={NEW_CLUB_SENTINEL}>＋ 自分でクラブを立ち上げる</option>
               </select>
               {(() => {
                 const club = clubs.find((c) => String(c.id) === selectedClubId)
@@ -142,19 +147,26 @@ export default function ClubRequestPage() {
               })()}
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                クラブ管理者へのメッセージ
-                <span className="text-gray-400 font-normal ml-1">（任意）</span>
-              </label>
-              <textarea
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                placeholder={isLeave ? '退会理由を入力…' : '自己紹介や参加を希望する理由を入力…'}
-                rows={3}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-emerald-400"
-              />
-            </div>
+            {!isNewClub && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  クラブ管理者へのメッセージ
+                  <span className="text-gray-400 font-normal ml-1">（任意）</span>
+                </label>
+                <textarea
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  placeholder={isLeave ? '退会理由を入力…' : '自己紹介や参加を希望する理由を入力…'}
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                />
+              </div>
+            )}
+            {isNewClub && (
+              <p className="text-sm text-gray-500 bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2">
+                クラブ名、紹介文、ポリシーを入力して申請します。管理者の承認後に公開されます。
+              </p>
+            )}
 
             {error && (
               <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>
@@ -168,12 +180,14 @@ export default function ClubRequestPage() {
                 type="submit"
                 disabled={submitting || !selectedClubId}
                 className={`px-5 py-2 disabled:opacity-50 text-white text-sm font-semibold rounded-lg transition-colors ${
-                  isLeave
+                  isNewClub
+                    ? 'bg-emerald-700 hover:bg-emerald-800'
+                    : isLeave
                     ? 'bg-red-500 hover:bg-red-600'
                     : 'bg-emerald-600 hover:bg-emerald-700'
                 }`}
               >
-                {submitting ? '送信中…' : isLeave ? '退会する' : '参加申請'}
+                {submitting ? '送信中…' : isNewClub ? 'クラブ立ち上げ →' : isLeave ? '退会する' : '参加申請'}
               </button>
             </div>
           </form>

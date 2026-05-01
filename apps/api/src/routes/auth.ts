@@ -307,7 +307,7 @@ export default async function (fastify: FastifyInstance) {
         const { id } = request.user as { id: number }
 
         const memberships = await fastify.prisma.clubUser.findMany({
-            where: { userId: id },
+            where: { userId: id, club: { status: 'ACTIVE' } },
             include: {
                 club: { select: { id: true, name: true, createdAt: true, credit: true } },
                 role: { select: { name: true } }
