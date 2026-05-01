@@ -74,26 +74,51 @@ def _is_running(pid_file: Path) -> bool:
     return pid is not None and _pid_alive(pid)
 
 
-def _stop_pid_file(name: str, pid_file: Path) -> None:
-    pid = _read_pid(pid_file)
-    if pid is None:
+def _pids_on_port(port: int) -> list[int]:
+    """Return PIDs of processes listening on the given port via lsof."""
+    try:
+        out = subprocess.check_output(
+            ["lsof", "-ti", f":{port}"], stderr=subprocess.DEVNULL
+        )
+        return [int(p) for p in out.decode().split() if p.strip().isdigit()]
+    except subprocess.CalledProcessError:
+        return []
+
+
+def _kill_pid(pid: int) -> None:
+    try:
+        os.kill(pid, signal.SIGTERM)
+    except ProcessLookupError:
         return
-    if _pid_alive(pid):
+    for _ in range(40):
+        if not _pid_alive(pid):
+            return
+        time.sleep(0.25)
+    try:
+        os.kill(pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+
+
+def _stop_service(name: str, pid_file: Path, port: int) -> None:
+    """Stop by PID file, then kill any remaining process on the port."""
+    pid = _read_pid(pid_file)
+    if pid and _pid_alive(pid):
         print(f"  Stopping {name} (PID {pid})…")
-        try:
-            os.kill(pid, signal.SIGTERM)
-        except ProcessLookupError:
-            pass
-        for _ in range(40):
-            if not _pid_alive(pid):
-                break
-            time.sleep(0.25)
-        if _pid_alive(pid):
-            try:
-                os.kill(pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
+        _kill_pid(pid)
     pid_file.unlink(missing_ok=True)
+
+    for pid in _pids_on_port(port):
+        if _pid_alive(pid):
+            print(f"  Killing {name} on port {port} (PID {pid})…")
+            _kill_pid(pid)
+
+
+def _env_with_dotenv(dotenv_path: Path) -> dict[str, str]:
+    """Return os.environ merged with values from a .env file."""
+    env = dict(os.environ)
+    env.update(_load_dotenv(dotenv_path))
+    return env
 
 
 def _run(cmd: list[str], cwd: Path | None = None, check: bool = True) -> int:
@@ -120,7 +145,13 @@ class DevMode:
             print(f"  {name} already running (PID {_read_pid(pid_file)}).")
             return
         if _port_in_use(port):
-            print(f"  {name} port {port} already in use — skipping.")
+            # Adopt the existing process so stop can manage it later
+            pids = _pids_on_port(port)
+            if pids:
+                pid_file.write_text(str(pids[0]))
+                print(f"  {name} already running on port {port} (PID {pids[0]}) — adopted.")
+            else:
+                print(f"  {name} port {port} already in use — skipping.")
             return
         print(f"  Starting {name}…")
         proc = subprocess.Popen(
@@ -134,6 +165,7 @@ class DevMode:
         _wait_for_port(port, name)
 
     def start(self, args: list[str]) -> None:
+        dotenv = _env_with_dotenv(self.root / ".env")
         print("==> Starting development servers…")
         self._start_service(
             "API",
@@ -147,11 +179,12 @@ class DevMode:
             self.web_pid,
             3001,
         )
-        # AI service has its own daemon mechanism
+        # AI service has its own daemon mechanism; pass .env vars explicitly
         print("  Starting AI service…")
         subprocess.run(
             [sys.executable, "-m", "mycologs_ai_service", "--daemon"],
             cwd=self.root / "ai-service",
+            env=dotenv,
         )
         _wait_for_port(3002, "AI service")
         print()
@@ -160,13 +193,20 @@ class DevMode:
         print("  AI service → http://localhost:3002")
 
     def stop(self, args: list[str]) -> None:
+        dotenv = _env_with_dotenv(self.root / ".env")
         print("==> Stopping development servers…")
-        _stop_pid_file("API", self.api_pid)
-        _stop_pid_file("Frontend", self.web_pid)
+        _stop_service("API", self.api_pid, 3000)
+        _stop_service("Frontend", self.web_pid, 3001)
         subprocess.run(
             [sys.executable, "-m", "mycologs_ai_service", "--stop"],
             cwd=self.root / "ai-service",
+            env=dotenv,
         )
+        # Kill any remaining process on the AI service port
+        for pid in _pids_on_port(3002):
+            if _pid_alive(pid):
+                print(f"  Killing AI service on port 3002 (PID {pid})…")
+                _kill_pid(pid)
         print("    Done.")
 
     def restart(self, args: list[str]) -> None:
@@ -174,19 +214,26 @@ class DevMode:
         print()
         self.start(args)
 
+    def _service_status(self, name: str, pid_file: Path, port: int) -> None:
+        pid = _read_pid(pid_file)
+        if pid and _pid_alive(pid):
+            print(f"  {name:<12} RUNNING (PID {pid})")
+            return
+        pids = _pids_on_port(port)
+        if pids:
+            print(f"  {name:<12} RUNNING on port {port} (PID {pids[0]}, unmanaged)")
+        else:
+            print(f"  {name:<12} STOPPED")
+
     def status(self, args: list[str]) -> None:
+        dotenv = _env_with_dotenv(self.root / ".env")
         print("==> Development server status:")
-        if _is_running(self.api_pid):
-            print(f"  API       RUNNING (PID {_read_pid(self.api_pid)})")
-        else:
-            print("  API       STOPPED")
-        if _is_running(self.web_pid):
-            print(f"  Frontend  RUNNING (PID {_read_pid(self.web_pid)})")
-        else:
-            print("  Frontend  STOPPED")
+        self._service_status("API", self.api_pid, 3000)
+        self._service_status("Frontend", self.web_pid, 3001)
         subprocess.run(
             [sys.executable, "-m", "mycologs_ai_service", "--status"],
             cwd=self.root / "ai-service",
+            env=dotenv,
         )
 
     def _npm_run(self, script: str, extra: list[str]) -> None:
