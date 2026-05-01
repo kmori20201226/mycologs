@@ -75,7 +75,7 @@ export default function Navigation() {
       const validId = fresh.find((c) => c.id === saved)?.id ?? fresh[0]?.id ?? null
       _setSelectedClubId(validId)
       setSelectedClubId(validId)
-      if (validId) fetchPendingCount(validId, fresh)
+      fetchPendingCount(validId ?? 0, fresh)
     }).catch((err) => { console.error('Failed to fetch clubs:', err) })
 
     return () => {
@@ -86,15 +86,26 @@ export default function Navigation() {
   }, [])
 
   function fetchPendingCount(_id: number, clubList: ClubMembership[]) {
+    const u = getStoredUser()
+    const isAdminLevel = ['ADMIN', 'DEVELOPER', 'MODERATOR'].includes(u?.role ?? '')
     const managedClubs = clubList.filter((c) => c.role === 'CLUBMANAGER')
-    if (managedClubs.length === 0) { setPendingRequestCount(0); return }
-    Promise.all(
-      managedClubs.map((c) =>
-        apiClient.request<{ id: number }[]>(`/user-requests?clubId=${c.id}&pending=true`)
+
+    const fetches: Promise<number>[] = managedClubs.map((c) =>
+      apiClient.request<{ id: number }[]>(`/user-requests?clubId=${c.id}&pending=true`)
+        .then((items) => items.length)
+        .catch(() => 0)
+    )
+
+    if (isAdminLevel) {
+      fetches.push(
+        apiClient.request<{ id: number }[]>(`/user-requests?requestType=StartClub&pending=true`)
           .then((items) => items.length)
           .catch(() => 0)
       )
-    ).then((counts) => setPendingRequestCount(counts.reduce((a, b) => a + b, 0)))
+    }
+
+    if (fetches.length === 0) { setPendingRequestCount(0); return }
+    Promise.all(fetches).then((counts) => setPendingRequestCount(counts.reduce((a, b) => a + b, 0)))
   }
 
   function handleClubChange(id: number) {
@@ -124,7 +135,10 @@ export default function Navigation() {
               <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
               </svg>
-              {pendingRequestCount > 0 && clubs.some((c) => c.role === 'CLUBMANAGER') && (
+              {pendingRequestCount > 0 && (
+                clubs.some((c) => c.role === 'CLUBMANAGER') ||
+                ['ADMIN', 'DEVELOPER', 'MODERATOR'].includes(user?.role ?? '')
+              ) && (
                 <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
                   {pendingRequestCount > 9 ? '9+' : pendingRequestCount}
                 </span>
