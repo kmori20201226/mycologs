@@ -261,6 +261,16 @@ class DevMode:
             sys.exit(1)
         self._npm_run("set-user-role", args)
 
+    def add_user(self, args: list[str]) -> None:
+        if not args:
+            print("Usage: mycologs add-user <name> [ADMIN|DEVELOPER|MODERATOR]",
+                  file=sys.stderr)
+            sys.exit(1)
+        self._npm_run("add-user", args)
+
+    def list_user(self, args: list[str]) -> None:
+        self._npm_run("list-user", args)
+
 
 DEV_COMMANDS = {
     "start":         DevMode.start,
@@ -271,12 +281,15 @@ DEV_COMMANDS = {
     "seed-admin":    DevMode.seed_admin,
     "make-test-user":DevMode.make_test_user,
     "set-user-role": DevMode.set_user_role,
+    "add-user":      DevMode.add_user,
+    "list-user":     DevMode.list_user,
 }
 
 DEV_USAGE = (
     "  mycologs {start|stop|restart|status|\n"
     "            seed-taxonomy|seed-admin|make-test-user|\n"
-    "            set-user-role <email> <role>}"
+    "            set-user-role <email> <role>|\n"
+    "            add-user <name> [role]|list-user}"
 )
 
 
@@ -343,6 +356,16 @@ class SandboxMode:
             sys.exit(1)
         self._compose(["exec", "api", "npx", "ts-node", "scripts/set-user-role.ts"] + args)
 
+    def add_user(self, args: list[str]) -> None:
+        if not args:
+            print("Usage: mycologs add-user <name> [ADMIN|DEVELOPER|MODERATOR]",
+                  file=sys.stderr)
+            sys.exit(1)
+        self._compose(["exec", "api", "npx", "ts-node", "scripts/add-user.ts"] + args)
+
+    def list_user(self, args: list[str]) -> None:
+        self._compose(["exec", "api", "npx", "ts-node", "scripts/list-user.ts"])
+
 
 SANDBOX_COMMANDS: dict[str, tuple[object, str]] = {
     "start":         (SandboxMode.start,          ""),
@@ -355,12 +378,15 @@ SANDBOX_COMMANDS: dict[str, tuple[object, str]] = {
     "seed-admin":    (SandboxMode.seed_admin,      ""),
     "make-test-user":(SandboxMode.make_test_user,  ""),
     "set-user-role": (SandboxMode.set_user_role,   "<email> <role>"),
+    "add-user":      (SandboxMode.add_user,        "<name> [role]"),
+    "list-user":     (SandboxMode.list_user,       ""),
 }
 
 SANDBOX_USAGE = (
     "  mycologs {start|stop|restart|status|logs|build|\n"
     "            seed-taxonomy|seed-admin|make-test-user|\n"
-    "            set-user-role <email> <role>} [args…]"
+    "            set-user-role <email> <role>|\n"
+    "            add-user <name> [role]|list-user} [args…]"
 )
 
 

@@ -19,6 +19,8 @@
     "do-migrate": "npx prisma migrate dev",
     "prisma:gen": "npx prisma generate",
     "set-user-role": "npx ts-node scripts/set-user-role.ts",
+    "add-user": "npx ts-node scripts/add-user.ts",
+    "list-user": "npx ts-node scripts/list-user.ts",
     "seed-taxonomy": "npx ts-node scripts/seed-taxonomy.ts",
     "seed-admin-user": "npx ts-node scripts/seed-admin-user.ts",
     "make-test-user": "npx ts-node scripts/make-test-user.ts",
