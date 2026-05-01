@@ -1,0 +1,2 @@
+[console_scripts]
+mycologs = mycologs_ctl.main:main

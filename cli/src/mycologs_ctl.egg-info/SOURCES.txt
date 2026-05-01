@@ -1,0 +1,8 @@
+pyproject.toml
+src/mycologs_ctl/__init__.py
+src/mycologs_ctl/main.py
+src/mycologs_ctl.egg-info/PKG-INFO
+src/mycologs_ctl.egg-info/SOURCES.txt
+src/mycologs_ctl.egg-info/dependency_links.txt
+src/mycologs_ctl.egg-info/entry_points.txt
+src/mycologs_ctl.egg-info/top_level.txt
