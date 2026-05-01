@@ -5,6 +5,12 @@ import { useRouter } from 'next/navigation'
 import { apiClient, type Event } from '@/lib/api'
 import { getStoredUser, getSelectedClubId, getStoredClubs } from '@/lib/auth'
 
+type ClubMember = {
+  id: number
+  user: { id: number; name: string; email: string }
+  role: { id: number; name: string }
+}
+
 interface ClubDetail {
   id: number
   name: string
@@ -35,6 +41,10 @@ export default function ClubManagePage() {
   const [checkoutLoading, setCheckoutLoading] = useState(false)
   const [checkoutError, setCheckoutError] = useState('')
 
+  const [members, setMembers] = useState<ClubMember[]>([])
+  const [membersLoading, setMembersLoading] = useState(false)
+  const [roleChanging, setRoleChanging] = useState<number | null>(null)
+
   const [toast, setToast] = useState('')
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -54,6 +64,16 @@ export default function ClubManagePage() {
     setPolicy(clubData.policy ?? '')
   }
 
+  async function loadMembers(id: number) {
+    setMembersLoading(true)
+    try {
+      const data = await apiClient.getClubMembers(id)
+      setMembers(data)
+    } finally {
+      setMembersLoading(false)
+    }
+  }
+
   async function loadEvents(id: number) {
     setEventsLoading(true)
     try {
@@ -69,12 +89,13 @@ export default function ClubManagePage() {
     if (!user) { router.replace('/login'); return }
 
     const id = getSelectedClubId()
-    if (id) { loadClub(id); loadEvents(id) }
+    if (id) { loadClub(id); loadEvents(id); loadMembers(id) }
 
     function onClubChanged(e: globalThis.Event) {
       const { clubId: newId } = (e as CustomEvent).detail
       loadClub(newId)
       loadEvents(newId)
+      loadMembers(newId)
     }
     window.addEventListener('clubChanged', onClubChanged)
     return () => window.removeEventListener('clubChanged', onClubChanged)
@@ -118,6 +139,38 @@ export default function ClubManagePage() {
       setEvents((prev) => prev.filter((ev) => ev.id !== id))
     } catch {
       showToast('削除に失敗しました。')
+    }
+  }
+
+  async function handleToggleManager(member: ClubMember) {
+    if (!club) return
+    const currentUser = getStoredUser()
+    const isManager = member.role.name === 'CLUBMANAGER'
+    const managerCount = members.filter((m) => m.role.name === 'CLUBMANAGER').length
+
+    if (isManager && managerCount <= 1) {
+      showToast('マネージャーは最低1名必要です。')
+      return
+    }
+
+    const newRole = isManager ? 'CLUBMEMBER' : 'CLUBMANAGER'
+    setRoleChanging(member.user.id)
+    try {
+      await apiClient.updateClubMemberRole(club.id, member.user.id, newRole)
+      setMembers((prev) =>
+        prev.map((m) =>
+          m.user.id === member.user.id
+            ? { ...m, role: { ...m.role, name: newRole } }
+            : m
+        )
+      )
+      if (isManager && currentUser?.id === member.user.id) {
+        showToast('あなた自身をマネージャーから外しました。この画面を操作できなくなる可能性があります。')
+      }
+    } catch {
+      showToast('ロールの変更に失敗しました。')
+    } finally {
+      setRoleChanging(null)
     }
   }
 
@@ -215,6 +268,83 @@ export default function ClubManagePage() {
               {checkoutError && <p className="text-xs text-red-500">{checkoutError}</p>}
             </div>
           </div>
+        </section>
+
+        {/* ── Members ───────────────────────────────────────────── */}
+        <section className="bg-white rounded-xl shadow p-6">
+          <h2 className="font-semibold text-gray-800 mb-4">メンバー管理</h2>
+          {membersLoading ? (
+            <div className="space-y-2">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="h-12 bg-gray-100 rounded-lg animate-pulse" />
+              ))}
+            </div>
+          ) : members.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-8">メンバーがいません。</p>
+          ) : (
+            <div className="divide-y border rounded-lg overflow-hidden">
+              {(() => {
+                const currentUser = getStoredUser()
+                const managerCount = members.filter((m) => m.role.name === 'CLUBMANAGER').length
+                return members.map((m) => {
+                  const isManager = m.role.name === 'CLUBMANAGER'
+                  const isSelf = m.user.id === currentUser?.id
+                  const wouldLoseManager = isManager && isSelf
+                  const isLastManager = isManager && managerCount <= 1
+                  return (
+                    <div key={m.user.id} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-800">
+                          {m.user.name}
+                          {isSelf && <span className="ml-1.5 text-xs text-gray-400">(あなた)</span>}
+                        </p>
+                        <p className="text-xs text-gray-400 truncate">{m.user.email}</p>
+                      </div>
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                        isManager
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : 'bg-gray-100 text-gray-500'
+                      }`}>
+                        {isManager ? 'マネージャー' : 'メンバー'}
+                      </span>
+                      <button
+                        onClick={() => handleToggleManager(m)}
+                        disabled={roleChanging === m.user.id || isLastManager}
+                        title={isLastManager ? 'マネージャーは最低1名必要です' : isManager ? 'メンバーに変更' : 'マネージャーに昇格'}
+                        className={`text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors disabled:opacity-40 ${
+                          isManager
+                            ? 'bg-gray-100 hover:bg-gray-200 text-gray-600'
+                            : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700'
+                        }`}
+                      >
+                        {roleChanging === m.user.id
+                          ? '変更中…'
+                          : isManager
+                          ? 'メンバーに変更'
+                          : 'マネージャーに昇格'}
+                      </button>
+                      {wouldLoseManager && !isLastManager && (
+                        <span className="text-xs text-amber-500 font-medium">⚠ 自分自身</span>
+                      )}
+                    </div>
+                  )
+                })
+              })()}
+            </div>
+          )}
+          {(() => {
+            const currentUser = getStoredUser()
+            const selfEntry = members.find((m) => m.user.id === currentUser?.id)
+            const isCurrentUserManager = selfEntry?.role.name === 'CLUBMANAGER'
+            if (!isCurrentUserManager && members.length > 0) {
+              return (
+                <p className="mt-3 text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2">
+                  あなたはこのクラブのマネージャーではありません。メンバー管理の操作が制限される場合があります。
+                </p>
+              )
+            }
+            return null
+          })()}
         </section>
 
         {/* ── Events ────────────────────────────────────────────── */}
