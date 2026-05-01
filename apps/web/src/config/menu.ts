@@ -60,12 +60,6 @@ export const menuEntries: MenuEntry[] = [
         href: '/club-manage',
         visibleTo: ['ADMIN', 'DEVELOPER', 'CLUBMANAGER'],
       },
-      {
-        type: 'item',
-        label: 'メンバー申請処理',
-        href: '/admin/requests',
-        visibleTo: ['ADMIN', 'DEVELOPER', 'CLUBMANAGER'],
-      },
     ],
   },
   {
@@ -90,6 +84,12 @@ export const menuEntries: MenuEntry[] = [
         type: 'item',
         label: 'クラブ管理',
         href: '/admin/clubs',
+        visibleTo: ['ADMIN', 'DEVELOPER'],
+      },
+      {
+        type: 'item',
+        label: 'クラブ申請処理',
+        href: '/admin/requests',
         visibleTo: ['ADMIN', 'DEVELOPER'],
       },
       {

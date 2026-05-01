@@ -243,7 +243,7 @@ export default function Navigation() {
                     className="flex items-center justify-between pl-7 pr-4 py-2 text-gray-700 hover:bg-emerald-50 hover:text-emerald-600 transition-colors"
                   >
                     {child.label}
-                    {child.href === '/admin/requests' && pendingRequestCount > 0 && (
+                    {(child.href === '/admin/requests' || child.href === '/club-manage') && pendingRequestCount > 0 && (
                       <span className="ml-2 inline-flex items-center justify-center w-5 h-5 rounded-full bg-red-500 text-white text-xs font-bold">
                         {pendingRequestCount > 99 ? '99+' : pendingRequestCount}
                       </span>

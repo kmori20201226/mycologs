@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { apiClient, type UserRequestItem } from '@/lib/api'
-import { getStoredUser, getSelectedClubId, setSelectedClubId, getStoredClubs, setStoredClubs, type ClubMembership } from '@/lib/auth'
+import { getStoredUser } from '@/lib/auth'
 
 interface RequestRow extends UserRequestItem {
   replyDraft: string
@@ -16,153 +16,27 @@ function StatusBadge({ accepted }: { accepted: boolean | null }) {
   return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-600">否認</span>
 }
 
-function RequestTypeBadge({ requestType }: { requestType: string | undefined }) {
-  if (requestType === 'LeaveFromMember') {
-    return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-700">退会</span>
-  }
-  if (requestType === 'StartClub') {
-    return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700">クラブ立ち上げ</span>
-  }
-  return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">参加</span>
-}
-
-function PendingCard({
-  row,
-  isLeave,
-  onAccept,
-  onDecline,
-  onUpdate,
-}: {
-  row: RequestRow
-  isLeave: boolean
-  onAccept: (row: RequestRow) => void
-  onDecline: (row: RequestRow) => void
-  onUpdate: (id: number, patch: Partial<RequestRow>) => void
-}) {
-  return (
-    <li className={`bg-white rounded-xl shadow p-5 border-l-4 ${isLeave ? 'border-orange-400' : 'border-blue-400'}`}>
-      <div className="flex items-start gap-3 mb-4">
-        <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${isLeave ? 'bg-orange-100 text-orange-700' : 'bg-emerald-100 text-emerald-700'}`}>
-          {row.requester.name[0].toUpperCase()}
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="font-semibold text-gray-900 text-sm">{row.requester.name}</p>
-          <p className="text-xs text-gray-400">{row.requester.email}</p>
-          <p className="text-xs text-gray-400 mt-0.5">
-            {new Date(row.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
-          </p>
-        </div>
-        <RequestTypeBadge requestType={row.request?.requestType} />
-      </div>
-
-      {row.request?.message && (
-        <div className="mb-4 bg-gray-50 rounded-lg px-4 py-3 text-sm text-gray-700 whitespace-pre-wrap border border-gray-100">
-          {row.request.message}
-        </div>
-      )}
-
-      <div className="mb-3">
-        <label className="block text-xs font-medium text-gray-500 mb-1">
-          返信メッセージ <span className="font-normal">（任意）</span>
-        </label>
-        <textarea
-          value={row.replyDraft}
-          onChange={(e) => onUpdate(row.id, { replyDraft: e.target.value })}
-          placeholder="申請者へのメッセージを入力…"
-          rows={2}
-          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-emerald-400"
-        />
-      </div>
-
-      <div className="flex items-center gap-2">
-        <button
-          onClick={() => onAccept(row)}
-          disabled={row.resolving}
-          className={`flex items-center gap-1.5 px-4 py-1.5 disabled:opacity-50 text-white text-sm font-semibold rounded-lg transition-colors ${
-            isLeave ? 'bg-orange-500 hover:bg-orange-600' : 'bg-emerald-600 hover:bg-emerald-700'
-          }`}
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-          </svg>
-          {isLeave ? '退会承認' : '承認'}
-        </button>
-        <button
-          onClick={() => onDecline(row)}
-          disabled={row.resolving}
-          className="flex items-center gap-1.5 px-4 py-1.5 bg-white border border-red-400 hover:bg-red-50 disabled:opacity-50 text-red-500 text-sm font-semibold rounded-lg transition-colors"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-          </svg>
-          {isLeave ? '退会却下' : '却下'}
-        </button>
-      </div>
-    </li>
-  )
-}
-
-export default function ManagerRequestsPage() {
+export default function ClubRequestsPage() {
   const router = useRouter()
-  const [clubName, setClubName] = useState<string>('')
   const [rows, setRows] = useState<RequestRow[]>([])
-  const [startRows, setStartRows] = useState<RequestRow[]>([])
   const [loading, setLoading] = useState(true)
   const [showResolved, setShowResolved] = useState(false)
-  const [isAdmin, setIsAdmin] = useState(false)
-
-  function loadForClub(clubId: number, clubs: ClubMembership[]) {
-    setClubName(clubs.find((c) => c.id === clubId)?.name ?? '')
-    setLoading(true)
-    apiClient.getUserRequests({ clubId })
-      .then((items) => setRows(items.map((r) => ({ ...r, replyDraft: '', resolving: false }))))
-      .catch(() => {})
-      .finally(() => setLoading(false))
-  }
 
   useEffect(() => {
     const user = getStoredUser()
     if (!user) { router.replace('/login'); return }
 
     const adminRoles = ['ADMIN', 'DEVELOPER', 'MODERATOR']
-    if (adminRoles.includes(user.role ?? '')) {
-      setIsAdmin(true)
-      apiClient.getUserRequests({ requestType: 'StartClub' })
-        .then((items) => setStartRows(items.map((r) => ({ ...r, replyDraft: '', resolving: false }))))
-        .catch(() => {})
-    }
+    if (!adminRoles.includes(user.role ?? '')) { router.replace('/'); return }
 
-    // Fetch clubs from API directly to avoid race with Navigation's async storage
-    apiClient.request<ClubMembership[]>('/me/clubs').then((clubs) => {
-      setStoredClubs(clubs)
-      const managedClubs = clubs.filter((c) => c.role === 'CLUBMANAGER')
-      if (managedClubs.length === 0) { setLoading(false); return }
-
-      const selectedId = getSelectedClubId()
-      const isSelectedManaged = managedClubs.some((c) => c.id === selectedId)
-      const clubId = isSelectedManaged ? selectedId! : managedClubs[0].id
-
-      // If selected club isn't managed, sync the header to the managed club
-      if (!isSelectedManaged) {
-        setSelectedClubId(clubId)
-        window.dispatchEvent(new CustomEvent('clubChanged', { detail: { clubId } }))
-      }
-
-      loadForClub(clubId, clubs)
-    }).catch(() => { setLoading(false) })
-
-    function onClubChanged(e: Event) {
-      const { clubId: newId } = (e as CustomEvent).detail
-      const allClubs = getStoredClubs()
-      loadForClub(newId, allClubs)
-    }
-    window.addEventListener('clubChanged', onClubChanged)
-    return () => window.removeEventListener('clubChanged', onClubChanged)
+    apiClient.getUserRequests({ requestType: 'StartClub' })
+      .then((items) => setRows(items.map((r) => ({ ...r, replyDraft: '', resolving: false }))))
+      .catch(() => {})
+      .finally(() => setLoading(false))
   }, [router])
 
   function updateRow(id: number, patch: Partial<RequestRow>) {
     setRows((prev) => prev.map((r) => r.id === id ? { ...r, ...patch } : r))
-    setStartRows((prev) => prev.map((r) => r.id === id ? { ...r, ...patch } : r))
   }
 
   async function handleAccept(row: RequestRow) {
@@ -197,22 +71,20 @@ export default function ManagerRequestsPage() {
     }
   }
 
-  const pendingJoin  = rows.filter((r) => r.accepted === null && r.request?.requestType !== 'LeaveFromMember')
-  const pendingLeave = rows.filter((r) => r.accepted === null && r.request?.requestType === 'LeaveFromMember')
-  const resolved     = rows.filter((r) => r.accepted !== null)
-  const totalPending = pendingJoin.length + pendingLeave.length
+  const pending  = rows.filter((r) => r.accepted === null)
+  const resolved = rows.filter((r) => r.accepted !== null)
 
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto px-4 py-8 max-w-3xl">
 
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">メンバー申請</h1>
-          {clubName && <p className="text-sm text-gray-500 mt-1">{clubName}</p>}
+          <h1 className="text-2xl font-bold text-gray-900">クラブ申請処理</h1>
+          <p className="text-sm text-gray-500 mt-1">クラブ立ち上げ申請の承認・却下</p>
         </div>
 
         {loading ? (
-          <div className="space-y-3 mb-8">
+          <div className="space-y-3">
             {[1, 2].map((i) => (
               <div key={i} className="bg-white rounded-xl shadow p-5 animate-pulse">
                 <div className="h-4 bg-gray-200 rounded w-1/3 mb-2" />
@@ -220,194 +92,121 @@ export default function ManagerRequestsPage() {
               </div>
             ))}
           </div>
-        ) : totalPending === 0 ? (
-          <p className="text-sm text-gray-400 mb-8">保留中の申請はありません。</p>
-        ) : null}
+        ) : (
+          <>
+            {pending.length === 0 && (
+              <p className="text-sm text-gray-400 mb-8">保留中の申請はありません。</p>
+            )}
 
-        {/* Club start requests (admin only) */}
-        {isAdmin && (() => {
-          const pendingStart = startRows.filter((r) => r.accepted === null)
-          const resolvedStart = startRows.filter((r) => r.accepted !== null)
-          if (startRows.length === 0) return null
-          return (
-            <div className="mb-10">
-              <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3 flex items-center gap-2">
-                クラブ立ち上げ申請
-                {pendingStart.length > 0 && <span className="text-purple-600">{pendingStart.length}</span>}
-              </h2>
-              {pendingStart.length > 0 && (
-                <ul className="space-y-4 mb-4">
-                  {pendingStart.map((row) => (
-                    <li key={row.id} className="bg-white rounded-xl shadow p-5 border-l-4 border-purple-400">
-                      <div className="flex items-start gap-3 mb-3">
-                        <div className="w-9 h-9 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-sm font-bold shrink-0">
-                          {row.requester.name[0].toUpperCase()}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-gray-900 text-sm">{row.requester.name}</p>
-                          <p className="text-xs text-gray-400">{row.requester.email}</p>
-                          <p className="text-xs text-gray-400 mt-0.5">
-                            {new Date(row.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
-                          </p>
-                        </div>
-                        <RequestTypeBadge requestType="StartClub" />
-                      </div>
-
-                      {row.club && (
-                        <div className="mb-3 bg-purple-50 rounded-lg px-4 py-3 text-sm border border-purple-100 space-y-1">
-                          <p className="font-semibold text-gray-800">{row.club.name}</p>
-                          {row.club.introduction && <p className="text-gray-600 text-xs whitespace-pre-wrap">{row.club.introduction}</p>}
-                          {row.club.policy && (
-                            <details className="text-xs text-gray-500">
-                              <summary className="cursor-pointer text-purple-600 font-medium">ポリシーを見る</summary>
-                              <p className="mt-1 whitespace-pre-wrap">{row.club.policy}</p>
-                            </details>
-                          )}
-                        </div>
-                      )}
-
-                      {row.request?.message && (
-                        <div className="mb-3 bg-gray-50 rounded-lg px-4 py-3 text-sm text-gray-700 whitespace-pre-wrap border border-gray-100">
-                          {row.request.message}
-                        </div>
-                      )}
-
-                      <div className="mb-3">
-                        <textarea
-                          value={row.replyDraft}
-                          onChange={(e) => updateRow(row.id, { replyDraft: e.target.value })}
-                          placeholder="申請者へのメッセージ（任意）"
-                          rows={2}
-                          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-purple-400"
-                        />
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => handleAccept(row)}
-                          disabled={row.resolving}
-                          className="flex items-center gap-1.5 px-4 py-1.5 disabled:opacity-50 bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold rounded-lg transition-colors"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                          </svg>
-                          承認・公開
-                        </button>
-                        <button
-                          onClick={() => handleDecline(row)}
-                          disabled={row.resolving}
-                          className="flex items-center gap-1.5 px-4 py-1.5 bg-white border border-red-400 hover:bg-red-50 disabled:opacity-50 text-red-500 text-sm font-semibold rounded-lg transition-colors"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                          </svg>
-                          却下
-                        </button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {resolvedStart.length > 0 && (
-                <ul className="space-y-2">
-                  {resolvedStart.map((row) => (
-                    <li key={row.id} className="bg-white rounded-xl shadow p-4 opacity-70">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center text-sm font-bold shrink-0">
-                          {row.requester.name[0].toUpperCase()}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-800">{row.club?.name ?? '—'}</p>
-                          <p className="text-xs text-gray-400">{row.requester.name} · {row.requester.email}</p>
-                        </div>
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <RequestTypeBadge requestType="StartClub" />
-                          <StatusBadge accepted={row.accepted} />
-                        </div>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          )
-        })()}
-
-        {/* Pending join requests */}
-        {!loading && pendingJoin.length > 0 && (
-          <div className="mb-8">
-            <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
-              参加申請
-              <span className="ml-2 text-blue-600">{pendingJoin.length}</span>
-            </h2>
-            <ul className="space-y-4">
-              {pendingJoin.map((row) => (
-                <PendingCard key={row.id} row={row} isLeave={false} onAccept={handleAccept} onDecline={handleDecline} onUpdate={updateRow} />
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {/* Pending leave requests */}
-        {!loading && pendingLeave.length > 0 && (
-          <div className="mb-8">
-            <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
-              退会申請
-              <span className="ml-2 text-orange-600">{pendingLeave.length}</span>
-            </h2>
-            <ul className="space-y-4">
-              {pendingLeave.map((row) => (
-                <PendingCard key={row.id} row={row} isLeave={true} onAccept={handleAccept} onDecline={handleDecline} onUpdate={updateRow} />
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {/* Resolved requests (collapsible) */}
-        {resolved.length > 0 && (
-          <div>
-            <button
-              onClick={() => setShowResolved((v) => !v)}
-              className="flex items-center gap-1 text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3 hover:text-gray-700 transition-colors"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className={`w-4 h-4 transition-transform ${showResolved ? 'rotate-90' : ''}`}
-                fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-              </svg>
-              処理済み（{resolved.length}件）
-            </button>
-
-            {showResolved && (
-              <ul className="space-y-3">
-                {resolved.map((row) => (
-                  <li key={row.id} className="bg-white rounded-xl shadow p-4 opacity-80">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center text-sm font-bold shrink-0">
+            {pending.length > 0 && (
+              <ul className="space-y-4 mb-8">
+                {pending.map((row) => (
+                  <li key={row.id} className="bg-white rounded-xl shadow p-5 border-l-4 border-purple-400">
+                    <div className="flex items-start gap-3 mb-3">
+                      <div className="w-9 h-9 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-sm font-bold shrink-0">
                         {row.requester.name[0].toUpperCase()}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-800">{row.requester.name}</p>
+                        <p className="font-semibold text-gray-900 text-sm">{row.requester.name}</p>
                         <p className="text-xs text-gray-400">{row.requester.email}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {new Date(row.createdAt).toLocaleDateString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric' })}
+                        </p>
                       </div>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <RequestTypeBadge requestType={row.request?.requestType} />
-                        <StatusBadge accepted={row.accepted} />
-                      </div>
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700">クラブ立ち上げ</span>
                     </div>
+
+                    {row.club && (
+                      <div className="mb-3 bg-purple-50 rounded-lg px-4 py-3 text-sm border border-purple-100 space-y-1">
+                        <p className="font-semibold text-gray-800">{row.club.name}</p>
+                        {row.club.introduction && <p className="text-gray-600 text-xs whitespace-pre-wrap">{row.club.introduction}</p>}
+                        {row.club.policy && (
+                          <details className="text-xs text-gray-500">
+                            <summary className="cursor-pointer text-purple-600 font-medium">ポリシーを見る</summary>
+                            <p className="mt-1 whitespace-pre-wrap">{row.club.policy}</p>
+                          </details>
+                        )}
+                      </div>
+                    )}
+
                     {row.request?.message && (
-                      <p className="mt-2 text-xs text-gray-500 bg-gray-50 rounded px-3 py-2 whitespace-pre-wrap">{row.request.message}</p>
+                      <div className="mb-3 bg-gray-50 rounded-lg px-4 py-3 text-sm text-gray-700 whitespace-pre-wrap border border-gray-100">
+                        {row.request.message}
+                      </div>
                     )}
-                    {(row.reply as any)?.message && (
-                      <p className="mt-1 text-xs text-gray-400 italic">返信: {(row.reply as any).message}</p>
-                    )}
+
+                    <div className="mb-3">
+                      <textarea
+                        value={row.replyDraft}
+                        onChange={(e) => updateRow(row.id, { replyDraft: e.target.value })}
+                        placeholder="申請者へのメッセージ（任意）"
+                        rows={2}
+                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-purple-400"
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleAccept(row)}
+                        disabled={row.resolving}
+                        className="flex items-center gap-1.5 px-4 py-1.5 disabled:opacity-50 bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold rounded-lg transition-colors"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                        承認・公開
+                      </button>
+                      <button
+                        onClick={() => handleDecline(row)}
+                        disabled={row.resolving}
+                        className="flex items-center gap-1.5 px-4 py-1.5 bg-white border border-red-400 hover:bg-red-50 disabled:opacity-50 text-red-500 text-sm font-semibold rounded-lg transition-colors"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                        </svg>
+                        却下
+                      </button>
+                    </div>
                   </li>
                 ))}
               </ul>
             )}
-          </div>
+
+            {resolved.length > 0 && (
+              <div>
+                <button
+                  onClick={() => setShowResolved((v) => !v)}
+                  className="flex items-center gap-1 text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3 hover:text-gray-700 transition-colors"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className={`w-4 h-4 transition-transform ${showResolved ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                  </svg>
+                  処理済み（{resolved.length}件）
+                </button>
+                {showResolved && (
+                  <ul className="space-y-3">
+                    {resolved.map((row) => (
+                      <li key={row.id} className="bg-white rounded-xl shadow p-4 opacity-80">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center text-sm font-bold shrink-0">
+                            {row.requester.name[0].toUpperCase()}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-800">{row.club?.name ?? '—'}</p>
+                            <p className="text-xs text-gray-400">{row.requester.name} · {row.requester.email}</p>
+                          </div>
+                          <StatusBadge accepted={row.accepted} />
+                        </div>
+                        {(row.reply as any)?.message && (
+                          <p className="mt-1 text-xs text-gray-400 italic pl-11">返信: {(row.reply as any).message}</p>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+          </>
         )}
 
       </div>
