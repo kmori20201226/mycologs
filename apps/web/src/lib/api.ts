@@ -350,6 +350,10 @@ class ApiClient {
     return this.request(`/clubs/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
   }
 
+  async getClubCredit(id: number): Promise<{ clubId: number; credit: number }> {
+    return this.request(`/clubs/${id}/credit`)
+  }
+
   async deleteClub(id: number): Promise<void> {
     return this.request(`/clubs/${id}`, { method: 'DELETE' })
   }

@@ -56,8 +56,8 @@ export const menuEntries: MenuEntry[] = [
     children: [
       {
         type: 'item',
-        label: 'クラブイベント',
-        href: '/admin/events',
+        label: 'クラブ管理',
+        href: '/club-manage',
         visibleTo: ['ADMIN', 'DEVELOPER', 'CLUBMANAGER'],
       },
       {

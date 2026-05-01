@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { apiClient, type Event } from '@/lib/api'
 import { getStoredClubs } from '@/lib/auth'
@@ -20,6 +20,7 @@ interface GeoCandidate {
 
 export default function EventEditPage() {
   const params = useParams()
+  const router = useRouter()
   const eventId = Number(params.id)
 
   const [original, setOriginal] = useState<Event | null>(null)
@@ -241,17 +242,17 @@ export default function EventEditPage() {
 
         {/* Breadcrumb + Back */}
         <div className="mb-6 flex items-center gap-4">
-          <Link
-            href="/admin/events"
+          <button
+            onClick={() => router.back()}
             className="flex items-center gap-1 text-sm text-gray-500 hover:text-emerald-600 transition-colors"
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
             </svg>
             戻る
-          </Link>
+          </button>
           <div className="text-sm text-gray-500">
-            <Link href="/admin/events" className="hover:text-emerald-600 transition-colors">イベント</Link>
+            <span className="text-gray-400">イベント</span>
             <span className="mx-2">/</span>
             <span className="text-gray-800 font-medium">{original?.name ?? '…'}</span>
           </div>
