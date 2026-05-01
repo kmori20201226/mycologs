@@ -189,15 +189,48 @@ class DevMode:
             cwd=self.root / "ai-service",
         )
 
+    def _npm_run(self, script: str, extra: list[str]) -> None:
+        cmd = ["npm", "run", script]
+        if extra:
+            cmd += ["--"] + extra
+        _run(cmd, cwd=self.root)
+
+    def seed_taxonomy(self, args: list[str]) -> None:
+        print("Running taxonomy seed…")
+        self._npm_run("seed-taxonomy", args)
+
+    def seed_admin(self, args: list[str]) -> None:
+        print("Creating admin user…")
+        self._npm_run("seed-admin-user", args)
+
+    def make_test_user(self, args: list[str]) -> None:
+        print("Creating test clubs and users from testdata.csv…")
+        self._npm_run("make-test-user", args)
+
+    def set_user_role(self, args: list[str]) -> None:
+        if len(args) < 2:
+            print("Usage: mycologs set-user-role <email> <ADMIN|DEVELOPER|MODERATOR|null>",
+                  file=sys.stderr)
+            sys.exit(1)
+        self._npm_run("set-user-role", args)
+
 
 DEV_COMMANDS = {
-    "start": DevMode.start,
-    "stop": DevMode.stop,
-    "restart": DevMode.restart,
-    "status": DevMode.status,
+    "start":         DevMode.start,
+    "stop":          DevMode.stop,
+    "restart":       DevMode.restart,
+    "status":        DevMode.status,
+    "seed-taxonomy": DevMode.seed_taxonomy,
+    "seed-admin":    DevMode.seed_admin,
+    "make-test-user":DevMode.make_test_user,
+    "set-user-role": DevMode.set_user_role,
 }
 
-DEV_USAGE = "  mycologs {start|stop|restart|status}"
+DEV_USAGE = (
+    "  mycologs {start|stop|restart|status|\n"
+    "            seed-taxonomy|seed-admin|make-test-user|\n"
+    "            set-user-role <email> <role>}"
+)
 
 
 # ---------------------------------------------------------------------------
@@ -256,22 +289,31 @@ class SandboxMode:
         print("Creating test clubs and users from testdata.csv…")
         self._compose(["exec", "api", "npx", "ts-node", "scripts/make-test-user.ts"])
 
+    def set_user_role(self, args: list[str]) -> None:
+        if len(args) < 2:
+            print("Usage: mycologs set-user-role <email> <ADMIN|DEVELOPER|MODERATOR|null>",
+                  file=sys.stderr)
+            sys.exit(1)
+        self._compose(["exec", "api", "npx", "ts-node", "scripts/set-user-role.ts"] + args)
+
 
 SANDBOX_COMMANDS: dict[str, tuple[object, str]] = {
-    "start":         (SandboxMode.start,         ""),
-    "stop":          (SandboxMode.stop,           ""),
-    "restart":       (SandboxMode.restart,        ""),
-    "status":        (SandboxMode.status,         ""),
-    "logs":          (SandboxMode.logs,           "[service]"),
-    "build":         (SandboxMode.build,          ""),
-    "seed-taxonomy": (SandboxMode.seed_taxonomy,  ""),
-    "seed-admin":    (SandboxMode.seed_admin,     ""),
-    "make-test-user":(SandboxMode.make_test_user, ""),
+    "start":         (SandboxMode.start,          ""),
+    "stop":          (SandboxMode.stop,            ""),
+    "restart":       (SandboxMode.restart,         ""),
+    "status":        (SandboxMode.status,          ""),
+    "logs":          (SandboxMode.logs,            "[service]"),
+    "build":         (SandboxMode.build,           ""),
+    "seed-taxonomy": (SandboxMode.seed_taxonomy,   ""),
+    "seed-admin":    (SandboxMode.seed_admin,      ""),
+    "make-test-user":(SandboxMode.make_test_user,  ""),
+    "set-user-role": (SandboxMode.set_user_role,   "<email> <role>"),
 }
 
 SANDBOX_USAGE = (
     "  mycologs {start|stop|restart|status|logs|build|\n"
-    "            seed-taxonomy|seed-admin|make-test-user} [args…]"
+    "            seed-taxonomy|seed-admin|make-test-user|\n"
+    "            set-user-role <email> <role>} [args…]"
 )
 
 
