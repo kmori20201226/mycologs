@@ -106,6 +106,12 @@ export const menuEntries: MenuEntry[] = [
       },
     ],
   },
+  {
+    type: 'item',
+    label: 'Mycologs について',
+    href: '/about',
+    visibleTo: ['public'],
+  },
 ]
 
 // Legacy flat list kept for any consumers that still import menuItems

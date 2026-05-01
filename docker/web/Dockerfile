@@ -18,6 +18,7 @@ ENV NEXT_PUBLIC_STRIPE_PRICE_CLUB=$NEXT_PUBLIC_STRIPE_PRICE_CLUB
 
 COPY apps/web/ ./apps/web/
 COPY packages/ ./packages/
+COPY version.txt ./version.txt
 RUN cd apps/web && npx next build
 
 # --- Runtime image ---
@@ -29,6 +30,7 @@ COPY --from=builder /app/node_modules /app/node_modules
 COPY --from=builder /app/apps/web/package.json ./
 COPY --from=builder /app/apps/web/.next ./.next
 COPY --from=builder /app/apps/web/public ./public
+COPY --from=builder /app/version.txt /app/version.txt
 
 EXPOSE 3001
 CMD ["/app/node_modules/.bin/next", "start", "-p", "3001"]
