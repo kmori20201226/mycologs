@@ -80,6 +80,18 @@ export default function IdentifyPage() {
             </div>
           </div>
 
+          {/* Retry tip */}
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-5 mb-5 flex gap-3">
+            <span className="text-xl shrink-0">💡</span>
+            <div>
+              <p className="font-semibold text-blue-800 mb-1">結果がおかしいと感じたら</p>
+              <p className="text-sm text-blue-700">
+                AIの同定結果が明らかに違うと思われる場合、テキストで補足情報を追記することで結果が改善することがあります。
+                投稿のメモ欄に情報を加えて再度同定を実行することができます。
+              </p>
+            </div>
+          </div>
+
           {/* Warning */}
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 mb-8 flex gap-3">
             <span className="text-xl shrink-0">⚠️</span>

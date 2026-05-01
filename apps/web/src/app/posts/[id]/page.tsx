@@ -20,6 +20,7 @@ interface Identification {
   confidence: number | null
   description: AiIdentification | null
   accepted: boolean
+  identificationHint: string | null
   user: { id: number; name: string; handleName: string | null }
   species: { id: number; scientificName: string } | null
 }
@@ -403,6 +404,13 @@ function PostPageInner() {
                             </div>
                           )}
 
+                          {ident.identificationHint && (
+                            <div className="border-t border-emerald-200 pt-3">
+                              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">同定時に使用した同定ヒント</p>
+                              <p className="text-sm text-gray-600 whitespace-pre-wrap">{ident.identificationHint}</p>
+                            </div>
+                          )}
+
                           {details.disclaimer && (
                             <p className="text-xs text-gray-500 border-t border-emerald-200 pt-3 leading-relaxed">
                               ⚠️ {details.disclaimer}
@@ -410,7 +418,15 @@ function PostPageInner() {
                           )}
                         </>
                       ) : (
-                        <ConfidenceBadge confidence={ident.confidence} />
+                        <>
+                          {ident.identificationHint && (
+                            <div className="mt-2">
+                              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">同定時に使用した同定ヒント</p>
+                              <p className="text-sm text-gray-600 whitespace-pre-wrap">{ident.identificationHint}</p>
+                            </div>
+                          )}
+                          <ConfidenceBadge confidence={ident.confidence} />
+                        </>
                       )}
                     </div>
                   )
