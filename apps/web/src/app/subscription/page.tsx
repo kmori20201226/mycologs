@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { apiClient } from '@/lib/api'
-import { getStoredUser, getSelectedClubId } from '@/lib/auth'
+import { getStoredUser } from '@/lib/auth'
 
 interface Plan {
   id: string
@@ -18,31 +19,17 @@ const PERSONAL_CREDITS = Number(process.env.NEXT_PUBLIC_PERSONAL_PLAN_CREDITS   
 const CLUB_CREDITS     = Number(process.env.NEXT_PUBLIC_CLUB_PLAN_CREDITS        ?? 20000)
 const AI_COST          = Number(process.env.NEXT_PUBLIC_AI_IDENTIFICATION_COST   ?? 10)
 
-const PLANS: Plan[] = [
-  {
-    id: process.env.NEXT_PUBLIC_STRIPE_PRICE_PERSONAL ?? '',
-    name: 'パーソナルプラン',
-    price: '¥500 / 月',
-    description: '個人でのきのこ探索を支援するプラン',
-    features: [
-      `毎月 ${PERSONAL_CREDITS} クレジット付与`,
-      `AI同定 1回 ${AI_COST} クレジット消費`,
-      '優先サポート',
-    ],
-  },
-  {
-    id: process.env.NEXT_PUBLIC_STRIPE_PRICE_CLUB ?? '',
-    name: 'クラブプラン',
-    price: '¥10,000 / 年',
-    description: 'きのこ愛好クラブ向けのプラン',
-    features: [
-      `年間 ${CLUB_CREDITS} クレジット付与（クラブ共有）`,
-      `AI同定 1回 ${AI_COST} クレジット消費`,
-      'クラブメンバー全員が利用可能',
-      'イベント管理ツール',
-    ],
-  },
-]
+const PERSONAL_PLAN: Plan = {
+  id: process.env.NEXT_PUBLIC_STRIPE_PRICE_PERSONAL ?? '',
+  name: 'パーソナルプラン',
+  price: '¥500 / 月',
+  description: '個人でのきのこ探索を支援するプラン',
+  features: [
+    `毎月 ${PERSONAL_CREDITS} クレジット付与`,
+    `AI同定 1回 ${AI_COST} クレジット消費`,
+    '優先サポート',
+  ],
+}
 
 export default function SubscriptionPage() {
   const router = useRouter()
@@ -70,20 +57,10 @@ export default function SubscriptionPage() {
       return
     }
 
-    const isClubPlan = planId === (process.env.NEXT_PUBLIC_STRIPE_PRICE_CLUB ?? '')
-    const clubId = isClubPlan ? getSelectedClubId() : null
-    if (isClubPlan && !clubId) {
-      setError('クラブプランにはクラブを選択してください。')
-      return
-    }
-
     setLoading(planId)
     setError('')
     try {
-      const params = isClubPlan
-        ? { planId, clubId: clubId! }
-        : { planId, userId: user.id }
-      const { url } = await apiClient.createCheckoutSession(params)
+      const { url } = await apiClient.createCheckoutSession({ planId, userId: user.id })
       if (url) window.location.href = url
     } catch {
       setError('チェックアウトの開始に失敗しました。もう一度お試しください。')
@@ -143,34 +120,40 @@ export default function SubscriptionPage() {
           </div>
         )}
 
-        <div className="grid md:grid-cols-2 gap-6">
-          {PLANS.map((plan) => (
-            <div
-              key={plan.id}
-              className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 flex flex-col"
+        <div className="max-w-md mx-auto">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 flex flex-col">
+            <h2 className="text-xl font-bold text-gray-900">{PERSONAL_PLAN.name}</h2>
+            <p className="mt-1 text-gray-500 text-sm">{PERSONAL_PLAN.description}</p>
+            <p className="mt-4 text-3xl font-bold text-gray-900">{PERSONAL_PLAN.price}</p>
+
+            <ul className="mt-6 space-y-3 flex-1">
+              {PERSONAL_PLAN.features.map((f) => (
+                <li key={f} className="flex items-start gap-2 text-sm text-gray-700">
+                  <span className="text-green-500 mt-0.5">✓</span>
+                  {f}
+                </li>
+              ))}
+            </ul>
+
+            <button
+              onClick={() => handleSubscribe(PERSONAL_PLAN.id)}
+              disabled={loading === PERSONAL_PLAN.id || isActive}
+              className="mt-8 w-full py-3 rounded-xl bg-green-700 text-white font-medium hover:bg-green-800 disabled:opacity-50 transition-colors"
             >
-              <h2 className="text-xl font-bold text-gray-900">{plan.name}</h2>
-              <p className="mt-1 text-gray-500 text-sm">{plan.description}</p>
-              <p className="mt-4 text-3xl font-bold text-gray-900">{plan.price}</p>
+              {loading === PERSONAL_PLAN.id ? '処理中...' : isActive ? '登録済み' : '申し込む'}
+            </button>
+          </div>
+        </div>
 
-              <ul className="mt-6 space-y-3 flex-1">
-                {plan.features.map((f) => (
-                  <li key={f} className="flex items-start gap-2 text-sm text-gray-700">
-                    <span className="text-green-500 mt-0.5">✓</span>
-                    {f}
-                  </li>
-                ))}
-              </ul>
-
-              <button
-                onClick={() => handleSubscribe(plan.id)}
-                disabled={loading === plan.id || isActive}
-                className="mt-8 w-full py-3 rounded-xl bg-green-700 text-white font-medium hover:bg-green-800 disabled:opacity-50 transition-colors"
-              >
-                {loading === plan.id ? '処理中...' : isActive ? '登録済み' : '申し込む'}
-              </button>
-            </div>
-          ))}
+        {/* Club plan info */}
+        <div className="mt-8 bg-emerald-50 border border-emerald-200 rounded-2xl p-6 max-w-md mx-auto">
+          <h2 className="text-lg font-bold text-emerald-800 mb-2">🍄 クラブプランについて</h2>
+          <p className="text-sm text-emerald-900 mb-3">
+            クラブ向けのクレジットプランも提供しています。クラブプランでは年間 {CLUB_CREDITS.toLocaleString()} クレジット（AI同定 {Math.floor(CLUB_CREDITS / AI_COST).toLocaleString()} 回分）がクラブ全体で共有されます。
+          </p>
+          <p className="text-sm text-emerald-900 mb-4">
+            クラブのマネージャーがクラブ管理ページからクレジットを購入できます。クラブへの参加や新しいクラブの立ち上げは<Link href="/club-request" className="font-semibold underline hover:text-emerald-700">クラブメンバーシップ</Link>ページから申請できます。
+          </p>
         </div>
 
         <div className="mt-6 p-4 bg-gray-100 rounded-xl text-center text-sm text-gray-600">
