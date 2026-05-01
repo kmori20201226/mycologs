@@ -41,6 +41,7 @@ async function main() {
       email: ADMIN_EMAIL,
       password_hash,
       role: UserRole.ADMIN,
+      emailVerified: new Date(),
     },
   })
 
