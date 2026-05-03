@@ -9,6 +9,8 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
       POSTGRES_DB: mycologs
+    ports:
+      - "5433:5432"
     volumes:
       - ./pgdata:/var/lib/postgresql
     healthcheck:

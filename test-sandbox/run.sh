@@ -7,7 +7,7 @@ cd "$SCRIPT_DIR"
 COMPOSE="docker compose"
 
 usage() {
-  echo "Usage: $0 {start|stop|restart|status|logs|seed-taxonomy|seed-admin|build}"
+  echo "Usage: $0 {start|stop|restart|status|logs|seed-taxonomy|seed-admin|make-test-user|build|psql}"
   echo ""
   echo "  start          Build (if needed) and start all containers"
   echo "  stop           Stop all containers"
@@ -18,6 +18,7 @@ usage() {
   echo "  seed-admin     Create the admin@localhost user inside the api container"
   echo "  make-test-user Create clubs and users from testdata.csv"
   echo "  build          Force-rebuild all images"
+  echo "  psql           Open a psql session in the postgres container"
   exit 1
 }
 
@@ -77,6 +78,10 @@ cmd_build() {
   $COMPOSE build
 }
 
+cmd_psql() {
+  $COMPOSE exec postgres psql -U postgres mycologs
+}
+
 case "${1:-}" in
   start)        cmd_start ;;
   stop)         cmd_stop ;;
@@ -87,5 +92,6 @@ case "${1:-}" in
   seed-admin)      cmd_seed_admin ;;
   make-test-user)  cmd_make_test_user ;;
   build)           cmd_build ;;
+  psql)            cmd_psql ;;
   *)            usage ;;
 esac
