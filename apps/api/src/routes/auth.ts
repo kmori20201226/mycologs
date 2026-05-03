@@ -6,7 +6,10 @@ const BCRYPT_ROUNDS = 12
 const CODE_EXPIRY_MINUTES = 15
 const MAX_ATTEMPTS = 5
 
-const resend = new Resend(process.env.RESEND_COM_API_KEY)
+function getResend() {
+    if (!process.env.RESEND_COM_API_KEY) throw new Error('RESEND_COM_API_KEY is not set')
+    return new Resend(process.env.RESEND_COM_API_KEY)
+}
 
 const registerSchema = {
     type: 'object',
@@ -56,7 +59,7 @@ function generateCode(): string {
 
 async function sendVerificationEmail(email: string, name: string, code: string): Promise<void> {
     const from = process.env.MAIL_FROM ?? 'Mycologs <noreply@mycologs.com>'
-    await resend.emails.send({
+    await getResend().emails.send({
         from,
         to: email,
         subject: '【Mycologs】メールアドレスの確認',
