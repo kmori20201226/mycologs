@@ -127,7 +127,7 @@ export default function RegisterPage() {
             </div>
           </div>
           <a
-            href="http://localhost:3000/auth/line/authorize"
+            href={`${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000'}/auth/line/authorize`}
             className="mt-4 flex items-center justify-center gap-2 w-full bg-[#06C755] hover:bg-[#05b34d] text-white py-2 rounded-lg font-semibold transition-colors"
           >
             <svg viewBox="0 0 24 24" className="w-5 h-5 fill-white" xmlns="http://www.w3.org/2000/svg">
