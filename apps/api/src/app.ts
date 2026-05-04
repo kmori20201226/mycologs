@@ -44,7 +44,8 @@ export async function buildApp() {
                 target: 'pino/file',
                 options: { destination: path.join(LOG_DIR, 'api.log') }
             }
-        }
+        },
+        bodyLimit: 52 * 1024 * 1024, // 52 MB to accommodate 50 MB file uploads
     })
 
     await app.register(cors, {
