@@ -58,7 +58,7 @@ function generateCode(): string {
 }
 
 async function sendVerificationEmail(email: string, name: string, code: string): Promise<void> {
-    const from = process.env.MAIL_FROM ?? 'Mycologs <noreply@mycologs.com>'
+    const from = process.env.MAIL_FROM ?? 'Mycologs <noreply@mycologs.club>'
     await getResend().emails.send({
         from,
         to: email,
