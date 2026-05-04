@@ -125,6 +125,7 @@ class ApiClient {
     }
 
     const response = await fetch(url, {
+      cache: 'no-store',
       headers: {
         ...(options.body ? { 'Content-Type': 'application/json' } : {}),
         ...authHeader,
