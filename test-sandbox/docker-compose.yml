@@ -76,6 +76,8 @@ services:
         NEXT_PUBLIC_STRIPE_PRICE_PERSONAL: ${NEXT_PUBLIC_STRIPE_PRICE_PERSONAL:-}
         NEXT_PUBLIC_STRIPE_PRICE_CLUB: ${NEXT_PUBLIC_STRIPE_PRICE_CLUB:-}
     container_name: mycologs-sandbox-web
+    environment:
+      INTERNAL_API_URL: http://api:3000
     ports:
       - "4001:3001"
     depends_on:
