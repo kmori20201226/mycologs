@@ -7,7 +7,7 @@ import { getStoredUser } from '@/lib/auth'
 type View = 'list' | 'new' | 'thread'
 
 export default function ContactSection() {
-  const user = getStoredUser()
+  const [user, setUser] = useState<ReturnType<typeof getStoredUser>>(null)
   const [view, setView] = useState<View>('list')
   const [threads, setThreads] = useState<AdminThread[]>([])
   const [selected, setSelected] = useState<AdminThread | null>(null)
@@ -18,9 +18,11 @@ export default function ContactSection() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!user) return
+    const u = getStoredUser()
+    setUser(u)
+    if (!u) return
     apiClient.getAdminThreads().then(setThreads).catch(() => {})
-  }, [user?.id])
+  }, [])
 
   if (!user) {
     return (
