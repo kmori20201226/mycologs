@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { apiClient, type UserRequestItem } from '@/lib/api'
 import { getStoredUser } from '@/lib/auth'
 import AdminThreadsPanel from './AdminThreadsPanel'
+import AnnouncementPanel from './AnnouncementPanel'
 
 interface RequestRow extends UserRequestItem {
   replyDraft: string
@@ -17,7 +18,7 @@ function StatusBadge({ accepted }: { accepted: boolean | null }) {
   return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-600">否認</span>
 }
 
-type Tab = 'requests' | 'threads'
+type Tab = 'requests' | 'threads' | 'announcement'
 
 export default function ClubRequestsPage() {
   const router = useRouter()
@@ -25,6 +26,8 @@ export default function ClubRequestsPage() {
   const [rows, setRows] = useState<RequestRow[]>([])
   const [loading, setLoading] = useState(true)
   const [showResolved, setShowResolved] = useState(false)
+  const [pendingCount, setPendingCount] = useState(0)
+  const [unreadCount, setUnreadCount] = useState(0)
 
   useEffect(() => {
     const user = getStoredUser()
@@ -34,9 +37,20 @@ export default function ClubRequestsPage() {
     if (!adminRoles.includes(user.role ?? '')) { router.replace('/'); return }
 
     apiClient.getUserRequests({ requestType: 'StartClub' })
-      .then((items) => setRows(items.map((r) => ({ ...r, replyDraft: '', resolving: false }))))
+      .then((items) => {
+        setRows(items.map((r) => ({ ...r, replyDraft: '', resolving: false })))
+        setPendingCount(items.filter((r) => r.accepted === null).length)
+      })
       .catch(() => {})
       .finally(() => setLoading(false))
+
+    apiClient.getAdminThreads().then((threads) => {
+      const ADMIN_ROLES = ['ADMIN', 'DEVELOPER', 'MODERATOR']
+      const total = threads.reduce((sum, t) =>
+        sum + t.messages.filter(m => m.readAt === null && !ADMIN_ROLES.includes(m.sender.role ?? '')).length
+      , 0)
+      setUnreadCount(total)
+    }).catch(() => {})
   }, [router])
 
   function updateRow(id: number, patch: Partial<RequestRow>) {
@@ -53,6 +67,7 @@ export default function ClubRequestsPage() {
         reply: row.replyDraft.trim() ? { message: row.replyDraft.trim() } : null,
       })
       updateRow(row.id, { ...updated, replyDraft: '', resolving: false })
+      setPendingCount((n) => Math.max(0, n - 1))
       window.dispatchEvent(new CustomEvent('pendingRequestResolved'))
     } catch {
       updateRow(row.id, { resolving: false })
@@ -69,6 +84,7 @@ export default function ClubRequestsPage() {
         reply: row.replyDraft.trim() ? { message: row.replyDraft.trim() } : null,
       })
       updateRow(row.id, { ...updated, replyDraft: '', resolving: false })
+      setPendingCount((n) => Math.max(0, n - 1))
       window.dispatchEvent(new CustomEvent('pendingRequestResolved'))
     } catch {
       updateRow(row.id, { resolving: false })
@@ -87,22 +103,34 @@ export default function ClubRequestsPage() {
         </div>
 
         <div className="flex gap-1 mb-6 border-b border-gray-200">
-          {([['requests', 'クラブ申請'], ['threads', 'お問い合わせ']] as [Tab, string][]).map(([key, label]) => (
+          {([['requests', 'クラブ申請', pendingCount], ['threads', 'お問い合わせ', unreadCount], ['announcement', 'お知らせ', 0]] as [Tab, string, number][]).map(([key, label, badge]) => (
             <button
               key={key}
               onClick={() => setTab(key)}
-              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
                 tab === key
                   ? 'border-emerald-600 text-emerald-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700'
               }`}
             >
               {label}
+              {badge > 0 && (
+                <span className="inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] rounded-full bg-red-500 text-white text-[10px] font-bold px-1">
+                  {badge > 99 ? '99+' : badge}
+                </span>
+              )}
             </button>
           ))}
         </div>
 
-        {tab === 'threads' && <AdminThreadsPanel />}
+        {tab === 'threads' && (
+          <AdminThreadsPanel
+            onRead={(delta) => setUnreadCount((n) => Math.max(0, n - delta))}
+            onUnreadCountChange={setUnreadCount}
+          />
+        )}
+
+        {tab === 'announcement' && <AnnouncementPanel />}
 
         {tab === 'requests' && loading ? (
           <div className="space-y-3">

@@ -4,7 +4,12 @@ import { useEffect, useState } from 'react'
 import { apiClient, AdminThread } from '@/lib/api'
 import { getStoredUser } from '@/lib/auth'
 
-export default function AdminThreadsPanel() {
+const ADMIN_ROLES = ['ADMIN', 'DEVELOPER', 'MODERATOR']
+
+export default function AdminThreadsPanel({ onRead, onUnreadCountChange }: {
+  onRead?: (delta: number) => void
+  onUnreadCountChange?: (count: number) => void
+}) {
   const [threads, setThreads] = useState<AdminThread[]>([])
   const [selected, setSelected] = useState<AdminThread | null>(null)
   const [loading, setLoading] = useState(true)
@@ -14,18 +19,28 @@ export default function AdminThreadsPanel() {
 
   useEffect(() => {
     apiClient.getAdminThreads()
-      .then(setThreads)
+      .then((data) => {
+        setThreads(data)
+        const total = data.reduce((sum, t) =>
+          sum + t.messages.filter(m => m.readAt === null && !ADMIN_ROLES.includes(m.sender.role ?? '')).length
+        , 0)
+        onUnreadCountChange?.(total)
+      })
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [])
 
   async function openThread(thread: AdminThread) {
+    const unreadBefore = thread.messages.filter(m =>
+      m.readAt === null && !ADMIN_ROLES.includes(m.sender.role ?? '')
+    ).length
     try {
       const full = await apiClient.getAdminThread(thread.id)
       setSelected(full)
       setThreads(prev => prev.map(t => t.id === full.id ? full : t))
       setReplyBody('')
       setError(null)
+      if (unreadBefore > 0) onRead?.(unreadBefore)
     } catch {
       setError('スレッドの取得に失敗しました。')
     }
@@ -159,8 +174,7 @@ export default function AdminThreadsPanel() {
           <ul className="space-y-3">
             {threads.map(t => {
               const unread = t.messages.filter(m =>
-                m.readAt === null &&
-                (m.sender.role !== 'ADMIN' && m.sender.role !== 'DEVELOPER' && m.sender.role !== 'MODERATOR')
+                m.readAt === null && !ADMIN_ROLES.includes(m.sender.role ?? '')
               ).length
               return (
                 <li key={t.id}>

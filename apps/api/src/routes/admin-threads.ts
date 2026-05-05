@@ -141,6 +141,26 @@ export default async function (fastify: FastifyInstance) {
         return reply.code(201).send(updated)
     })
 
+    // GET unread count (admin only) — messages from non-admins that have not been read
+    fastify.get('/admin-threads/unread-count', {
+        preHandler: [fastify.authenticate]
+    }, async (request, reply) => {
+        const { id: userId } = request.user as { id: number }
+        if (!await isAdmin(fastify, userId)) {
+            return reply.code(403).send({ error: 'Forbidden' })
+        }
+
+        // Regular users have role: null; admin-level users have ADMIN/DEVELOPER/MODERATOR
+        const count = await fastify.prisma.adminMessage.count({
+            where: {
+                readAt: null,
+                sender: { role: null }
+            }
+        })
+
+        return { count }
+    })
+
     // PATCH status (admin only)
     fastify.patch<{ Params: { id: string } }>('/admin-threads/:id/status', {
         schema: {

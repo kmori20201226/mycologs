@@ -591,6 +591,41 @@ class ApiClient {
   async openAdminThread(id: number): Promise<AdminThread> {
     return this.request(`/admin-threads/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status: 'OPEN' }) })
   }
+
+  async getAdminUnreadCount(): Promise<number> {
+    const res = await this.request<{ count: number }>('/admin-threads/unread-count')
+    return res.count
+  }
+
+  async getAnnouncements(params?: { site?: boolean; clubId?: number }): Promise<Announcement[]> {
+    const q = new URLSearchParams()
+    if (params?.site)             q.set('site', 'true')
+    if (params?.clubId != null)   q.set('clubId', String(params.clubId))
+    const qs = q.toString() ? `?${q}` : ''
+    return this.request(`/announcements${qs}`)
+  }
+
+  async createAnnouncement(data: { body: string; clubId?: number | null }): Promise<Announcement> {
+    return this.request('/announcements', { method: 'POST', body: JSON.stringify(data) })
+  }
+
+  async updateAnnouncement(id: number, data: { body?: string; active?: boolean }): Promise<Announcement> {
+    return this.request(`/announcements/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
+  }
+
+  async deleteAnnouncement(id: number): Promise<void> {
+    await this.request(`/announcements/${id}`, { method: 'DELETE' })
+  }
+}
+
+export interface Announcement {
+  id: number
+  body: string
+  authorId: number
+  clubId: number | null
+  active: boolean
+  createdAt: string
+  updatedAt: string
 }
 
 export interface AdminMessage {

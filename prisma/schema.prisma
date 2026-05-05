@@ -36,6 +36,7 @@ model Club {
   userRequests  UserRequest[]
   subscriptions Subscription[]
   payments      Payment[]
+  announcements Announcement[]
 
   @@map("clubs")
 }
@@ -118,6 +119,7 @@ model User {
   emailVerificationCodes  EmailVerificationCode[]
   adminThreads            AdminThread[]
   adminMessages           AdminMessage[]          @relation("AdminMessageSender")
+  announcements           Announcement[]          @relation("AnnouncementAuthor")
 
   @@map("users")
 }
@@ -523,4 +525,19 @@ model EmailVerificationCode {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("email_verification_codes")
+}
+
+model Announcement {
+  id        Int      @id @default(autoincrement())
+  body      String
+  authorId  Int      @map("author_id")
+  clubId    Int?     @map("club_id")
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  author    User  @relation("AnnouncementAuthor", fields: [authorId], references: [id])
+  club      Club? @relation(fields: [clubId], references: [id], onDelete: Cascade)
+
+  @@map("announcements")
 }

@@ -33,6 +33,7 @@ export default function Navigation() {
   const [selectedClubId, _setSelectedClubId] = useState<number | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const [pendingRequestCount, setPendingRequestCount] = useState(0)
+  const [unreadThreadCount, setUnreadThreadCount] = useState(0)
 
   useEffect(() => {
     const u = getStoredUser()
@@ -102,6 +103,7 @@ export default function Navigation() {
           .then((items) => items.length)
           .catch(() => 0)
       )
+      apiClient.getAdminUnreadCount().then(setUnreadThreadCount).catch(() => {})
     }
 
     if (fetches.length === 0) { setPendingRequestCount(0); return }
@@ -135,14 +137,17 @@ export default function Navigation() {
               <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
               </svg>
-              {pendingRequestCount > 0 && (
-                clubs.some((c) => c.role === 'CLUBMANAGER') ||
-                ['ADMIN', 'DEVELOPER', 'MODERATOR'].includes(user?.role ?? '')
-              ) && (
-                <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
-                  {pendingRequestCount > 9 ? '9+' : pendingRequestCount}
-                </span>
-              )}
+              {(() => {
+                const total = pendingRequestCount + unreadThreadCount
+                return total > 0 && (
+                  clubs.some((c) => c.role === 'CLUBMANAGER') ||
+                  ['ADMIN', 'DEVELOPER', 'MODERATOR'].includes(user?.role ?? '')
+                ) ? (
+                  <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                    {total > 9 ? '9+' : total}
+                  </span>
+                ) : null
+              })()}
             </button>
 
             <Link href="/" className="text-2xl font-bold text-emerald-600">
@@ -233,7 +238,12 @@ export default function Navigation() {
                     className="flex items-center justify-between pl-7 pr-4 py-2 text-gray-700 hover:bg-emerald-50 hover:text-emerald-600 transition-colors"
                   >
                     {child.label}
-                    {(child.href === '/admin/requests' || child.href === '/club-manage') && pendingRequestCount > 0 && (
+                    {child.href === '/admin/requests' && (pendingRequestCount + unreadThreadCount) > 0 && (
+                      <span className="ml-2 inline-flex items-center justify-center w-5 h-5 rounded-full bg-red-500 text-white text-xs font-bold">
+                        {(pendingRequestCount + unreadThreadCount) > 99 ? '99+' : (pendingRequestCount + unreadThreadCount)}
+                      </span>
+                    )}
+                    {child.href === '/club-manage' && pendingRequestCount > 0 && (
                       <span className="ml-2 inline-flex items-center justify-center w-5 h-5 rounded-full bg-red-500 text-white text-xs font-bold">
                         {pendingRequestCount > 99 ? '99+' : pendingRequestCount}
                       </span>

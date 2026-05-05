@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { apiClient, type Event, type UserRequestItem } from '@/lib/api'
+import { apiClient, type Announcement, type Event, type UserRequestItem } from '@/lib/api'
 import { getStoredUser, getSelectedClubId, getStoredClubs } from '@/lib/auth'
 
 interface RequestRow extends UserRequestItem {
@@ -60,6 +60,10 @@ export default function ClubManagePage() {
   const [requestsLoading, setRequestsLoading] = useState(false)
   const [showResolvedRequests, setShowResolvedRequests] = useState(false)
 
+  const [announcement, setAnnouncement] = useState<Announcement | null>(null)
+  const [annBody, setAnnBody] = useState('')
+  const [annSaving, setAnnSaving] = useState(false)
+
   const [toast, setToast] = useState('')
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -108,6 +112,45 @@ export default function ClubManagePage() {
       setRequestRows(data.map((r) => ({ ...r, replyDraft: '', resolving: false })))
     } finally {
       setRequestsLoading(false)
+    }
+  }
+
+  async function loadAnnouncement(id: number) {
+    const list = await apiClient.getAnnouncements({ clubId: id }).catch(() => [])
+    const ann = list[0] ?? null
+    setAnnouncement(ann)
+    setAnnBody(ann?.body ?? '')
+  }
+
+  async function handleAnnSave(e: React.FormEvent) {
+    e.preventDefault()
+    if (!club || !annBody.trim()) return
+    setAnnSaving(true)
+    try {
+      if (announcement) {
+        const updated = await apiClient.updateAnnouncement(announcement.id, { body: annBody.trim(), active: true })
+        setAnnouncement(updated)
+      } else {
+        const created = await apiClient.createAnnouncement({ body: annBody.trim(), clubId: club.id })
+        setAnnouncement(created)
+      }
+      showToast('お知らせを公開しました')
+    } catch {
+      showToast('保存に失敗しました')
+    } finally {
+      setAnnSaving(false)
+    }
+  }
+
+  async function handleAnnDelete() {
+    if (!announcement) return
+    try {
+      await apiClient.deleteAnnouncement(announcement.id)
+      setAnnouncement(null)
+      setAnnBody('')
+      showToast('お知らせを削除しました')
+    } catch {
+      showToast('削除に失敗しました')
     }
   }
 
@@ -164,7 +207,7 @@ export default function ClubManagePage() {
     if (!user) { router.replace('/login'); return }
 
     const id = getSelectedClubId()
-    if (id) { loadClub(id); loadEvents(id); loadMembers(id); loadRequests(id) }
+    if (id) { loadClub(id); loadEvents(id); loadMembers(id); loadRequests(id); loadAnnouncement(id) }
 
     function onClubChanged(e: globalThis.Event) {
       const { clubId: newId } = (e as CustomEvent).detail
@@ -172,6 +215,7 @@ export default function ClubManagePage() {
       loadEvents(newId)
       loadMembers(newId)
       loadRequests(newId)
+      loadAnnouncement(newId)
     }
     window.addEventListener('clubChanged', onClubChanged)
     return () => window.removeEventListener('clubChanged', onClubChanged)
@@ -281,6 +325,47 @@ export default function ClubManagePage() {
           <h1 className="text-2xl font-bold text-gray-900">{club.name}</h1>
           <p className="text-sm text-gray-400 mt-0.5">クラブ管理</p>
         </div>
+
+        {/* ── Announcement ──────────────────────────────────────── */}
+        <section className="bg-white rounded-xl shadow p-6">
+          <h2 className="font-semibold text-gray-800 mb-1">お知らせ</h2>
+          <p className="text-xs text-gray-400 mb-4">ホーム画面にクラブメンバー向けのお知らせを表示します。</p>
+
+          {announcement && (
+            <div className="mb-4 bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3 text-sm text-emerald-900 whitespace-pre-wrap">
+              {announcement.body}
+            </div>
+          )}
+
+          <form onSubmit={handleAnnSave} className="space-y-3">
+            <textarea
+              value={annBody}
+              onChange={(e) => setAnnBody(e.target.value)}
+              rows={3}
+              placeholder="お知らせの内容を入力…"
+              className="w-full border rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-emerald-400"
+              required
+            />
+            <div className="flex items-center gap-2">
+              <button
+                type="submit"
+                disabled={annSaving || !annBody.trim()}
+                className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
+              >
+                {annSaving ? '保存中…' : announcement ? '更新・公開' : '公開する'}
+              </button>
+              {announcement && (
+                <button
+                  type="button"
+                  onClick={handleAnnDelete}
+                  className="bg-white border border-red-400 hover:bg-red-50 text-red-500 px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
+                >
+                  削除
+                </button>
+              )}
+            </div>
+          </form>
+        </section>
 
         {/* ── Club info ─────────────────────────────────────────── */}
         <section className="bg-white rounded-xl shadow p-6">
