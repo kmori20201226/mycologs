@@ -187,7 +187,11 @@ export default async function (fastify: FastifyInstance) {
             if (user.stripeCustomerId) {
                 stripeCustomerId = user.stripeCustomerId
             } else {
-                const customer = await getStripe().customers.create({ email: user.email, name: user.name })
+                const isRealEmail = user.email.includes('@') && !user.email.endsWith('@localhost')
+                const customer = await getStripe().customers.create({
+                    name: user.name,
+                    ...(isRealEmail ? { email: user.email } : {})
+                })
                 stripeCustomerId = customer.id
                 await fastify.prisma.user.update({
                     where: { id: user.id },
