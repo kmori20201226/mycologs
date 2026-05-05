@@ -9,7 +9,7 @@ export async function hasActiveAccess(
     const now = new Date()
     const sub = await prisma.subscription.findFirst({
         where: {
-            ...(opts.userId != null ? { userId: opts.userId } : { clubId: opts.clubId }),
+            ...(opts.userId != null ? { userId: opts.userId } : { clubId: opts.clubId ?? null }),
             status: { in: ['active', 'trialing'] },
             accessUntil: { gte: now },
         },
