@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+import ContactSection from './ContactSection'
 
 function readVersion(): string {
   try {
@@ -29,6 +30,8 @@ export default function AboutPage() {
               <span className="font-mono font-medium text-gray-800">{version}</span>
             </div>
           </div>
+
+          <ContactSection />
 
         </div>
       </div>

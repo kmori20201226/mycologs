@@ -566,6 +566,52 @@ class ApiClient {
   async getActiveSubscription(userId: number): Promise<{ active: boolean }> {
     return this.request(`/users/${userId}/subscription/active`)
   }
+
+  // Admin threads
+  async getAdminThreads(): Promise<AdminThread[]> {
+    return this.request('/admin-threads')
+  }
+
+  async getAdminThread(id: number): Promise<AdminThread> {
+    return this.request(`/admin-threads/${id}`)
+  }
+
+  async createAdminThread(data: { subject: string; body: string }): Promise<AdminThread> {
+    return this.request('/admin-threads', { method: 'POST', body: JSON.stringify(data) })
+  }
+
+  async replyAdminThread(id: number, body: string): Promise<AdminThread> {
+    return this.request(`/admin-threads/${id}/messages`, { method: 'POST', body: JSON.stringify({ body }) })
+  }
+
+  async closeAdminThread(id: number): Promise<AdminThread> {
+    return this.request(`/admin-threads/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status: 'CLOSED' }) })
+  }
+
+  async openAdminThread(id: number): Promise<AdminThread> {
+    return this.request(`/admin-threads/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status: 'OPEN' }) })
+  }
+}
+
+export interface AdminMessage {
+  id: number
+  threadId: number
+  senderId: number
+  body: string
+  readAt: string | null
+  createdAt: string
+  sender: { id: number; name: string; role: string | null }
+}
+
+export interface AdminThread {
+  id: number
+  userId: number
+  subject: string
+  status: 'OPEN' | 'CLOSED'
+  createdAt: string
+  updatedAt: string
+  user: { id: number; name: string }
+  messages: AdminMessage[]
 }
 
 export const apiClient = new ApiClient();

@@ -31,6 +31,7 @@ import userRequestRoutes from './routes/user-requests'
 import subscriptionRoutes from './routes/subscriptions'
 import paymentRoutes from './routes/payments'
 import stripeWebhookRoutes from './routes/webhook-stripe'
+import adminThreadRoutes from './routes/admin-threads'
 
 const UPLOADS_DIR = path.resolve(__dirname, '../../../data/uploads')
 
@@ -84,6 +85,7 @@ export async function buildApp() {
     await app.register(userRequestRoutes)
     await app.register(subscriptionRoutes)
     await app.register(paymentRoutes)
+    await app.register(adminThreadRoutes)
 
     return app
 }
