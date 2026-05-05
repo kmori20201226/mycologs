@@ -88,7 +88,7 @@ export const menuEntries: MenuEntry[] = [
       },
       {
         type: 'item',
-        label: 'クラブ申請処理',
+        label: 'サイト管理',
         href: '/admin/requests',
         visibleTo: ['ADMIN', 'DEVELOPER'],
       },

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { apiClient, type UserRequestItem } from '@/lib/api'
 import { getStoredUser } from '@/lib/auth'
+import AdminThreadsPanel from './AdminThreadsPanel'
 
 interface RequestRow extends UserRequestItem {
   replyDraft: string
@@ -16,8 +17,11 @@ function StatusBadge({ accepted }: { accepted: boolean | null }) {
   return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-600">否認</span>
 }
 
+type Tab = 'requests' | 'threads'
+
 export default function ClubRequestsPage() {
   const router = useRouter()
+  const [tab, setTab] = useState<Tab>('requests')
   const [rows, setRows] = useState<RequestRow[]>([])
   const [loading, setLoading] = useState(true)
   const [showResolved, setShowResolved] = useState(false)
@@ -79,11 +83,28 @@ export default function ClubRequestsPage() {
       <div className="container mx-auto px-4 py-8 max-w-3xl">
 
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">クラブ申請処理</h1>
-          <p className="text-sm text-gray-500 mt-1">クラブ立ち上げ申請の承認・却下</p>
+          <h1 className="text-2xl font-bold text-gray-900">サイト管理</h1>
         </div>
 
-        {loading ? (
+        <div className="flex gap-1 mb-6 border-b border-gray-200">
+          {([['requests', 'クラブ申請'], ['threads', 'お問い合わせ']] as [Tab, string][]).map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => setTab(key)}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                tab === key
+                  ? 'border-emerald-600 text-emerald-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {tab === 'threads' && <AdminThreadsPanel />}
+
+        {tab === 'requests' && loading ? (
           <div className="space-y-3">
             {[1, 2].map((i) => (
               <div key={i} className="bg-white rounded-xl shadow p-5 animate-pulse">
@@ -92,7 +113,7 @@ export default function ClubRequestsPage() {
               </div>
             ))}
           </div>
-        ) : (
+        ) : tab === 'requests' && (
           <>
             {pending.length === 0 && (
               <p className="text-sm text-gray-400 mb-8">保留中の申請はありません。</p>
