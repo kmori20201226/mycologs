@@ -7,27 +7,28 @@ cd "$SCRIPT_DIR"
 COMPOSE="docker compose"
 
 usage() {
-  echo "Usage: $0 {start|stop|restart|status|logs|seed-taxonomy|seed-admin|make-test-user|build|psql}"
+  echo "Usage: $0 {start|stop|restart|status|logs|migrate|seed-taxonomy|seed-admin|make-test-user|build|psql}"
   echo ""
-  echo "  start          Build (if needed) and start all containers"
+  echo "  start          Start all containers and apply any pending migrations"
   echo "  stop           Stop all containers"
   echo "  restart        Stop then start"
   echo "  status         Show container status"
   echo "  logs           Tail logs (all services, or pass a service name)"
+  echo "  migrate        Apply pending Prisma migrations inside the running api container"
+  echo "  build          Rebuild all images and apply migrations (use after schema changes)"
   echo "  seed-taxonomy  Run the taxonomy seed inside the api container"
   echo "  seed-admin     Create the admin@localhost user inside the api container"
   echo "  make-test-user Create clubs and users from testdata.csv"
-  echo "  build          Force-rebuild all images"
   echo "  psql           Open a psql session in the postgres container"
   exit 1
 }
 
 cmd_start() {
-  # PostgreSQL 18 requires the mount at /var/lib/postgresql (not /data).
-  # Pre-create the directory so Docker doesn't create it as root.
   mkdir -p pgdata uploads
   echo "Starting sandbox..."
   $COMPOSE up -d
+  echo "Waiting for api to be ready..."
+  $COMPOSE exec api sh -c 'until npx prisma migrate deploy 2>/dev/null; do sleep 2; done'
   echo ""
   $COMPOSE ps
   echo ""
@@ -73,9 +74,17 @@ cmd_make_test_user() {
   $COMPOSE exec api npx ts-node scripts/make-test-user.ts
 }
 
+cmd_migrate() {
+  echo "Running Prisma migrations..."
+  $COMPOSE exec api npx prisma migrate deploy
+}
+
 cmd_build() {
   echo "Building all images..."
   $COMPOSE build
+  echo "Restarting api and running migrations..."
+  $COMPOSE up -d api
+  $COMPOSE exec api npx prisma migrate deploy
 }
 
 cmd_psql() {
@@ -88,6 +97,7 @@ case "${1:-}" in
   restart)      cmd_restart ;;
   status)       cmd_status ;;
   logs)         cmd_logs "$@" ;;
+  migrate)          cmd_migrate ;;
   seed-taxonomy) cmd_seed ;;
   seed-admin)      cmd_seed_admin ;;
   make-test-user)  cmd_make_test_user ;;

@@ -17,5 +17,4 @@ RUN npx prisma generate
 
 EXPOSE 3000
 
-# Run migrations then start server
-CMD ["sh", "-c", "npx prisma migrate deploy && npx ts-node apps/api/src/server.ts"]
+CMD ["npx", "ts-node", "apps/api/src/server.ts"]
