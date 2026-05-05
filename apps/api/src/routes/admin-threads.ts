@@ -9,6 +9,16 @@ const includeThread = {
     }
 }
 
+const ADMIN_ROLES = ['ADMIN', 'DEVELOPER', 'MODERATOR']
+
+async function isAdmin(fastify: FastifyInstance, userId: number): Promise<boolean> {
+    const user = await fastify.prisma.user.findUnique({
+        where: { id: userId },
+        select: { role: true }
+    })
+    return ADMIN_ROLES.includes(user?.role ?? '')
+}
+
 export default async function (fastify: FastifyInstance) {
 
     // CREATE thread with first message
@@ -52,11 +62,11 @@ export default async function (fastify: FastifyInstance) {
         },
         preHandler: [fastify.authenticate]
     }, async (request, reply) => {
-        const { id: userId, role } = request.user as { id: number; role?: string }
-        const isAdmin = role === 'ADMIN' || role === 'DEVELOPER' || role === 'MODERATOR'
+        const { id: userId } = request.user as { id: number }
+        const admin = await isAdmin(fastify, userId)
 
         const threads = await fastify.prisma.adminThread.findMany({
-            where: isAdmin ? {} : { userId },
+            where: admin ? {} : { userId },
             include: includeThread,
             orderBy: { updatedAt: 'desc' }
         })
@@ -72,8 +82,8 @@ export default async function (fastify: FastifyInstance) {
         preHandler: [fastify.authenticate]
     }, async (request, reply) => {
         const threadId = Number(request.params.id)
-        const { id: userId, role } = request.user as { id: number; role?: string }
-        const isAdmin = role === 'ADMIN' || role === 'DEVELOPER' || role === 'MODERATOR'
+        const { id: userId } = request.user as { id: number }
+        const admin = await isAdmin(fastify, userId)
 
         const thread = await fastify.prisma.adminThread.findUnique({
             where: { id: threadId },
@@ -81,9 +91,8 @@ export default async function (fastify: FastifyInstance) {
         })
 
         if (!thread) return reply.code(404).send({ error: 'Thread not found' })
-        if (!isAdmin && thread.userId !== userId) return reply.code(403).send({ error: 'Forbidden' })
+        if (!admin && thread.userId !== userId) return reply.code(403).send({ error: 'Forbidden' })
 
-        // Mark unread messages as read
         await fastify.prisma.adminMessage.updateMany({
             where: { threadId, senderId: { not: userId }, readAt: null },
             data:  { readAt: new Date() }
@@ -105,13 +114,13 @@ export default async function (fastify: FastifyInstance) {
         preHandler: [fastify.authenticate]
     }, async (request, reply) => {
         const threadId = Number(request.params.id)
-        const { id: userId, role } = request.user as { id: number; role?: string }
-        const isAdmin = role === 'ADMIN' || role === 'DEVELOPER' || role === 'MODERATOR'
+        const { id: userId } = request.user as { id: number }
+        const admin = await isAdmin(fastify, userId)
         const { body } = request.body as { body: string }
 
         const thread = await fastify.prisma.adminThread.findUnique({ where: { id: threadId } })
         if (!thread) return reply.code(404).send({ error: 'Thread not found' })
-        if (!isAdmin && thread.userId !== userId) return reply.code(403).send({ error: 'Forbidden' })
+        if (!admin && thread.userId !== userId) return reply.code(403).send({ error: 'Forbidden' })
         if (thread.status === 'CLOSED') return reply.code(409).send({ error: 'Thread is closed' })
 
         await fastify.prisma.$transaction([
@@ -145,9 +154,8 @@ export default async function (fastify: FastifyInstance) {
         preHandler: [fastify.authenticate]
     }, async (request, reply) => {
         const threadId = Number(request.params.id)
-        const { role } = request.user as { role?: string }
-        const isAdmin = role === 'ADMIN' || role === 'DEVELOPER' || role === 'MODERATOR'
-        if (!isAdmin) return reply.code(403).send({ error: 'Forbidden' })
+        const { id: userId } = request.user as { id: number }
+        if (!await isAdmin(fastify, userId)) return reply.code(403).send({ error: 'Forbidden' })
 
         const { status } = request.body as { status: 'OPEN' | 'CLOSED' }
         const thread = await fastify.prisma.adminThread.update({
