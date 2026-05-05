@@ -116,6 +116,8 @@ model User {
   subscriptions           Subscription[]
   payments                Payment[]
   emailVerificationCodes  EmailVerificationCode[]
+  adminThreads            AdminThread[]
+  adminMessages           AdminMessage[]          @relation("AdminMessageSender")
 
   @@map("users")
 }
@@ -475,6 +477,39 @@ model Media {
   deletedAt     DateTime? @map("deleted_at") // Soft delete
   
   @@map("media")
+}
+
+enum AdminThreadStatus {
+  OPEN
+  CLOSED
+}
+
+model AdminThread {
+  id          Int               @id @default(autoincrement())
+  userId      Int               @map("user_id")
+  subject     String
+  status      AdminThreadStatus @default(OPEN)
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
+
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages    AdminMessage[]
+
+  @@map("admin_threads")
+}
+
+model AdminMessage {
+  id          Int          @id @default(autoincrement())
+  threadId    Int          @map("thread_id")
+  senderId    Int          @map("sender_id")
+  body        String
+  readAt      DateTime?    @map("read_at")
+  createdAt   DateTime     @default(now()) @map("created_at")
+
+  thread      AdminThread  @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  sender      User         @relation("AdminMessageSender", fields: [senderId], references: [id])
+
+  @@map("admin_messages")
 }
 
 model EmailVerificationCode {
