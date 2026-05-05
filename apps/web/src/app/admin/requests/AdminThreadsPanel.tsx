@@ -57,6 +57,7 @@ export default function AdminThreadsPanel() {
         : await apiClient.openAdminThread(selected.id)
       setSelected(updated)
       setThreads(prev => prev.map(t => t.id === updated.id ? updated : t))
+      setError(null)
     } catch {
       setError('ステータスの変更に失敗しました。')
     } finally {
