@@ -221,20 +221,34 @@ export default async function (fastify: FastifyInstance) {
             return reply.code(400).send({ message: 'userId or clubId required' })
         }
 
+        if (!planId.startsWith('price_')) {
+            return reply.code(400).send({ message: 'このプランはまだStripe価格IDが設定されていません。管理者にお問い合わせください。' })
+        }
+
         const ownerMeta = clubId
             ? { clubId: String(clubId), userId: '' }
             : { clubId: '', userId: String(userId) }
 
-        const session = await getStripe().checkout.sessions.create({
-            customer: stripeCustomerId,
-            mode: 'subscription',
-            line_items: [{ price: planId, quantity: 1 }],
-            subscription_data: { metadata: ownerMeta },
-            success_url: `${FRONTEND_URL}/subscription/success?session_id={CHECKOUT_SESSION_ID}`,
-            cancel_url:  `${FRONTEND_URL}/subscription/cancel`,
-        })
+        let sessionUrl: string
+        try {
+            const session = await getStripe().checkout.sessions.create({
+                customer: stripeCustomerId,
+                mode: 'subscription',
+                line_items: [{ price: planId, quantity: 1 }],
+                subscription_data: { metadata: ownerMeta },
+                success_url: `${FRONTEND_URL}/subscription/success?session_id={CHECKOUT_SESSION_ID}`,
+                cancel_url:  `${FRONTEND_URL}/subscription/cancel`,
+            })
+            if (!session.url) {
+                return reply.code(400).send({ message: 'Stripeから決済URLが返されませんでした' })
+            }
+            sessionUrl = session.url
+        } catch (err: any) {
+            const msg = err?.message ?? 'Stripeエラーが発生しました'
+            return reply.code(400).send({ message: msg })
+        }
 
-        return { url: session.url }
+        return { url: sessionUrl }
     })
 
     // OPEN BILLING PORTAL

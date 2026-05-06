@@ -13,6 +13,7 @@ Usage (after pip install):
 import argparse
 import os
 import signal
+import socket
 import subprocess
 import sys
 import time
@@ -55,6 +56,16 @@ def _is_running(pid: int) -> bool:
         os.kill(pid, 0)   # signal 0 = existence check, no actual signal sent
         return True
     except (ProcessLookupError, PermissionError):
+        return False
+
+
+def _port_open(host: str, port: int, timeout: float = 1.0) -> bool:
+    """Return True if something is accepting TCP connections on host:port."""
+    check_host = "127.0.0.1" if host == "0.0.0.0" else host
+    try:
+        with socket.create_connection((check_host, port), timeout=timeout):
+            return True
+    except OSError:
         return False
 
 
@@ -109,8 +120,16 @@ def _start_as_daemon(args) -> None:
     """
     existing = _read_pid(str(args.pid_file))
     if existing and _is_running(existing):
-        print(f"Daemon is already running (PID {existing}).")
-        sys.exit(1)
+        if _port_open(args.host, args.port):
+            print(f"Daemon is already running (PID {existing}).")
+            sys.exit(1)
+        # PID alive but port dead — stale/shutting-down process; kill and restart.
+        print(f"Daemon PID {existing} alive but not serving port {args.port} — restarting.")
+        os.kill(existing, signal.SIGKILL)
+        for _ in range(20):
+            time.sleep(0.5)
+            if not _is_running(existing):
+                break
 
     Path(args.log_file).parent.mkdir(parents=True, exist_ok=True)
     Path(args.pid_file).parent.mkdir(parents=True, exist_ok=True)
@@ -129,6 +148,21 @@ def _start_as_daemon(args) -> None:
         )
 
     _write_pid(str(args.pid_file), proc.pid)
+
+    # Wait for the child to bind the port before returning so callers know
+    # the service is ready as soon as this command exits.
+    for _ in range(30):
+        time.sleep(1)
+        if not _is_running(proc.pid):
+            print(f"Daemon process {proc.pid} exited unexpectedly — check log: {args.log_file}")
+            _remove_pid(str(args.pid_file))
+            sys.exit(1)
+        if _port_open(args.host, args.port):
+            break
+    else:
+        print(f"Daemon PID {proc.pid} did not open port {args.port} within 30 s — check log: {args.log_file}")
+        sys.exit(1)
+
     print(f"Daemon started — PID {proc.pid}, log: {args.log_file}")
     sys.exit(0)
 

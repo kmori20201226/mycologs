@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { apiClient, type Plan } from '@/lib/api'
 
-type EditRow = Plan & { dirty: boolean; saving: boolean; originalId: string }
+type SyncStatus = 'ok' | 'error' | null
+type EditRow = Plan & { dirty: boolean; saving: boolean; originalId: string; syncStatus: SyncStatus; syncError: string }
 
 export default function PlanPanel() {
   const [plans, setPlans] = useState<EditRow[]>([])
@@ -22,7 +23,7 @@ export default function PlanPanel() {
 
   useEffect(() => {
     apiClient.getPlans()
-      .then((data) => setPlans(data.map((p) => ({ ...p, dirty: false, saving: false, originalId: p.id }))))
+      .then((data) => setPlans(data.map((p) => ({ ...p, dirty: false, saving: false, originalId: p.id, syncStatus: null, syncError: '' }))))
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [])
@@ -42,7 +43,7 @@ export default function PlanPanel() {
       setPlans((prev) => {
         const rows: EditRow[] = prev.map((p) => {
           if (p.originalId !== plan.originalId) return p
-          return { ...updated, dirty: false, saving: false, originalId: updated.id }
+          return { ...p, ...updated, dirty: false, saving: false, originalId: updated.id }
         }) as EditRow[]
         return rows
       })
@@ -69,7 +70,7 @@ export default function PlanPanel() {
     setCreating(true)
     try {
       const created = await apiClient.createPlan(newPlan)
-      setPlans((prev) => [...prev, { ...created, dirty: false, saving: false, originalId: created.id }])
+      setPlans((prev) => [...prev, { ...created, dirty: false, saving: false, originalId: created.id, syncStatus: null, syncError: '' }])
       setNewPlan({ id: '', name: '', maxMembers: 30, priceYen: 0, creditsPerPeriod: 0, active: true, sortOrder: 0 })
       flash('作成しました')
     } catch {
@@ -80,26 +81,27 @@ export default function PlanPanel() {
   }
 
   async function handleSyncAll() {
-    const targets = plans.filter((p) => p.id.startsWith('price_'))
-    if (targets.length === 0) { flash('同期対象のプランがありません（IDが price_ で始まるもの）'); return }
     setSyncing(true)
+    setPlans((prev) => prev.map((p) => ({ ...p, syncStatus: null, syncError: '' })))
     let ok = 0
     try {
-      await Promise.all(targets.map(async (plan) => {
+      await Promise.all(plans.map(async (plan) => {
         try {
           const { name, priceYen } = await apiClient.syncPlanFromStripe(plan.id)
           const updated = await apiClient.updatePlan(plan.originalId, { name, priceYen })
-          setPlans((prev) => {
-            const rows: EditRow[] = prev.map((p) => {
-              if (p.originalId !== plan.originalId) return p
-              return { ...updated, dirty: false, saving: false, originalId: updated.id }
-            }) as EditRow[]
-            return rows
-          })
+          setPlans((prev) => prev.map((p) => {
+            if (p.originalId !== plan.originalId) return p
+            return { ...p, ...updated, dirty: false, saving: false, originalId: updated.id, syncStatus: 'ok', syncError: '' }
+          }))
           ok++
-        } catch { /* skip failed rows */ }
+        } catch (err: any) {
+          const msg = err?.apiMessage ?? err?.message ?? 'エラー'
+          setPlans((prev) => prev.map((p) =>
+            p.originalId === plan.originalId ? { ...p, syncStatus: 'error', syncError: msg } : p
+          ))
+        }
       }))
-      flash(`Stripe同期完了（${ok}/${targets.length} 件）`)
+      flash(`Stripe同期完了（${ok}/${plans.length} 件成功）`)
     } finally {
       setSyncing(false)
     }
@@ -139,14 +141,23 @@ export default function PlanPanel() {
           </thead>
           <tbody className="divide-y">
             {plans.map((p) => (
-              <tr key={p.originalId} className={p.dirty ? 'bg-yellow-50' : ''}>
+              <React.Fragment key={p.originalId}>
+              <tr className={p.dirty ? 'bg-yellow-50' : ''}>
                 <td className="px-4 py-2">
-                  <input
-                    value={p.id}
-                    onChange={(e) => patch(p.originalId, 'id', e.target.value)}
-                    className="w-full border rounded px-2 py-1 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-emerald-400"
-                    placeholder="price_xxxxxxxx"
-                  />
+                  <div className="flex items-center gap-2">
+                    {p.syncStatus === 'ok' && (
+                      <span className="shrink-0 text-emerald-500" title="Stripe確認済み">✓</span>
+                    )}
+                    {p.syncStatus === 'error' && (
+                      <span className="shrink-0 text-red-500">✕</span>
+                    )}
+                    <input
+                      value={p.id}
+                      onChange={(e) => patch(p.originalId, 'id', e.target.value)}
+                      className="w-full border rounded px-2 py-1 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-emerald-400"
+                      placeholder="price_xxxxxxxx"
+                    />
+                  </div>
                 </td>
                 <td className="px-4 py-2 text-sm text-gray-700">{p.name || <span className="text-gray-300">—</span>}</td>
                 <td className="px-4 py-2">
@@ -203,6 +214,14 @@ export default function PlanPanel() {
                   </button>
                 </td>
               </tr>
+              {p.syncStatus === 'error' && (
+                <tr>
+                  <td colSpan={8} className="px-4 py-1.5 bg-red-50 text-xs text-red-600 border-t border-red-100">
+                    {p.syncError}
+                  </td>
+                </tr>
+              )}
+              </React.Fragment>
             ))}
           </tbody>
         </table>

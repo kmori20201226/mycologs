@@ -26,7 +26,7 @@ is_running() {
 }
 
 is_port_in_use() {
-    nc -z 127.0.0.1 "$1" 2>/dev/null
+    nc -z -w 1 127.0.0.1 "$1" 2>/dev/null
 }
 
 stop_pid_file() {
@@ -44,12 +44,25 @@ stop_pid_file() {
     rm -f "$pid_file"
 }
 
+stop_port() {
+    local name="$1"
+    local port="$2"
+    local pids
+    pids=$(lsof -ti:"$port" 2>/dev/null) || return 0
+    [[ -z "$pids" ]] && return 0
+    echo "  Stopping $name on port $port (PID $pids)..."
+    kill $pids 2>/dev/null || true
+    local i=0
+    while lsof -ti:"$port" &>/dev/null && (( i++ < 20 )); do sleep 0.5; done
+    lsof -ti:"$port" 2>/dev/null | xargs -r kill -9 2>/dev/null || true
+}
+
 wait_for_port() {
     local port="$1"
     local name="$2"
     local i=0
     printf "  Waiting for %s on port %d" "$name" "$port"
-    until nc -z 127.0.0.1 "$port" 2>/dev/null; do
+    until nc -z -w 1 127.0.0.1 "$port" 2>/dev/null; do
         (( i++ > 30 )) && { echo " TIMEOUT"; return 1; }
         printf "."
         sleep 1
@@ -62,10 +75,13 @@ wait_for_port() {
 do_stop() {
     echo "==> Stopping all servers..."
     stop_pid_file "API" "$API_PID"
+    stop_port "API" 3000
     stop_pid_file "Frontend" "$WEB_PID"
+    stop_port "Frontend" 3001
     cd "$SCRIPT_DIR/ai-service"
     python -m mycologs_ai_service --stop 2>/dev/null || true
     cd "$SCRIPT_DIR"
+    stop_port "AI service" 3002
     echo "    Done."
 }
 
@@ -99,11 +115,14 @@ do_start() {
     fi
 
     # 3. AI service (port 3002, built-in daemon)
-    echo "  Starting AI service..."
-    cd "$SCRIPT_DIR/ai-service"
-    python -m mycologs_ai_service --daemon 2>/dev/null || true
-    cd "$SCRIPT_DIR"
-    wait_for_port 3002 "AI service"
+    if is_port_in_use 3002; then
+        echo "  AI service port 3002 already in use — skipping start."
+    else
+        echo "  Starting AI service..."
+        cd "$SCRIPT_DIR/ai-service"
+        python -m mycologs_ai_service --daemon
+        cd "$SCRIPT_DIR"
+    fi
 
     echo ""
     echo "  API       → http://localhost:3000"
@@ -132,15 +151,50 @@ do_status() {
     cd "$SCRIPT_DIR"
 }
 
+# ── Help ───────────────────────────────────────────────────────────────────────
+
+do_help() {
+    cat <<EOF
+Usage: $0 {start|stop|restart|status}
+
+  start    Start API, frontend, and AI service
+  stop     Stop all servers
+  restart  Stop then start all servers
+  status   Show running state of each server
+
+Stripe webhook (sandbox)
+  Run in a separate terminal alongside the servers:
+
+    stripe listen --forward-to http://localhost:3000/webhooks/stripe
+
+  On first run, copy the printed signing secret (whsec_...) into .env:
+
+    STRIPE_WEBHOOK_SECRET=whsec_...
+
+  Then restart the API so it picks up the new secret:
+
+    $0 restart
+
+  To fire test events manually:
+
+    stripe trigger invoice_payment.paid
+    stripe trigger customer.subscription.updated
+    stripe trigger customer.subscription.deleted
+EOF
+}
+
 # ── Dispatch ───────────────────────────────────────────────────────────────────
 
-case "${1:-start}" in
+case "${1:-help}" in
     start)   do_start ;;
     stop)    do_stop ;;
     restart) do_stop; echo; do_start ;;
     status)  do_status ;;
+    help|--help|-h) do_help ;;
     *)
-        echo "Usage: $0 {start|stop|restart|status}"
+        echo "Unknown command: $1"
+        echo
+        do_help
         exit 1
         ;;
 esac

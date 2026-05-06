@@ -23,6 +23,7 @@
     "list-user": "npx ts-node scripts/list-user.ts",
     "seed-taxonomy": "npx ts-node scripts/seed-taxonomy.ts",
     "seed-admin-user": "npx ts-node scripts/seed-admin-user.ts",
+    "seed-plans": "npx ts-node scripts/seed-plans.ts",
     "make-test-user": "npx ts-node scripts/make-test-user.ts",
     "import-gbif-taxonomy": "npx ts-node scripts/import-gbif-taxonomy.ts",
     "test:users": "npx ts-node apps/api/test/users.test.ts",

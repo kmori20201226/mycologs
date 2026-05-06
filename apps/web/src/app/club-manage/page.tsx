@@ -35,8 +35,11 @@ function formatDate(iso: string | null): string {
   return new Date(iso).toLocaleDateString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
+type Tab = 'info' | 'members' | 'requests' | 'events' | 'credits' | 'announcement'
+
 export default function ClubManagePage() {
   const router = useRouter()
+  const [tab, setTab] = useState<Tab>('info')
 
   const [club, setClub] = useState<ClubDetail | null>(null)
   const [introduction, setIntroduction] = useState('')
@@ -316,8 +319,8 @@ export default function ClubManagePage() {
     try {
       const { url } = await apiClient.createCheckoutSession({ planId: selectedPlanId, clubId: club.id })
       window.location.href = url
-    } catch {
-      setCheckoutError('決済ページへの移動に失敗しました。')
+    } catch (err: any) {
+      setCheckoutError(err?.apiMessage ?? '決済ページへの移動に失敗しました。')
       setCheckoutLoading(false)
     }
   }
@@ -330,420 +333,455 @@ export default function ClubManagePage() {
     )
   }
 
+  const pendingJoin  = requestRows.filter((r) => r.accepted === null && r.request?.requestType !== 'LeaveFromMember')
+  const pendingLeave = requestRows.filter((r) => r.accepted === null && r.request?.requestType === 'LeaveFromMember')
+  const resolvedRequests = requestRows.filter((r) => r.accepted !== null)
+  const pendingCount = pendingJoin.length + pendingLeave.length
+
+  function PendingCard({ row, isLeave }: { row: RequestRow; isLeave: boolean }) {
+    return (
+      <li className={`bg-gray-50 rounded-xl p-4 border-l-4 ${isLeave ? 'border-orange-400' : 'border-blue-400'}`}>
+        <div className="flex items-start gap-3 mb-3">
+          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${isLeave ? 'bg-orange-100 text-orange-700' : 'bg-emerald-100 text-emerald-700'}`}>
+            {row.requester.name[0].toUpperCase()}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-gray-900 text-sm">{row.requester.name}</p>
+            <p className="text-xs text-gray-400">{row.requester.email}</p>
+            <p className="text-xs text-gray-400 mt-0.5">{new Date(row.createdAt).toLocaleDateString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric' })}</p>
+          </div>
+        </div>
+        {row.request?.message && (
+          <div className="mb-3 bg-white rounded-lg px-3 py-2 text-sm text-gray-700 whitespace-pre-wrap border border-gray-100">
+            {row.request.message}
+          </div>
+        )}
+        <div className="mb-3">
+          <textarea
+            value={row.replyDraft}
+            onChange={(e) => updateRequestRow(row.id, { replyDraft: e.target.value })}
+            placeholder="返信メッセージ（任意）"
+            rows={2}
+            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-emerald-400"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => handleAcceptRequest(row)}
+            disabled={row.resolving}
+            className={`flex items-center gap-1.5 px-3 py-1.5 disabled:opacity-50 text-white text-sm font-semibold rounded-lg transition-colors ${isLeave ? 'bg-orange-500 hover:bg-orange-600' : 'bg-emerald-600 hover:bg-emerald-700'}`}
+          >
+            {isLeave ? '退会承認' : '承認'}
+          </button>
+          <button
+            onClick={() => handleDeclineRequest(row)}
+            disabled={row.resolving}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-red-400 hover:bg-red-50 disabled:opacity-50 text-red-500 text-sm font-semibold rounded-lg transition-colors"
+          >
+            {isLeave ? '退会却下' : '却下'}
+          </button>
+        </div>
+      </li>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="container mx-auto px-4 py-8 max-w-3xl space-y-6">
+      <div className="container mx-auto px-4 py-8 max-w-3xl">
 
-        <div>
+        <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900">{club.name}</h1>
           <p className="text-sm text-gray-400 mt-0.5">クラブ管理</p>
         </div>
 
-        {/* ── Announcement ──────────────────────────────────────── */}
-        <section className="bg-white rounded-xl shadow p-6">
-          <h2 className="font-semibold text-gray-800 mb-1">お知らせ</h2>
-          <p className="text-xs text-gray-400 mb-4">ホーム画面にクラブメンバー向けのお知らせを表示します。</p>
-
-          {announcement && (
-            <div className="mb-4 bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3 text-sm text-emerald-900 whitespace-pre-wrap">
-              {announcement.body}
-            </div>
-          )}
-
-          <form onSubmit={handleAnnSave} className="space-y-3">
-            <textarea
-              value={annBody}
-              onChange={(e) => setAnnBody(e.target.value)}
-              rows={3}
-              placeholder="お知らせの内容を入力…"
-              className="w-full border rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-emerald-400"
-              required
-            />
-            <div className="flex items-center gap-2">
-              <button
-                type="submit"
-                disabled={annSaving || !annBody.trim()}
-                className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
-              >
-                {annSaving ? '保存中…' : announcement ? '更新・公開' : '公開する'}
-              </button>
-              {announcement && (
-                <button
-                  type="button"
-                  onClick={handleAnnDelete}
-                  className="bg-white border border-red-400 hover:bg-red-50 text-red-500 px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
-                >
-                  削除
-                </button>
-              )}
-            </div>
-          </form>
-        </section>
-
-        {/* ── Club info ─────────────────────────────────────────── */}
-        <section className="bg-white rounded-xl shadow p-6">
-          <h2 className="font-semibold text-gray-800 mb-4">クラブ情報</h2>
-          <form onSubmit={handleInfoSave} className="space-y-4">
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">紹介文</label>
-              <textarea
-                value={introduction}
-                onChange={(e) => setIntroduction(e.target.value)}
-                rows={3}
-                placeholder="クラブの紹介文を入力…"
-                className="w-full border rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-emerald-400"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">クラブポリシー</label>
-              <textarea
-                value={policy}
-                onChange={(e) => setPolicy(e.target.value)}
-                rows={5}
-                placeholder="クラブのポリシーや規則を入力…"
-                className="w-full border rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-emerald-400"
-              />
-            </div>
-            <div className="flex items-center gap-3">
-              <button
-                type="submit"
-                disabled={infoSaving}
-                className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
-              >
-                {infoSaving ? '保存中…' : '保存'}
-              </button>
-              {infoSaved && <span className="text-sm text-emerald-600">保存しました</span>}
-            </div>
-          </form>
-        </section>
-
-        {/* ── Credits ───────────────────────────────────────────── */}
-        <section className="bg-white rounded-xl shadow p-6">
-          <h2 className="font-semibold text-gray-800 mb-4">クレジット</h2>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-3xl font-bold text-emerald-600 tabular-nums">
-                {club.credit.toLocaleString()}
-                <span className="text-base font-normal text-gray-400 ml-1">cr</span>
-              </p>
-              <p className="text-xs text-gray-400 mt-1">現在の残高</p>
-            </div>
-            <div className="text-right space-y-2">
-              {clubPlans.length > 0 && (
-                <select
-                  value={selectedPlanId}
-                  onChange={(e) => setSelectedPlanId(e.target.value)}
-                  className="w-full border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                >
-                  {clubPlans.map(p => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}（¥{p.priceYen.toLocaleString()}/月・{p.maxMembers === -1 ? '無制限' : `${p.maxMembers}名`}）
-                    </option>
-                  ))}
-                </select>
-              )}
-              <button
-                onClick={handleCheckout}
-                disabled={checkoutLoading || !selectedPlanId}
-                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                </svg>
-                {checkoutLoading ? '移動中…' : 'クレジットを購入'}
-              </button>
-              {checkoutError && <p className="text-xs text-red-500">{checkoutError}</p>}
-            </div>
-          </div>
-        </section>
-
-        {/* ── Members ───────────────────────────────────────────── */}
-        <section className="bg-white rounded-xl shadow p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold text-gray-800">メンバー管理</h2>
-            {memberLimit && (
-              <span className="text-xs text-gray-500">
-                {members.length} / {memberLimit.maxMembers === -1 ? '無制限' : memberLimit.maxMembers} 名
-                <span className="ml-1.5 text-gray-400">({memberLimit.planName})</span>
-              </span>
-            )}
-          </div>
-          {membersLoading ? (
-            <div className="space-y-2">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="h-12 bg-gray-100 rounded-lg animate-pulse" />
-              ))}
-            </div>
-          ) : members.length === 0 ? (
-            <p className="text-sm text-gray-400 text-center py-8">メンバーがいません。</p>
-          ) : (
-            <div className="divide-y border rounded-lg overflow-hidden">
-              {(() => {
-                const currentUser = getStoredUser()
-                const managerCount = members.filter((m) => m.role.name === 'CLUBMANAGER').length
-                return members.map((m) => {
-                  const isManager = m.role.name === 'CLUBMANAGER'
-                  const isSelf = m.user.id === currentUser?.id
-                  const wouldLoseManager = isManager && isSelf
-                  const isLastManager = isManager && managerCount <= 1
-                  return (
-                    <div key={m.user.id} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-800">
-                          {m.user.name}
-                          {isSelf && <span className="ml-1.5 text-xs text-gray-400">(あなた)</span>}
-                        </p>
-                        <p className="text-xs text-gray-400 truncate">{m.user.email}</p>
-                      </div>
-                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                        isManager
-                          ? 'bg-emerald-100 text-emerald-700'
-                          : 'bg-gray-100 text-gray-500'
-                      }`}>
-                        {isManager ? 'マネージャー' : 'メンバー'}
-                      </span>
-                      <button
-                        onClick={() => handleToggleManager(m)}
-                        disabled={roleChanging === m.user.id || isLastManager}
-                        title={isLastManager ? 'マネージャーは最低1名必要です' : isManager ? 'メンバーに変更' : 'マネージャーに昇格'}
-                        className={`text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors disabled:opacity-40 ${
-                          isManager
-                            ? 'bg-gray-100 hover:bg-gray-200 text-gray-600'
-                            : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700'
-                        }`}
-                      >
-                        {roleChanging === m.user.id
-                          ? '変更中…'
-                          : isManager
-                          ? 'メンバーに変更'
-                          : 'マネージャーに昇格'}
-                      </button>
-                      {wouldLoseManager && !isLastManager && (
-                        <span className="text-xs text-amber-500 font-medium">⚠ 自分自身</span>
-                      )}
-                    </div>
-                  )
-                })
-              })()}
-            </div>
-          )}
-          {(() => {
-            const currentUser = getStoredUser()
-            const selfEntry = members.find((m) => m.user.id === currentUser?.id)
-            const isCurrentUserManager = selfEntry?.role.name === 'CLUBMANAGER'
-            if (!isCurrentUserManager && members.length > 0) {
-              return (
-                <p className="mt-3 text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2">
-                  あなたはこのクラブのマネージャーではありません。メンバー管理の操作が制限される場合があります。
-                </p>
-              )
-            }
-            return null
-          })()}
-        </section>
-
-        {/* ── Member requests ───────────────────────────────────── */}
-        {(() => {
-          const pendingJoin  = requestRows.filter((r) => r.accepted === null && r.request?.requestType !== 'LeaveFromMember')
-          const pendingLeave = requestRows.filter((r) => r.accepted === null && r.request?.requestType === 'LeaveFromMember')
-          const resolved     = requestRows.filter((r) => r.accepted !== null)
-          const totalPending = pendingJoin.length + pendingLeave.length
-
-          function PendingCard({ row, isLeave }: { row: RequestRow; isLeave: boolean }) {
-            return (
-              <li className={`bg-gray-50 rounded-xl p-4 border-l-4 ${isLeave ? 'border-orange-400' : 'border-blue-400'}`}>
-                <div className="flex items-start gap-3 mb-3">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${isLeave ? 'bg-orange-100 text-orange-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                    {row.requester.name[0].toUpperCase()}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-gray-900 text-sm">{row.requester.name}</p>
-                    <p className="text-xs text-gray-400">{row.requester.email}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">{new Date(row.createdAt).toLocaleDateString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric' })}</p>
-                  </div>
-                </div>
-                {row.request?.message && (
-                  <div className="mb-3 bg-white rounded-lg px-3 py-2 text-sm text-gray-700 whitespace-pre-wrap border border-gray-100">
-                    {row.request.message}
-                  </div>
-                )}
-                <div className="mb-3">
-                  <textarea
-                    value={row.replyDraft}
-                    onChange={(e) => updateRequestRow(row.id, { replyDraft: e.target.value })}
-                    placeholder="返信メッセージ（任意）"
-                    rows={2}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-emerald-400"
-                  />
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => handleAcceptRequest(row)}
-                    disabled={row.resolving}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 disabled:opacity-50 text-white text-sm font-semibold rounded-lg transition-colors ${isLeave ? 'bg-orange-500 hover:bg-orange-600' : 'bg-emerald-600 hover:bg-emerald-700'}`}
-                  >
-                    {isLeave ? '退会承認' : '承認'}
-                  </button>
-                  <button
-                    onClick={() => handleDeclineRequest(row)}
-                    disabled={row.resolving}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-red-400 hover:bg-red-50 disabled:opacity-50 text-red-500 text-sm font-semibold rounded-lg transition-colors"
-                  >
-                    {isLeave ? '退会却下' : '却下'}
-                  </button>
-                </div>
-              </li>
-            )
-          }
-
-          return (
-            <section className="bg-white rounded-xl shadow p-6">
-              <h2 className="font-semibold text-gray-800 mb-4">
-                メンバー申請処理
-                {totalPending > 0 && (
-                  <span className="ml-2 inline-flex items-center justify-center w-5 h-5 rounded-full bg-red-500 text-white text-xs font-bold">{totalPending > 9 ? '9+' : totalPending}</span>
-                )}
-              </h2>
-
-              {requestsLoading ? (
-                <div className="space-y-2">
-                  {[1, 2].map((i) => <div key={i} className="h-16 bg-gray-100 rounded-lg animate-pulse" />)}
-                </div>
-              ) : (
-                <>
-                  {pendingJoin.length === 0 && pendingLeave.length === 0 && (
-                    <p className="text-sm text-gray-400 mb-2">保留中の申請はありません。</p>
-                  )}
-                  {pendingJoin.length > 0 && (
-                    <div className="mb-4">
-                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">参加申請 <span className="text-blue-600">{pendingJoin.length}</span></p>
-                      <ul className="space-y-3">{pendingJoin.map((row) => <PendingCard key={row.id} row={row} isLeave={false} />)}</ul>
-                    </div>
-                  )}
-                  {pendingLeave.length > 0 && (
-                    <div className="mb-4">
-                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">退会申請 <span className="text-orange-600">{pendingLeave.length}</span></p>
-                      <ul className="space-y-3">{pendingLeave.map((row) => <PendingCard key={row.id} row={row} isLeave={true} />)}</ul>
-                    </div>
-                  )}
-                  {resolved.length > 0 && (
-                    <div>
-                      <button
-                        onClick={() => setShowResolvedRequests((v) => !v)}
-                        className="flex items-center gap-1 text-xs font-semibold text-gray-400 uppercase tracking-wide hover:text-gray-600 transition-colors"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" className={`w-3.5 h-3.5 transition-transform ${showResolvedRequests ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                        </svg>
-                        処理済み（{resolved.length}件）
-                      </button>
-                      {showResolvedRequests && (
-                        <ul className="mt-2 space-y-2">
-                          {resolved.map((row) => (
-                            <li key={row.id} className="bg-gray-50 rounded-lg p-3 opacity-75">
-                              <div className="flex items-center gap-3">
-                                <div className="w-7 h-7 rounded-full bg-gray-200 text-gray-500 flex items-center justify-center text-xs font-bold shrink-0">
-                                  {row.requester.name[0].toUpperCase()}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-medium text-gray-800">{row.requester.name}</p>
-                                  <p className="text-xs text-gray-400">{row.requester.email}</p>
-                                </div>
-                                <StatusBadge accepted={row.accepted} />
-                              </div>
-                              {(row.reply as any)?.message && (
-                                <p className="mt-1 text-xs text-gray-400 italic pl-10">返信: {(row.reply as any).message}</p>
-                              )}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  )}
-                </>
-              )}
-            </section>
-          )
-        })()}
-
-        {/* ── Events ────────────────────────────────────────────── */}
-        <section className="bg-white rounded-xl shadow p-6">
-          <h2 className="font-semibold text-gray-800 mb-4">イベント管理</h2>
-
-          {/* Create form */}
-          <form onSubmit={handleCreateEvent} className="flex gap-2 mb-6">
-            <input
-              value={newEventName}
-              onChange={(e) => setNewEventName(e.target.value)}
-              placeholder="イベント名"
-              className="flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
-              required
-            />
+        {/* ── Tab bar ─────────────────────────────────────────────── */}
+        <div className="flex gap-1 mb-6 border-b border-gray-200">
+          {([
+            ['info',         'クラブ情報', 0],
+            ['members',      'メンバー',   0],
+            ['requests',     '申請処理',   pendingCount],
+            ['events',       'イベント',   0],
+            ['credits',      'クレジット', 0],
+            ['announcement', 'お知らせ',   0],
+          ] as [Tab, string, number][]).map(([key, label, badge]) => (
             <button
-              type="submit"
-              className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors whitespace-nowrap"
+              key={key}
+              onClick={() => setTab(key)}
+              className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                tab === key
+                  ? 'border-emerald-600 text-emerald-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
             >
-              追加
+              {label}
+              {badge > 0 && (
+                <span className="inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] rounded-full bg-red-500 text-white text-[10px] font-bold px-1">
+                  {badge > 99 ? '99+' : badge}
+                </span>
+              )}
             </button>
-          </form>
+          ))}
+        </div>
 
-          {/* Event list */}
-          {eventsLoading ? (
-            <div className="space-y-2">
-              {[1, 2].map((i) => (
-                <div key={i} className="h-12 bg-gray-100 rounded-lg animate-pulse" />
-              ))}
+        {/* ── クラブ情報 ───────────────────────────────────────────── */}
+        {tab === 'info' && (
+          <section className="bg-white rounded-xl shadow p-6">
+            <h2 className="font-semibold text-gray-800 mb-4">クラブ情報</h2>
+            <form onSubmit={handleInfoSave} className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">紹介文</label>
+                <textarea
+                  value={introduction}
+                  onChange={(e) => setIntroduction(e.target.value)}
+                  rows={3}
+                  placeholder="クラブの紹介文を入力…"
+                  className="w-full border rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">クラブポリシー</label>
+                <textarea
+                  value={policy}
+                  onChange={(e) => setPolicy(e.target.value)}
+                  rows={5}
+                  placeholder="クラブのポリシーや規則を入力…"
+                  className="w-full border rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                />
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  type="submit"
+                  disabled={infoSaving}
+                  className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
+                >
+                  {infoSaving ? '保存中…' : '保存'}
+                </button>
+                {infoSaved && <span className="text-sm text-emerald-600">保存しました</span>}
+              </div>
+            </form>
+          </section>
+        )}
+
+        {/* ── メンバー ─────────────────────────────────────────────── */}
+        {tab === 'members' && (
+          <section className="bg-white rounded-xl shadow p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-semibold text-gray-800">メンバー管理</h2>
+              {memberLimit && (
+                <span className="text-xs text-gray-500">
+                  {members.length} / {memberLimit.maxMembers === -1 ? '無制限' : memberLimit.maxMembers} 名
+                  <span className="ml-1.5 text-gray-400">({memberLimit.planName})</span>
+                </span>
+              )}
             </div>
-          ) : events.length === 0 ? (
-            <p className="text-sm text-gray-400 text-center py-8">まだイベントがありません。</p>
-          ) : (
-            <div className="divide-y border rounded-lg overflow-hidden">
-              {events.map((ev) => (
-                <div key={ev.id} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors">
-                  <div className="text-xs text-gray-400 w-24 shrink-0">{formatDate(ev.startAt)}</div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-800 truncate">{ev.name}</p>
-                    {ev.description && (
-                      <p className="text-xs text-gray-400 truncate">{ev.description}</p>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-3 shrink-0">
-                    <button
-                      onClick={() => router.push(`/admin/events/${ev.id}`)}
-                      className="text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-lg transition-colors"
-                    >
-                      編集
-                    </button>
-                    {confirmDeleteId === ev.id ? (
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-400">本当に？</span>
+            {membersLoading ? (
+              <div className="space-y-2">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="h-12 bg-gray-100 rounded-lg animate-pulse" />
+                ))}
+              </div>
+            ) : members.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-8">メンバーがいません。</p>
+            ) : (
+              <div className="divide-y border rounded-lg overflow-hidden">
+                {(() => {
+                  const currentUser = getStoredUser()
+                  const managerCount = members.filter((m) => m.role.name === 'CLUBMANAGER').length
+                  return members.map((m) => {
+                    const isManager = m.role.name === 'CLUBMANAGER'
+                    const isSelf = m.user.id === currentUser?.id
+                    const wouldLoseManager = isManager && isSelf
+                    const isLastManager = isManager && managerCount <= 1
+                    return (
+                      <div key={m.user.id} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-800">
+                            {m.user.name}
+                            {isSelf && <span className="ml-1.5 text-xs text-gray-400">(あなた)</span>}
+                          </p>
+                          <p className="text-xs text-gray-400 truncate">{m.user.email}</p>
+                        </div>
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                          isManager
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : 'bg-gray-100 text-gray-500'
+                        }`}>
+                          {isManager ? 'マネージャー' : 'メンバー'}
+                        </span>
                         <button
-                          onClick={() => handleDeleteEvent(ev.id)}
-                          className="text-xs bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded font-semibold"
+                          onClick={() => handleToggleManager(m)}
+                          disabled={roleChanging === m.user.id || isLastManager}
+                          title={isLastManager ? 'マネージャーは最低1名必要です' : isManager ? 'メンバーに変更' : 'マネージャーに昇格'}
+                          className={`text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors disabled:opacity-40 ${
+                            isManager
+                              ? 'bg-gray-100 hover:bg-gray-200 text-gray-600'
+                              : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700'
+                          }`}
                         >
-                          はい
+                          {roleChanging === m.user.id
+                            ? '変更中…'
+                            : isManager
+                            ? 'メンバーに変更'
+                            : 'マネージャーに昇格'}
                         </button>
-                        <button
-                          onClick={() => setConfirmDeleteId(null)}
-                          className="text-xs text-gray-400 hover:text-gray-600"
-                        >
-                          いいえ
-                        </button>
+                        {wouldLoseManager && !isLastManager && (
+                          <span className="text-xs text-amber-500 font-medium">⚠ 自分自身</span>
+                        )}
                       </div>
-                    ) : (
-                      <button
-                        onClick={() => setConfirmDeleteId(ev.id)}
-                        className="text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 px-2.5 py-1 rounded-lg transition-colors"
-                      >
-                        削除
-                      </button>
+                    )
+                  })
+                })()}
+              </div>
+            )}
+            {(() => {
+              const currentUser = getStoredUser()
+              const selfEntry = members.find((m) => m.user.id === currentUser?.id)
+              const isCurrentUserManager = selfEntry?.role.name === 'CLUBMANAGER'
+              if (!isCurrentUserManager && members.length > 0) {
+                return (
+                  <p className="mt-3 text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2">
+                    あなたはこのクラブのマネージャーではありません。メンバー管理の操作が制限される場合があります。
+                  </p>
+                )
+              }
+              return null
+            })()}
+          </section>
+        )}
+
+        {/* ── 申請処理 ─────────────────────────────────────────────── */}
+        {tab === 'requests' && (
+          <section className="bg-white rounded-xl shadow p-6">
+            <h2 className="font-semibold text-gray-800 mb-4">
+              メンバー申請処理
+              {pendingCount > 0 && (
+                <span className="ml-2 inline-flex items-center justify-center w-5 h-5 rounded-full bg-red-500 text-white text-xs font-bold">{pendingCount > 9 ? '9+' : pendingCount}</span>
+              )}
+            </h2>
+
+            {requestsLoading ? (
+              <div className="space-y-2">
+                {[1, 2].map((i) => <div key={i} className="h-16 bg-gray-100 rounded-lg animate-pulse" />)}
+              </div>
+            ) : (
+              <>
+                {pendingJoin.length === 0 && pendingLeave.length === 0 && (
+                  <p className="text-sm text-gray-400 mb-2">保留中の申請はありません。</p>
+                )}
+                {pendingJoin.length > 0 && (
+                  <div className="mb-4">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">参加申請 <span className="text-blue-600">{pendingJoin.length}</span></p>
+                    <ul className="space-y-3">{pendingJoin.map((row) => <PendingCard key={row.id} row={row} isLeave={false} />)}</ul>
+                  </div>
+                )}
+                {pendingLeave.length > 0 && (
+                  <div className="mb-4">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">退会申請 <span className="text-orange-600">{pendingLeave.length}</span></p>
+                    <ul className="space-y-3">{pendingLeave.map((row) => <PendingCard key={row.id} row={row} isLeave={true} />)}</ul>
+                  </div>
+                )}
+                {resolvedRequests.length > 0 && (
+                  <div>
+                    <button
+                      onClick={() => setShowResolvedRequests((v) => !v)}
+                      className="flex items-center gap-1 text-xs font-semibold text-gray-400 uppercase tracking-wide hover:text-gray-600 transition-colors"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className={`w-3.5 h-3.5 transition-transform ${showResolvedRequests ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                      </svg>
+                      処理済み（{resolvedRequests.length}件）
+                    </button>
+                    {showResolvedRequests && (
+                      <ul className="mt-2 space-y-2">
+                        {resolvedRequests.map((row) => (
+                          <li key={row.id} className="bg-gray-50 rounded-lg p-3 opacity-75">
+                            <div className="flex items-center gap-3">
+                              <div className="w-7 h-7 rounded-full bg-gray-200 text-gray-500 flex items-center justify-center text-xs font-bold shrink-0">
+                                {row.requester.name[0].toUpperCase()}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-gray-800">{row.requester.name}</p>
+                                <p className="text-xs text-gray-400">{row.requester.email}</p>
+                              </div>
+                              <StatusBadge accepted={row.accepted} />
+                            </div>
+                            {(row.reply as any)?.message && (
+                              <p className="mt-1 text-xs text-gray-400 italic pl-10">返信: {(row.reply as any).message}</p>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
                     )}
                   </div>
-                </div>
-              ))}
+                )}
+              </>
+            )}
+          </section>
+        )}
+
+        {/* ── イベント ─────────────────────────────────────────────── */}
+        {tab === 'events' && (
+          <section className="bg-white rounded-xl shadow p-6">
+            <h2 className="font-semibold text-gray-800 mb-4">イベント管理</h2>
+
+            <form onSubmit={handleCreateEvent} className="flex gap-2 mb-6">
+              <input
+                value={newEventName}
+                onChange={(e) => setNewEventName(e.target.value)}
+                placeholder="イベント名"
+                className="flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                required
+              />
+              <button
+                type="submit"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors whitespace-nowrap"
+              >
+                追加
+              </button>
+            </form>
+
+            {eventsLoading ? (
+              <div className="space-y-2">
+                {[1, 2].map((i) => (
+                  <div key={i} className="h-12 bg-gray-100 rounded-lg animate-pulse" />
+                ))}
+              </div>
+            ) : events.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-8">まだイベントがありません。</p>
+            ) : (
+              <div className="divide-y border rounded-lg overflow-hidden">
+                {events.map((ev) => (
+                  <div key={ev.id} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors">
+                    <div className="text-xs text-gray-400 w-24 shrink-0">{formatDate(ev.startAt)}</div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-800 truncate">{ev.name}</p>
+                      {ev.description && (
+                        <p className="text-xs text-gray-400 truncate">{ev.description}</p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <button
+                        onClick={() => router.push(`/admin/events/${ev.id}`)}
+                        className="text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-lg transition-colors"
+                      >
+                        編集
+                      </button>
+                      {confirmDeleteId === ev.id ? (
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-gray-400">本当に？</span>
+                          <button
+                            onClick={() => handleDeleteEvent(ev.id)}
+                            className="text-xs bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded font-semibold"
+                          >
+                            はい
+                          </button>
+                          <button
+                            onClick={() => setConfirmDeleteId(null)}
+                            className="text-xs text-gray-400 hover:text-gray-600"
+                          >
+                            いいえ
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setConfirmDeleteId(ev.id)}
+                          className="text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 px-2.5 py-1 rounded-lg transition-colors"
+                        >
+                          削除
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* ── クレジット ───────────────────────────────────────────── */}
+        {tab === 'credits' && (
+          <section className="bg-white rounded-xl shadow p-6">
+            <h2 className="font-semibold text-gray-800 mb-4">クレジット</h2>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-3xl font-bold text-emerald-600 tabular-nums">
+                  {club.credit.toLocaleString()}
+                  <span className="text-base font-normal text-gray-400 ml-1">cr</span>
+                </p>
+                <p className="text-xs text-gray-400 mt-1">現在の残高</p>
+              </div>
+              <div className="text-right space-y-2">
+                {clubPlans.length > 0 && (
+                  <select
+                    value={selectedPlanId}
+                    onChange={(e) => setSelectedPlanId(e.target.value)}
+                    className="w-full border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                  >
+                    {clubPlans.map(p => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}（¥{p.priceYen.toLocaleString()}/月・{p.maxMembers === -1 ? '無制限' : `${p.maxMembers}名`}）
+                      </option>
+                    ))}
+                  </select>
+                )}
+                <button
+                  onClick={handleCheckout}
+                  disabled={checkoutLoading || !selectedPlanId}
+                  className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                  </svg>
+                  {checkoutLoading ? '移動中…' : 'クレジットを購入'}
+                </button>
+                {checkoutError && <p className="text-xs text-red-500">{checkoutError}</p>}
+              </div>
             </div>
-          )}
-        </section>
+          </section>
+        )}
+
+        {/* ── お知らせ ─────────────────────────────────────────────── */}
+        {tab === 'announcement' && (
+          <section className="bg-white rounded-xl shadow p-6">
+            <h2 className="font-semibold text-gray-800 mb-1">お知らせ</h2>
+            <p className="text-xs text-gray-400 mb-4">ホーム画面にクラブメンバー向けのお知らせを表示します。</p>
+
+            {announcement && (
+              <div className="mb-4 bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3 text-sm text-emerald-900 whitespace-pre-wrap">
+                {announcement.body}
+              </div>
+            )}
+
+            <form onSubmit={handleAnnSave} className="space-y-3">
+              <textarea
+                value={annBody}
+                onChange={(e) => setAnnBody(e.target.value)}
+                rows={3}
+                placeholder="お知らせの内容を入力…"
+                className="w-full border rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                required
+              />
+              <div className="flex items-center gap-2">
+                <button
+                  type="submit"
+                  disabled={annSaving || !annBody.trim()}
+                  className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
+                >
+                  {annSaving ? '保存中…' : announcement ? '更新・公開' : '公開する'}
+                </button>
+                {announcement && (
+                  <button
+                    type="button"
+                    onClick={handleAnnDelete}
+                    className="bg-white border border-red-400 hover:bg-red-50 text-red-500 px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
+                  >
+                    削除
+                  </button>
+                )}
+              </div>
+            </form>
+          </section>
+        )}
 
       </div>
 

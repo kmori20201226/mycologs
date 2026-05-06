@@ -159,8 +159,9 @@ export default async function (fastify: FastifyInstance) {
             const price = await getStripe().prices.retrieve(request.params.id, { expand: ['product'] })
             const product = price.product as { name: string }
             return { name: product.name, priceYen: price.unit_amount ?? 0 }
-        } catch {
-            return reply.code(404).send({ error: 'Stripe price not found' })
+        } catch (err: any) {
+            const msg = err?.message ?? 'Stripe price not found'
+            return reply.code(404).send({ message: msg })
         }
     })
 
@@ -171,11 +172,9 @@ export default async function (fastify: FastifyInstance) {
         const { id: userId } = request.user as { id: number }
         if (!await isAdmin(fastify, userId)) return reply.code(403).send({ error: 'Forbidden' })
 
-        try {
-            await fastify.prisma.plan.delete({ where: { id: request.params.id } })
-            return reply.code(204).send()
-        } catch {
-            return reply.code(404).send({ error: 'Plan not found' })
-        }
+        const existing = await fastify.prisma.plan.findUnique({ where: { id: request.params.id } })
+        if (!existing) return reply.code(404).send({ error: 'Plan not found' })
+        await fastify.prisma.plan.delete({ where: { id: request.params.id } })
+        return reply.code(200).send({})
     })
 }
