@@ -12,6 +12,7 @@ export default function PlanPanel() {
   const [newPlan, setNewPlan] = useState<Omit<Plan, 'createdAt' | 'updatedAt'>>({
     id: '', name: '', maxMembers: 30, priceYen: 0, active: true, sortOrder: 0
   })
+  const [syncing, setSyncing] = useState<string | null>(null)
   const [toast, setToast] = useState('')
 
   function flash(msg: string) {
@@ -48,6 +49,20 @@ export default function PlanPanel() {
     } catch {
       setPlans((prev) => prev.map((p) => p.originalId === plan.originalId ? { ...p, saving: false } : p))
       flash('保存に失敗しました')
+    }
+  }
+
+  async function handleStripeSync(plan: EditRow) {
+    if (!plan.id.startsWith('price_')) { flash('IDが price_ で始まる Stripe Price ID ではありません'); return }
+    setSyncing(plan.originalId)
+    try {
+      const { name, priceYen } = await apiClient.syncPlanFromStripe(plan.id)
+      setPlans((prev) => prev.map((p) => p.originalId === plan.originalId ? { ...p, name, priceYen, dirty: true } : p))
+      flash('Stripeから取得しました')
+    } catch {
+      flash('Stripeからの取得に失敗しました')
+    } finally {
+      setSyncing(null)
     }
   }
 
@@ -149,12 +164,20 @@ export default function PlanPanel() {
                     className="accent-emerald-600"
                   />
                 </td>
-                <td className="px-4 py-2 text-right whitespace-nowrap">
+                <td className="px-4 py-2 text-right whitespace-nowrap space-x-2">
+                  <button
+                    onClick={() => handleStripeSync(p)}
+                    disabled={syncing === p.originalId}
+                    title="Stripeからプラン名と価格を取得"
+                    className="text-xs text-indigo-500 hover:text-indigo-700 disabled:opacity-40 transition-colors"
+                  >
+                    {syncing === p.originalId ? '取得中…' : 'Stripe同期'}
+                  </button>
                   {p.dirty && (
                     <button
                       onClick={() => handleSave(p)}
                       disabled={p.saving}
-                      className="mr-2 text-xs bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white px-3 py-1 rounded-lg transition-colors"
+                      className="text-xs bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white px-3 py-1 rounded-lg transition-colors"
                     >
                       {p.saving ? '…' : '保存'}
                     </button>

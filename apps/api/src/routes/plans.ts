@@ -1,5 +1,12 @@
 import { FastifyInstance } from 'fastify'
+import Stripe from 'stripe'
 import { planSchema } from '../schemas/plan'
+
+function getStripe() {
+    const key = process.env.STRIPE_SECRET_KEY
+    if (!key) throw new Error('STRIPE_SECRET_KEY is not configured')
+    return new Stripe(key, { apiVersion: '2026-04-22.dahlia' })
+}
 
 const ADMIN_ROLES = ['ADMIN', 'DEVELOPER', 'MODERATOR']
 
@@ -134,6 +141,22 @@ export default async function (fastify: FastifyInstance) {
             return plan
         } catch {
             return reply.code(404).send({ error: 'Plan not found' })
+        }
+    })
+
+    // GET /plans/:id/stripe-sync — fetch name and priceYen from Stripe (admin only)
+    fastify.get<{ Params: { id: string } }>('/plans/:id/stripe-sync', {
+        preHandler: [fastify.authenticate]
+    }, async (request, reply) => {
+        const { id: userId } = request.user as { id: number }
+        if (!await isAdmin(fastify, userId)) return reply.code(403).send({ error: 'Forbidden' })
+
+        try {
+            const price = await getStripe().prices.retrieve(request.params.id, { expand: ['product'] })
+            const product = price.product as { name: string }
+            return { name: product.name, priceYen: price.unit_amount ?? 0 }
+        } catch {
+            return reply.code(404).send({ error: 'Stripe price not found' })
         }
     })
 

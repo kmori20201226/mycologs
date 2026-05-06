@@ -636,6 +636,10 @@ class ApiClient {
   async deletePlan(id: string): Promise<void> {
     await this.request(`/plans/${id}`, { method: 'DELETE' })
   }
+
+  async syncPlanFromStripe(id: string): Promise<{ name: string; priceYen: number }> {
+    return this.request(`/plans/${encodeURIComponent(id)}/stripe-sync`)
+  }
 }
 
 export interface Plan {

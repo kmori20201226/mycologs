@@ -3,36 +3,17 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { apiClient } from '@/lib/api'
+import { apiClient, type Plan } from '@/lib/api'
 import { getStoredUser } from '@/lib/auth'
-
-interface Plan {
-  id: string
-  name: string
-  price: string
-  description: string
-  features: string[]
-}
 
 const FREE_CREDITS     = Number(process.env.NEXT_PUBLIC_FREE_TIER_CREDITS       ?? 50)
 const PERSONAL_CREDITS = Number(process.env.NEXT_PUBLIC_PERSONAL_PLAN_CREDITS   ?? 1000)
 const CLUB_CREDITS     = Number(process.env.NEXT_PUBLIC_CLUB_PLAN_CREDITS        ?? 20000)
 const AI_COST          = Number(process.env.NEXT_PUBLIC_AI_IDENTIFICATION_COST   ?? 10)
 
-const PERSONAL_PLAN: Plan = {
-  id: process.env.NEXT_PUBLIC_STRIPE_PRICE_PERSONAL ?? '',
-  name: 'パーソナルプラン',
-  price: '¥500 / 月',
-  description: '個人でのきのこ探索を支援するプラン',
-  features: [
-    `毎月 ${PERSONAL_CREDITS} クレジット付与`,
-    `AI同定 1回 ${AI_COST} クレジット消費`,
-    '優先サポート',
-  ],
-}
-
 export default function SubscriptionPage() {
   const router = useRouter()
+  const [personalPlans, setPersonalPlans] = useState<Plan[]>([])
   const [loading, setLoading] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [isActive, setIsActive] = useState(false)
@@ -46,16 +27,15 @@ export default function SubscriptionPage() {
       .then(res => setIsActive(res.active))
       .catch(() => {})
       .finally(() => setCheckingStatus(false))
+
+    apiClient.getPlans()
+      .then(plans => setPersonalPlans(plans.filter(p => p.maxMembers === 1)))
+      .catch(() => {})
   }, [router])
 
   async function handleSubscribe(planId: string) {
     const user = getStoredUser()
     if (!user) return
-
-    if (!planId) {
-      setError('このプランはまだ設定されていません。')
-      return
-    }
 
     setLoading(planId)
     setError('')
@@ -120,29 +100,41 @@ export default function SubscriptionPage() {
           </div>
         )}
 
-        <div className="max-w-md mx-auto">
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 flex flex-col">
-            <h2 className="text-xl font-bold text-gray-900">{PERSONAL_PLAN.name}</h2>
-            <p className="mt-1 text-gray-500 text-sm">{PERSONAL_PLAN.description}</p>
-            <p className="mt-4 text-3xl font-bold text-gray-900">{PERSONAL_PLAN.price}</p>
-
-            <ul className="mt-6 space-y-3 flex-1">
-              {PERSONAL_PLAN.features.map((f) => (
-                <li key={f} className="flex items-start gap-2 text-sm text-gray-700">
+        <div className="flex flex-wrap justify-center gap-6">
+          {personalPlans.map(plan => (
+            <div key={plan.id} className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 flex flex-col w-full max-w-sm">
+              <h2 className="text-xl font-bold text-gray-900">{plan.name}</h2>
+              <p className="mt-1 text-gray-500 text-sm">個人でのきのこ探索を支援するプラン</p>
+              <p className="mt-4 text-3xl font-bold text-gray-900">
+                ¥{plan.priceYen.toLocaleString()} <span className="text-base font-normal text-gray-400">/ 月</span>
+              </p>
+              <ul className="mt-6 space-y-3 flex-1">
+                <li className="flex items-start gap-2 text-sm text-gray-700">
                   <span className="text-green-500 mt-0.5">✓</span>
-                  {f}
+                  毎月 {PERSONAL_CREDITS} クレジット付与
                 </li>
-              ))}
-            </ul>
+                <li className="flex items-start gap-2 text-sm text-gray-700">
+                  <span className="text-green-500 mt-0.5">✓</span>
+                  AI同定 1回 {AI_COST} クレジット消費
+                </li>
+                <li className="flex items-start gap-2 text-sm text-gray-700">
+                  <span className="text-green-500 mt-0.5">✓</span>
+                  優先サポート
+                </li>
+              </ul>
+              <button
+                onClick={() => handleSubscribe(plan.id)}
+                disabled={loading === plan.id || isActive}
+                className="mt-8 w-full py-3 rounded-xl bg-green-700 text-white font-medium hover:bg-green-800 disabled:opacity-50 transition-colors"
+              >
+                {loading === plan.id ? '処理中...' : isActive ? '登録済み' : '申し込む'}
+              </button>
+            </div>
+          ))}
 
-            <button
-              onClick={() => handleSubscribe(PERSONAL_PLAN.id)}
-              disabled={loading === PERSONAL_PLAN.id || isActive}
-              className="mt-8 w-full py-3 rounded-xl bg-green-700 text-white font-medium hover:bg-green-800 disabled:opacity-50 transition-colors"
-            >
-              {loading === PERSONAL_PLAN.id ? '処理中...' : isActive ? '登録済み' : '申し込む'}
-            </button>
-          </div>
+          {personalPlans.length === 0 && !checkingStatus && (
+            <p className="text-gray-400 text-sm py-8">現在利用可能なプランがありません。</p>
+          )}
         </div>
 
         {/* Club plan info */}

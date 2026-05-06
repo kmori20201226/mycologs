@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { apiClient, type Announcement, type Event, type UserRequestItem } from '@/lib/api'
+import { apiClient, type Announcement, type Event, type Plan, type UserRequestItem } from '@/lib/api'
 import { getStoredUser, getSelectedClubId, getStoredClubs } from '@/lib/auth'
 
 interface RequestRow extends UserRequestItem {
@@ -49,6 +49,8 @@ export default function ClubManagePage() {
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null)
   const [eventsLoading, setEventsLoading] = useState(false)
 
+  const [clubPlans, setClubPlans] = useState<Plan[]>([])
+  const [selectedPlanId, setSelectedPlanId] = useState('')
   const [checkoutLoading, setCheckoutLoading] = useState(false)
   const [checkoutError, setCheckoutError] = useState('')
 
@@ -212,6 +214,12 @@ export default function ClubManagePage() {
     const user = getStoredUser()
     if (!user) { router.replace('/login'); return }
 
+    apiClient.getPlans().then(plans => {
+      const club = plans.filter(p => p.maxMembers !== 1 && p.id !== 'free')
+      setClubPlans(club)
+      if (club.length > 0) setSelectedPlanId(club[0].id)
+    }).catch(() => {})
+
     const id = getSelectedClubId()
     if (id) { loadClub(id); loadEvents(id); loadMembers(id); loadRequests(id); loadAnnouncement(id); loadMemberLimit(id) }
 
@@ -302,13 +310,11 @@ export default function ClubManagePage() {
   }
 
   async function handleCheckout() {
-    if (!club) return
-    const planId = process.env.NEXT_PUBLIC_STRIPE_PRICE_CLUB
-    if (!planId) { setCheckoutError('プランIDが設定されていません。'); return }
+    if (!club || !selectedPlanId) return
     setCheckoutLoading(true)
     setCheckoutError('')
     try {
-      const { url } = await apiClient.createCheckoutSession({ planId, clubId: club.id })
+      const { url } = await apiClient.createCheckoutSession({ planId: selectedPlanId, clubId: club.id })
       window.location.href = url
     } catch {
       setCheckoutError('決済ページへの移動に失敗しました。')
@@ -423,9 +429,22 @@ export default function ClubManagePage() {
               <p className="text-xs text-gray-400 mt-1">現在の残高</p>
             </div>
             <div className="text-right space-y-2">
+              {clubPlans.length > 0 && (
+                <select
+                  value={selectedPlanId}
+                  onChange={(e) => setSelectedPlanId(e.target.value)}
+                  className="w-full border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                >
+                  {clubPlans.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}（¥{p.priceYen.toLocaleString()}/月・{p.maxMembers === -1 ? '無制限' : `${p.maxMembers}名`}）
+                    </option>
+                  ))}
+                </select>
+              )}
               <button
                 onClick={handleCheckout}
-                disabled={checkoutLoading}
+                disabled={checkoutLoading || !selectedPlanId}
                 className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

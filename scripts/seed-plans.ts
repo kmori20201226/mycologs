@@ -9,10 +9,11 @@ const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! })
 const prisma = new PrismaClient({ adapter })
 
 const plans = [
-    { id: 'free',     name: 'フリー',            maxMembers: 5,   priceYen: 0,    sortOrder: 0 },
-    { id: 'starter',  name: 'スタータープラン',   maxMembers: 30,  priceYen: 1000, sortOrder: 1 },
-    { id: 'standard', name: 'スタンダードプラン',  maxMembers: 100, priceYen: 3000, sortOrder: 2 },
-    { id: 'pro',      name: 'プロプラン',          maxMembers: -1,  priceYen: 8000, sortOrder: 3 },
+    { id: 'free',                               name: 'フリー',                maxMembers: 5,   priceYen: 0,    sortOrder: 0 },
+    { id: 'price_1TQL1kCZ4b6iBRA9isHq48Pm',    name: 'パーソナルプラン',      maxMembers: 1,   priceYen: 500,  sortOrder: 1 },
+    { id: 'starter',                            name: 'スタータープラン',      maxMembers: 30,  priceYen: 1000, sortOrder: 2 },
+    { id: 'standard',                           name: 'スタンダードプラン',    maxMembers: 100, priceYen: 3000, sortOrder: 3 },
+    { id: 'pro',                                name: 'プロプラン',            maxMembers: -1,  priceYen: 8000, sortOrder: 4 },
 ]
 
 async function main() {
