@@ -6,6 +6,7 @@ import { apiClient, type UserRequestItem } from '@/lib/api'
 import { getStoredUser } from '@/lib/auth'
 import AdminThreadsPanel from './AdminThreadsPanel'
 import AnnouncementPanel from './AnnouncementPanel'
+import PlanPanel from './PlanPanel'
 
 interface RequestRow extends UserRequestItem {
   replyDraft: string
@@ -18,7 +19,7 @@ function StatusBadge({ accepted }: { accepted: boolean | null }) {
   return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-600">否認</span>
 }
 
-type Tab = 'requests' | 'threads' | 'announcement'
+type Tab = 'requests' | 'threads' | 'announcement' | 'plans'
 
 export default function ClubRequestsPage() {
   const router = useRouter()
@@ -103,7 +104,7 @@ export default function ClubRequestsPage() {
         </div>
 
         <div className="flex gap-1 mb-6 border-b border-gray-200">
-          {([['requests', 'クラブ申請', pendingCount], ['threads', 'お問い合わせ', unreadCount], ['announcement', 'お知らせ', 0]] as [Tab, string, number][]).map(([key, label, badge]) => (
+          {([['requests', 'クラブ申請', pendingCount], ['threads', 'お問い合わせ', unreadCount], ['announcement', 'お知らせ', 0], ['plans', 'プラン', 0]] as [Tab, string, number][]).map(([key, label, badge]) => (
             <button
               key={key}
               onClick={() => setTab(key)}
@@ -131,6 +132,8 @@ export default function ClubRequestsPage() {
         )}
 
         {tab === 'announcement' && <AnnouncementPanel />}
+
+        {tab === 'plans' && <PlanPanel />}
 
         {tab === 'requests' && loading ? (
           <div className="space-y-3">

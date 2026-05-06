@@ -16,6 +16,7 @@ usage() {
   echo "  logs           Tail logs (all services, or pass a service name)"
   echo "  migrate        Apply pending Prisma migrations inside the running api container"
   echo "  build          Rebuild all images and apply migrations (use after schema changes)"
+  echo "  seed-plans     Upsert default subscription plans"
   echo "  seed-taxonomy  Run the taxonomy seed inside the api container"
   echo "  seed-admin     Create the admin@localhost user inside the api container"
   echo "  make-test-user Create clubs and users from testdata.csv"
@@ -59,6 +60,11 @@ cmd_logs() {
   fi
 }
 
+cmd_seed_plans() {
+  echo "Seeding default subscription plans..."
+  $COMPOSE exec api npx ts-node scripts/seed-plans.ts
+}
+
 cmd_seed() {
   echo "Running seed script..."
   $COMPOSE exec api npx ts-node scripts/seed-taxonomy.ts
@@ -98,6 +104,7 @@ case "${1:-}" in
   status)       cmd_status ;;
   logs)         cmd_logs "$@" ;;
   migrate)          cmd_migrate ;;
+  seed-plans)       cmd_seed_plans ;;
   seed-taxonomy) cmd_seed ;;
   seed-admin)      cmd_seed_admin ;;
   make-test-user)  cmd_make_test_user ;;

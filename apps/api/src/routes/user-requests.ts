@@ -126,7 +126,24 @@ export default async function (fastify: FastifyInstance) {
                 where: { clubId: target.clubId!, userId: target.requesterId }
             })
         } else {
-            // JoinToMember — add to club (ignore if already a member)
+            // JoinToMember — check plan member limit before adding
+            const now = new Date()
+            const sub = await fastify.prisma.subscription.findFirst({
+                where: { clubId: target.clubId!, status: { in: ['active', 'trialing'] }, accessUntil: { gte: now } }
+            })
+            const planId = sub?.planId ?? 'free'
+            const plan = await fastify.prisma.plan.findUnique({ where: { id: planId } })
+            const maxMembers = plan?.maxMembers ?? 5
+
+            if (maxMembers !== -1) {
+                const memberCount = await fastify.prisma.clubUser.count({ where: { clubId: target.clubId! } })
+                if (memberCount >= maxMembers) {
+                    return reply.code(409).send({
+                        message: `プラン上限（${maxMembers}名）に達しているため承認できません。プランをアップグレードしてください。`
+                    })
+                }
+            }
+
             const memberRole = await fastify.prisma.role.findUnique({ where: { name: 'CLUBMEMBER' } })
             if (!memberRole) return reply.code(500).send({ message: 'CLUBMEMBER role not found' })
             await fastify.prisma.clubUser.upsert({

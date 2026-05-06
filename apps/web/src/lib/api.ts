@@ -616,6 +616,37 @@ class ApiClient {
   async deleteAnnouncement(id: number): Promise<void> {
     await this.request(`/announcements/${id}`, { method: 'DELETE' })
   }
+
+  async getPlans(): Promise<Plan[]> {
+    return this.request('/plans')
+  }
+
+  async getClubMemberLimit(clubId: number): Promise<{ planId: string; planName: string; maxMembers: number }> {
+    return this.request(`/clubs/${clubId}/member-limit`)
+  }
+
+  async createPlan(data: Omit<Plan, 'createdAt' | 'updatedAt'>): Promise<Plan> {
+    return this.request('/plans', { method: 'POST', body: JSON.stringify(data) })
+  }
+
+  async updatePlan(id: string, data: Partial<Omit<Plan, 'id' | 'createdAt' | 'updatedAt'>>): Promise<Plan> {
+    return this.request(`/plans/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
+  }
+
+  async deletePlan(id: string): Promise<void> {
+    await this.request(`/plans/${id}`, { method: 'DELETE' })
+  }
+}
+
+export interface Plan {
+  id: string
+  name: string
+  maxMembers: number
+  priceYen: number
+  active: boolean
+  sortOrder: number
+  createdAt: string
+  updatedAt: string
 }
 
 export interface Announcement {

@@ -527,6 +527,19 @@ model EmailVerificationCode {
   @@map("email_verification_codes")
 }
 
+model Plan {
+  id         String   @id
+  name       String
+  maxMembers Int      @map("max_members")
+  priceYen   Int      @map("price_yen")
+  active     Boolean  @default(true)
+  sortOrder  Int      @default(0) @map("sort_order")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("plans")
+}
+
 model Announcement {
   id        Int      @id @default(autoincrement())
   body      String

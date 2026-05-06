@@ -60,6 +60,8 @@ export default function ClubManagePage() {
   const [requestsLoading, setRequestsLoading] = useState(false)
   const [showResolvedRequests, setShowResolvedRequests] = useState(false)
 
+  const [memberLimit, setMemberLimit] = useState<{ planName: string; maxMembers: number } | null>(null)
+
   const [announcement, setAnnouncement] = useState<Announcement | null>(null)
   const [annBody, setAnnBody] = useState('')
   const [annSaving, setAnnSaving] = useState(false)
@@ -113,6 +115,10 @@ export default function ClubManagePage() {
     } finally {
       setRequestsLoading(false)
     }
+  }
+
+  async function loadMemberLimit(id: number) {
+    apiClient.getClubMemberLimit(id).then(setMemberLimit).catch(() => {})
   }
 
   async function loadAnnouncement(id: number) {
@@ -207,7 +213,7 @@ export default function ClubManagePage() {
     if (!user) { router.replace('/login'); return }
 
     const id = getSelectedClubId()
-    if (id) { loadClub(id); loadEvents(id); loadMembers(id); loadRequests(id); loadAnnouncement(id) }
+    if (id) { loadClub(id); loadEvents(id); loadMembers(id); loadRequests(id); loadAnnouncement(id); loadMemberLimit(id) }
 
     function onClubChanged(e: globalThis.Event) {
       const { clubId: newId } = (e as CustomEvent).detail
@@ -216,6 +222,7 @@ export default function ClubManagePage() {
       loadMembers(newId)
       loadRequests(newId)
       loadAnnouncement(newId)
+      loadMemberLimit(newId)
     }
     window.addEventListener('clubChanged', onClubChanged)
     return () => window.removeEventListener('clubChanged', onClubChanged)
@@ -433,7 +440,15 @@ export default function ClubManagePage() {
 
         {/* ── Members ───────────────────────────────────────────── */}
         <section className="bg-white rounded-xl shadow p-6">
-          <h2 className="font-semibold text-gray-800 mb-4">メンバー管理</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-semibold text-gray-800">メンバー管理</h2>
+            {memberLimit && (
+              <span className="text-xs text-gray-500">
+                {members.length} / {memberLimit.maxMembers === -1 ? '無制限' : memberLimit.maxMembers} 名
+                <span className="ml-1.5 text-gray-400">({memberLimit.planName})</span>
+              </span>
+            )}
+          </div>
           {membersLoading ? (
             <div className="space-y-2">
               {[1, 2, 3].map((i) => (
