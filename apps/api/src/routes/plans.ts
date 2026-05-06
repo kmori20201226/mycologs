@@ -89,12 +89,13 @@ export default async function (fastify: FastifyInstance) {
         return reply.code(201).send(plan)
     })
 
-    // PATCH — update plan (admin only)
+    // PATCH — update plan (admin only); accepts new `id` to rename Stripe price ID
     fastify.patch<{ Params: { id: string } }>('/plans/:id', {
         schema: {
             body: {
                 type: 'object',
                 properties: {
+                    id:         { type: 'string' },
                     name:       { type: 'string' },
                     maxMembers: { type: 'integer' },
                     priceYen:   { type: 'integer' },
@@ -109,11 +110,13 @@ export default async function (fastify: FastifyInstance) {
         const { id: userId } = request.user as { id: number }
         if (!await isAdmin(fastify, userId)) return reply.code(403).send({ error: 'Forbidden' })
 
+        const oldId = request.params.id
         const data = request.body as any
         try {
             const plan = await fastify.prisma.plan.update({
-                where: { id: request.params.id },
+                where: { id: oldId },
                 data: {
+                    ...(data.id         !== undefined && { id:         data.id }),
                     ...(data.name       !== undefined && { name:       data.name }),
                     ...(data.maxMembers !== undefined && { maxMembers: data.maxMembers }),
                     ...(data.priceYen   !== undefined && { priceYen:   data.priceYen }),
@@ -121,6 +124,13 @@ export default async function (fastify: FastifyInstance) {
                     ...(data.sortOrder  !== undefined && { sortOrder:  data.sortOrder }),
                 }
             })
+            // If the ID changed, migrate existing subscription references
+            if (data.id && data.id !== oldId) {
+                await fastify.prisma.subscription.updateMany({
+                    where: { planId: oldId },
+                    data:  { planId: data.id }
+                })
+            }
             return plan
         } catch {
             return reply.code(404).send({ error: 'Plan not found' })

@@ -629,7 +629,7 @@ class ApiClient {
     return this.request('/plans', { method: 'POST', body: JSON.stringify(data) })
   }
 
-  async updatePlan(id: string, data: Partial<Omit<Plan, 'id' | 'createdAt' | 'updatedAt'>>): Promise<Plan> {
+  async updatePlan(id: string, data: Partial<Omit<Plan, 'createdAt' | 'updatedAt'>>): Promise<Plan> {
     return this.request(`/plans/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
   }
 
