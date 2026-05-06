@@ -1,6 +1,12 @@
-import { PrismaClient } from '../generated/prisma'
+import path from 'path'
+import dotenv from 'dotenv'
+dotenv.config({ path: path.resolve(__dirname, '../.env') })
 
-const prisma = new PrismaClient()
+import { PrismaClient } from '../generated/prisma/client'
+import { PrismaPg } from '@prisma/adapter-pg'
+
+const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! })
+const prisma = new PrismaClient({ adapter })
 
 const plans = [
     { id: 'free',     name: 'フリー',            maxMembers: 5,   priceYen: 0,    sortOrder: 0 },
