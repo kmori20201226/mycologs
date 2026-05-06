@@ -6,10 +6,6 @@ const stripe = process.env.STRIPE_SECRET_KEY
     ? new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2026-04-22.dahlia' })
     : null
 const WEBHOOK_SECRET          = process.env.STRIPE_WEBHOOK_SECRET ?? ''
-const PRICE_PERSONAL          = process.env.STRIPE_PRICE_PERSONAL ?? ''
-const PRICE_CLUB              = process.env.STRIPE_PRICE_CLUB ?? ''
-const PERSONAL_PLAN_CREDITS   = Number(process.env.PERSONAL_PLAN_CREDITS ?? 1000)
-const CLUB_PLAN_CREDITS       = Number(process.env.CLUB_PLAN_CREDITS ?? 20000)
 
 function mapStatus(s: string): SubscriptionStatus {
     const map: Record<string, SubscriptionStatus> = {
@@ -163,22 +159,14 @@ export default async function (fastify: FastifyInstance) {
                     // v2026: price moved to line.pricing.price_details.price
                     const linePrice = invoice.lines?.data?.[0]?.pricing?.price_details?.price
                     const planId: string = (typeof linePrice === 'string' ? linePrice : linePrice?.id) ?? ''
-                    fastify.log.info({ planId, PRICE_PERSONAL, PRICE_CLUB }, 'invoice_payment.paid: resolved planId')
-                    if (owner.userId) {
-                        const creditAmount = planId === PRICE_PERSONAL ? PERSONAL_PLAN_CREDITS : 0
-                        if (creditAmount > 0) {
-                            await prisma.user.update({
-                                where: { id: owner.userId },
-                                data:  { credit: creditAmount },
-                            }).catch(() => {})
-                        }
-                    } else if (owner.clubId) {
-                        const creditAmount = planId === PRICE_CLUB ? CLUB_PLAN_CREDITS : 0
-                        if (creditAmount > 0) {
-                            await prisma.club.update({
-                                where: { id: owner.clubId },
-                                data:  { credit: creditAmount },
-                            }).catch(() => {})
+                    fastify.log.info({ planId }, 'invoice_payment.paid: resolved planId')
+                    const plan = planId ? await prisma.plan.findUnique({ where: { id: planId } }) : null
+                    const creditAmount = plan?.creditsPerPeriod ?? 0
+                    if (creditAmount > 0) {
+                        if (owner.userId) {
+                            await prisma.user.update({ where: { id: owner.userId }, data: { credit: creditAmount } }).catch(() => {})
+                        } else if (owner.clubId) {
+                            await prisma.club.update({ where: { id: owner.clubId }, data: { credit: creditAmount } }).catch(() => {})
                         }
                     }
 
@@ -241,21 +229,13 @@ export default async function (fastify: FastifyInstance) {
                     const legacyLinePrice = obj.lines?.data?.[0]?.pricing?.price_details?.price
                         ?? obj.lines?.data?.[0]?.price
                     const planId: string = (typeof legacyLinePrice === 'string' ? legacyLinePrice : legacyLinePrice?.id) ?? ''
-                    if (owner.userId) {
-                        const creditAmount = planId === PRICE_PERSONAL ? PERSONAL_PLAN_CREDITS : 0
-                        if (creditAmount > 0) {
-                            await prisma.user.update({
-                                where: { id: owner.userId },
-                                data:  { credit: creditAmount },
-                            }).catch(() => {})
-                        }
-                    } else if (owner.clubId) {
-                        const creditAmount = planId === PRICE_CLUB ? CLUB_PLAN_CREDITS : 0
-                        if (creditAmount > 0) {
-                            await prisma.club.update({
-                                where: { id: owner.clubId },
-                                data:  { credit: creditAmount },
-                            }).catch(() => {})
+                    const plan = planId ? await prisma.plan.findUnique({ where: { id: planId } }) : null
+                    const creditAmount = plan?.creditsPerPeriod ?? 0
+                    if (creditAmount > 0) {
+                        if (owner.userId) {
+                            await prisma.user.update({ where: { id: owner.userId }, data: { credit: creditAmount } }).catch(() => {})
+                        } else if (owner.clubId) {
+                            await prisma.club.update({ where: { id: owner.clubId }, data: { credit: creditAmount } }).catch(() => {})
                         }
                     }
 

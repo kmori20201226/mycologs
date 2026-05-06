@@ -67,12 +67,13 @@ export default async function (fastify: FastifyInstance) {
                 type: 'object',
                 required: ['id', 'name', 'maxMembers', 'priceYen'],
                 properties: {
-                    id:         { type: 'string' },
-                    name:       { type: 'string' },
-                    maxMembers: { type: 'integer' },
-                    priceYen:   { type: 'integer' },
-                    active:     { type: 'boolean' },
-                    sortOrder:  { type: 'integer' },
+                    id:               { type: 'string' },
+                    name:             { type: 'string' },
+                    maxMembers:       { type: 'integer' },
+                    priceYen:         { type: 'integer' },
+                    creditsPerPeriod: { type: 'integer' },
+                    active:           { type: 'boolean' },
+                    sortOrder:        { type: 'integer' },
                 }
             },
             response: { 201: planSchema }
@@ -85,12 +86,13 @@ export default async function (fastify: FastifyInstance) {
         const data = request.body as any
         const plan = await fastify.prisma.plan.create({
             data: {
-                id:         data.id,
-                name:       data.name,
-                maxMembers: data.maxMembers,
-                priceYen:   data.priceYen,
-                active:     data.active  ?? true,
-                sortOrder:  data.sortOrder ?? 0,
+                id:               data.id,
+                name:             data.name,
+                maxMembers:       data.maxMembers,
+                priceYen:         data.priceYen,
+                creditsPerPeriod: data.creditsPerPeriod ?? 0,
+                active:           data.active  ?? true,
+                sortOrder:        data.sortOrder ?? 0,
             }
         })
         return reply.code(201).send(plan)
@@ -102,11 +104,12 @@ export default async function (fastify: FastifyInstance) {
             body: {
                 type: 'object',
                 properties: {
-                    id:         { type: 'string' },
-                    name:       { type: 'string' },
-                    maxMembers: { type: 'integer' },
-                    priceYen:   { type: 'integer' },
-                    active:     { type: 'boolean' },
+                    id:               { type: 'string' },
+                    name:             { type: 'string' },
+                    maxMembers:       { type: 'integer' },
+                    priceYen:         { type: 'integer' },
+                    creditsPerPeriod: { type: 'integer' },
+                    active:           { type: 'boolean' },
                     sortOrder:  { type: 'integer' },
                 }
             },
@@ -123,12 +126,13 @@ export default async function (fastify: FastifyInstance) {
             const plan = await fastify.prisma.plan.update({
                 where: { id: oldId },
                 data: {
-                    ...(data.id         !== undefined && { id:         data.id }),
-                    ...(data.name       !== undefined && { name:       data.name }),
-                    ...(data.maxMembers !== undefined && { maxMembers: data.maxMembers }),
-                    ...(data.priceYen   !== undefined && { priceYen:   data.priceYen }),
-                    ...(data.active     !== undefined && { active:     data.active }),
-                    ...(data.sortOrder  !== undefined && { sortOrder:  data.sortOrder }),
+                    ...(data.id               !== undefined && { id:               data.id }),
+                    ...(data.name             !== undefined && { name:             data.name }),
+                    ...(data.maxMembers       !== undefined && { maxMembers:       data.maxMembers }),
+                    ...(data.priceYen         !== undefined && { priceYen:         data.priceYen }),
+                    ...(data.creditsPerPeriod !== undefined && { creditsPerPeriod: data.creditsPerPeriod }),
+                    ...(data.active           !== undefined && { active:           data.active }),
+                    ...(data.sortOrder        !== undefined && { sortOrder:        data.sortOrder }),
                 }
             })
             // If the ID changed, migrate existing subscription references

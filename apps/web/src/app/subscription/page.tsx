@@ -6,14 +6,12 @@ import Link from 'next/link'
 import { apiClient, type Plan } from '@/lib/api'
 import { getStoredUser } from '@/lib/auth'
 
-const FREE_CREDITS     = Number(process.env.NEXT_PUBLIC_FREE_TIER_CREDITS       ?? 50)
-const PERSONAL_CREDITS = Number(process.env.NEXT_PUBLIC_PERSONAL_PLAN_CREDITS   ?? 1000)
-const CLUB_CREDITS     = Number(process.env.NEXT_PUBLIC_CLUB_PLAN_CREDITS        ?? 20000)
-const AI_COST          = Number(process.env.NEXT_PUBLIC_AI_IDENTIFICATION_COST   ?? 10)
+const AI_COST = Number(process.env.NEXT_PUBLIC_AI_IDENTIFICATION_COST ?? 10)
 
 export default function SubscriptionPage() {
   const router = useRouter()
   const [personalPlans, setPersonalPlans] = useState<Plan[]>([])
+  const [freePlan, setFreePlan] = useState<Plan | null>(null)
   const [loading, setLoading] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [isActive, setIsActive] = useState(false)
@@ -28,9 +26,10 @@ export default function SubscriptionPage() {
       .catch(() => {})
       .finally(() => setCheckingStatus(false))
 
-    apiClient.getPlans()
-      .then(plans => setPersonalPlans(plans.filter(p => p.maxMembers === 1)))
-      .catch(() => {})
+    apiClient.getPlans().then(plans => {
+      setPersonalPlans(plans.filter(p => p.maxMembers === 1))
+      setFreePlan(plans.find(p => p.id === 'free') ?? null)
+    }).catch(() => {})
   }, [router])
 
   async function handleSubscribe(planId: string) {
@@ -111,11 +110,11 @@ export default function SubscriptionPage() {
               <ul className="mt-6 space-y-3 flex-1">
                 <li className="flex items-start gap-2 text-sm text-gray-700">
                   <span className="text-green-500 mt-0.5">✓</span>
-                  毎月 {PERSONAL_CREDITS} クレジット付与
+                  毎月 {plan.creditsPerPeriod.toLocaleString()} クレジット付与
                 </li>
                 <li className="flex items-start gap-2 text-sm text-gray-700">
                   <span className="text-green-500 mt-0.5">✓</span>
-                  AI同定 1回 {AI_COST} クレジット消費
+                  AI同定 1回 {AI_COST} クレジット消費（約 {Math.floor(plan.creditsPerPeriod / AI_COST)} 回分）
                 </li>
                 <li className="flex items-start gap-2 text-sm text-gray-700">
                   <span className="text-green-500 mt-0.5">✓</span>
@@ -141,16 +140,18 @@ export default function SubscriptionPage() {
         <div className="mt-8 bg-emerald-50 border border-emerald-200 rounded-2xl p-6 max-w-md mx-auto">
           <h2 className="text-lg font-bold text-emerald-800 mb-2">🍄 クラブプランについて</h2>
           <p className="text-sm text-emerald-900 mb-3">
-            クラブ向けのクレジットプランも提供しています。クラブプランでは年間 {CLUB_CREDITS.toLocaleString()} クレジット（AI同定 {Math.floor(CLUB_CREDITS / AI_COST).toLocaleString()} 回分）がクラブ全体で共有されます。
+            クラブ向けのクレジットプランも提供しています。クラブのマネージャーがクラブ管理ページからプランを選択し、クレジットをクラブ全体で共有できます。
           </p>
           <p className="text-sm text-emerald-900 mb-4">
             クラブのマネージャーがクラブ管理ページからクレジットを購入できます。クラブへの参加や新しいクラブの立ち上げは<Link href="/club-request" className="font-semibold underline hover:text-emerald-700">クラブメンバーシップ</Link>ページから申請できます。
           </p>
         </div>
 
-        <div className="mt-6 p-4 bg-gray-100 rounded-xl text-center text-sm text-gray-600">
-          無料アカウントには {FREE_CREDITS} クレジットが付与されます（AI同定 {Math.floor(FREE_CREDITS / AI_COST)} 回分）
-        </div>
+        {freePlan && (
+          <div className="mt-6 p-4 bg-gray-100 rounded-xl text-center text-sm text-gray-600">
+            無料アカウントには {freePlan.creditsPerPeriod} クレジットが付与されます（AI同定 {Math.floor(freePlan.creditsPerPeriod / AI_COST)} 回分）
+          </div>
+        )}
 
         <p className="mt-4 text-center text-xs text-gray-400">
           お支払いは Stripe によって安全に処理されます。いつでもキャンセル可能です。

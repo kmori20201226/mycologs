@@ -9,10 +9,10 @@ export default function PlanPanel() {
   const [plans, setPlans] = useState<EditRow[]>([])
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
+  const [syncing, setSyncing] = useState(false)
   const [newPlan, setNewPlan] = useState<Omit<Plan, 'createdAt' | 'updatedAt'>>({
-    id: '', name: '', maxMembers: 30, priceYen: 0, active: true, sortOrder: 0
+    id: '', name: '', maxMembers: 30, priceYen: 0, creditsPerPeriod: 0, active: true, sortOrder: 0
   })
-  const [syncing, setSyncing] = useState<string | null>(null)
   const [toast, setToast] = useState('')
 
   function flash(msg: string) {
@@ -36,7 +36,8 @@ export default function PlanPanel() {
     try {
       const updated = await apiClient.updatePlan(plan.originalId, {
         id: plan.id, name: plan.name, maxMembers: plan.maxMembers,
-        priceYen: plan.priceYen, active: plan.active, sortOrder: plan.sortOrder
+        priceYen: plan.priceYen, creditsPerPeriod: plan.creditsPerPeriod,
+        active: plan.active, sortOrder: plan.sortOrder
       })
       setPlans((prev) => {
         const rows: EditRow[] = prev.map((p) => {
@@ -49,20 +50,6 @@ export default function PlanPanel() {
     } catch {
       setPlans((prev) => prev.map((p) => p.originalId === plan.originalId ? { ...p, saving: false } : p))
       flash('保存に失敗しました')
-    }
-  }
-
-  async function handleStripeSync(plan: EditRow) {
-    if (!plan.id.startsWith('price_')) { flash('IDが price_ で始まる Stripe Price ID ではありません'); return }
-    setSyncing(plan.originalId)
-    try {
-      const { name, priceYen } = await apiClient.syncPlanFromStripe(plan.id)
-      setPlans((prev) => prev.map((p) => p.originalId === plan.originalId ? { ...p, name, priceYen, dirty: true } : p))
-      flash('Stripeから取得しました')
-    } catch {
-      flash('Stripeからの取得に失敗しました')
-    } finally {
-      setSyncing(null)
     }
   }
 
@@ -83,12 +70,38 @@ export default function PlanPanel() {
     try {
       const created = await apiClient.createPlan(newPlan)
       setPlans((prev) => [...prev, { ...created, dirty: false, saving: false, originalId: created.id }])
-      setNewPlan({ id: '', name: '', maxMembers: 30, priceYen: 0, active: true, sortOrder: 0 })
+      setNewPlan({ id: '', name: '', maxMembers: 30, priceYen: 0, creditsPerPeriod: 0, active: true, sortOrder: 0 })
       flash('作成しました')
     } catch {
       flash('作成に失敗しました')
     } finally {
       setCreating(false)
+    }
+  }
+
+  async function handleSyncAll() {
+    const targets = plans.filter((p) => p.id.startsWith('price_'))
+    if (targets.length === 0) { flash('同期対象のプランがありません（IDが price_ で始まるもの）'); return }
+    setSyncing(true)
+    let ok = 0
+    try {
+      await Promise.all(targets.map(async (plan) => {
+        try {
+          const { name, priceYen } = await apiClient.syncPlanFromStripe(plan.id)
+          const updated = await apiClient.updatePlan(plan.originalId, { name, priceYen })
+          setPlans((prev) => {
+            const rows: EditRow[] = prev.map((p) => {
+              if (p.originalId !== plan.originalId) return p
+              return { ...updated, dirty: false, saving: false, originalId: updated.id }
+            }) as EditRow[]
+            return rows
+          })
+          ok++
+        } catch { /* skip failed rows */ }
+      }))
+      flash(`Stripe同期完了（${ok}/${targets.length} 件）`)
+    } finally {
+      setSyncing(false)
     }
   }
 
@@ -101,6 +114,16 @@ export default function PlanPanel() {
       )}
 
       <div className="bg-white rounded-xl shadow overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3 border-b bg-gray-50">
+          <span className="text-xs text-gray-500">プラン名・月額は Stripe から同期されます</span>
+          <button
+            onClick={handleSyncAll}
+            disabled={syncing}
+            className="text-xs bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white px-3 py-1.5 rounded-lg transition-colors"
+          >
+            {syncing ? '同期中…' : 'Stripe同期'}
+          </button>
+        </div>
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b">
             <tr>
@@ -108,6 +131,7 @@ export default function PlanPanel() {
               <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500">プラン名</th>
               <th className="text-right px-4 py-2 text-xs font-semibold text-gray-500">上限人数</th>
               <th className="text-right px-4 py-2 text-xs font-semibold text-gray-500">月額（円）</th>
+              <th className="text-right px-4 py-2 text-xs font-semibold text-gray-500">クレジット/月</th>
               <th className="text-center px-4 py-2 text-xs font-semibold text-gray-500">順序</th>
               <th className="text-center px-4 py-2 text-xs font-semibold text-gray-500">有効</th>
               <th className="px-4 py-2" />
@@ -124,13 +148,7 @@ export default function PlanPanel() {
                     placeholder="price_xxxxxxxx"
                   />
                 </td>
-                <td className="px-4 py-2">
-                  <input
-                    value={p.name}
-                    onChange={(e) => patch(p.originalId, 'name', e.target.value)}
-                    className="w-full border rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-400"
-                  />
-                </td>
+                <td className="px-4 py-2 text-sm text-gray-700">{p.name || <span className="text-gray-300">—</span>}</td>
                 <td className="px-4 py-2">
                   <input
                     type="number"
@@ -140,11 +158,14 @@ export default function PlanPanel() {
                     className="w-20 border rounded px-2 py-1 text-sm text-right focus:outline-none focus:ring-1 focus:ring-emerald-400"
                   />
                 </td>
+                <td className="px-4 py-2 text-sm text-right text-gray-700">
+                  {p.priceYen > 0 ? `¥${p.priceYen.toLocaleString()}` : <span className="text-gray-300">—</span>}
+                </td>
                 <td className="px-4 py-2">
                   <input
                     type="number"
-                    value={p.priceYen}
-                    onChange={(e) => patch(p.originalId, 'priceYen', Number(e.target.value))}
+                    value={p.creditsPerPeriod}
+                    onChange={(e) => patch(p.originalId, 'creditsPerPeriod', Number(e.target.value))}
                     className="w-24 border rounded px-2 py-1 text-sm text-right focus:outline-none focus:ring-1 focus:ring-emerald-400"
                   />
                 </td>
@@ -165,14 +186,6 @@ export default function PlanPanel() {
                   />
                 </td>
                 <td className="px-4 py-2 text-right whitespace-nowrap space-x-2">
-                  <button
-                    onClick={() => handleStripeSync(p)}
-                    disabled={syncing === p.originalId}
-                    title="Stripeからプラン名と価格を取得"
-                    className="text-xs text-indigo-500 hover:text-indigo-700 disabled:opacity-40 transition-colors"
-                  >
-                    {syncing === p.originalId ? '取得中…' : 'Stripe同期'}
-                  </button>
                   {p.dirty && (
                     <button
                       onClick={() => handleSave(p)}
@@ -197,7 +210,7 @@ export default function PlanPanel() {
 
       <div className="bg-white rounded-xl shadow p-5">
         <h3 className="font-semibold text-gray-800 mb-3 text-sm">新しいプランを追加</h3>
-        <p className="text-xs text-gray-400 mb-3">ID には Stripe の Price ID を設定してください。フリープランは "free" を使用します。上限人数 -1 は無制限です。</p>
+        <p className="text-xs text-gray-400 mb-3">ID には Stripe の Price ID を設定してください。フリープランは "free" を使用します。上限人数 -1 は無制限です。プラン名・月額は Stripe同期 で取得されます。</p>
         <form onSubmit={handleCreate} className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           <div>
             <label className="block text-xs text-gray-500 mb-1">ID</label>
@@ -206,19 +219,8 @@ export default function PlanPanel() {
               className="w-full border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
           </div>
           <div>
-            <label className="block text-xs text-gray-500 mb-1">プラン名</label>
-            <input value={newPlan.name} onChange={(e) => setNewPlan((p) => ({ ...p, name: e.target.value }))}
-              placeholder="スタータープラン" required
-              className="w-full border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
-          </div>
-          <div>
             <label className="block text-xs text-gray-500 mb-1">上限人数（-1=無制限）</label>
             <input type="number" value={newPlan.maxMembers} onChange={(e) => setNewPlan((p) => ({ ...p, maxMembers: Number(e.target.value) }))}
-              className="w-full border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
-          </div>
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">月額（円）</label>
-            <input type="number" value={newPlan.priceYen} onChange={(e) => setNewPlan((p) => ({ ...p, priceYen: Number(e.target.value) }))}
               className="w-full border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
           </div>
           <div>
@@ -226,7 +228,7 @@ export default function PlanPanel() {
             <input type="number" value={newPlan.sortOrder} onChange={(e) => setNewPlan((p) => ({ ...p, sortOrder: Number(e.target.value) }))}
               className="w-full border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
           </div>
-          <div className="flex items-end">
+          <div className="flex items-end sm:col-start-3">
             <button type="submit" disabled={creating}
               className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors">
               {creating ? '作成中…' : '追加'}

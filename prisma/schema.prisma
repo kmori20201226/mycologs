@@ -528,12 +528,13 @@ model EmailVerificationCode {
 }
 
 model Plan {
-  id         String   @id
-  name       String
-  maxMembers Int      @map("max_members")
-  priceYen   Int      @map("price_yen")
-  active     Boolean  @default(true)
-  sortOrder  Int      @default(0) @map("sort_order")
+  id                String   @id
+  name              String
+  maxMembers        Int      @map("max_members")
+  priceYen          Int      @map("price_yen")
+  creditsPerPeriod  Int      @default(0) @map("credits_per_period")
+  active            Boolean  @default(true)
+  sortOrder         Int      @default(0) @map("sort_order")
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
 

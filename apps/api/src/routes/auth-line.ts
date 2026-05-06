@@ -164,7 +164,8 @@ export default async function (fastify: FastifyInstance) {
 
             // 3. No existing user — create one from LINE profile
             if (!user) {
-                const freeTierCredits = Number(process.env.FREE_TIER_CREDITS ?? 50)
+                const freePlan = await fastify.prisma.plan.findUnique({ where: { id: 'free' } })
+                const freeTierCredits = freePlan?.creditsPerPeriod ?? 50
                 user = await fastify.prisma.user.create({
                     data: {
                         name:   displayName,

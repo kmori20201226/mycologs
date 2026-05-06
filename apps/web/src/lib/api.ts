@@ -647,6 +647,7 @@ export interface Plan {
   name: string
   maxMembers: number
   priceYen: number
+  creditsPerPeriod: number
   active: boolean
   sortOrder: number
   createdAt: string

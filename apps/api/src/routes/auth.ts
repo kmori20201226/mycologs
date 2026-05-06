@@ -111,7 +111,8 @@ export default async function (fastify: FastifyInstance) {
         }
 
         const password_hash = await bcrypt.hash(password, BCRYPT_ROUNDS)
-        const freeTierCredits = Number(process.env.FREE_TIER_CREDITS ?? 50)
+        const freePlan = await fastify.prisma.plan.findUnique({ where: { id: 'free' } })
+        const freeTierCredits = freePlan?.creditsPerPeriod ?? 50
 
         const user = await fastify.prisma.user.create({
             data: { name, email, password_hash, credit: freeTierCredits },
