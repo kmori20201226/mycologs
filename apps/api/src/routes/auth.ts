@@ -233,7 +233,7 @@ export default async function (fastify: FastifyInstance) {
     fastify.post('/auth/login', {
         schema: {
             body: loginSchema,
-            response: { 200: authResponseSchema, 401: errorSchema, 403: errorSchema }
+            response: { 200: authResponseSchema, 401: errorSchema, 403: errorSchema, 503: errorSchema }
         }
     }, async (request, reply) => {
         const { email, password } = request.body as {
@@ -257,6 +257,14 @@ export default async function (fastify: FastifyInstance) {
 
         if (!user.emailVerified) {
             return reply.code(403).send({ message: 'EMAIL_NOT_VERIFIED' })
+        }
+
+        const ADMIN_ROLES = ['ADMIN', 'DEVELOPER', 'MODERATOR']
+        if (!ADMIN_ROLES.includes(user.role ?? '')) {
+            const maintenance = await fastify.prisma.siteSetting.findUnique({ where: { key: 'maintenanceMode' } })
+            if (maintenance?.value === 'true') {
+                return reply.code(503).send({ message: 'MAINTENANCE_MODE' })
+            }
         }
 
         const token = fastify.jwt.sign({ id: user.id, email: user.email })

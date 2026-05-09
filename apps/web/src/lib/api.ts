@@ -640,6 +640,14 @@ class ApiClient {
   async syncPlanFromStripe(id: string): Promise<{ name: string; priceYen: number }> {
     return this.request(`/plans/${encodeURIComponent(id)}/stripe-sync`)
   }
+
+  async getSiteSettings(): Promise<{ maintenanceMode: boolean }> {
+    return this.request('/settings/site')
+  }
+
+  async updateSiteSettings(data: { maintenanceMode: boolean }): Promise<{ maintenanceMode: boolean }> {
+    return this.request('/settings/site', { method: 'PUT', body: JSON.stringify(data) })
+  }
 }
 
 export interface Plan {

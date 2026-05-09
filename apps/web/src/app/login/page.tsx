@@ -13,6 +13,7 @@ const LINE_ERROR_MESSAGES: Record<string, string> = {
   line_token_failed: 'LINEとの認証に失敗しました。もう一度お試しください。',
   line_profile_failed: 'LINEプロフィールの取得に失敗しました。',
   line_failed: 'LINEログインに失敗しました。もう一度お試しください。',
+  maintenance: 'ただいまメンテナンス中のため、ログインできません。',
 }
 
 function LoginPageInner() {
@@ -22,10 +23,15 @@ function LoginPageInner() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [maintenance, setMaintenance] = useState(false)
 
   useEffect(() => {
     const errorCode = searchParams.get('error')
     if (errorCode) setError(LINE_ERROR_MESSAGES[errorCode] ?? 'エラーが発生しました。')
+
+    apiClient.getSiteSettings()
+      .then((s) => setMaintenance(s.maintenanceMode))
+      .catch(() => {})
   }, [])
 
   async function handleSubmit(e: React.FormEvent) {
@@ -41,6 +47,8 @@ function LoginPageInner() {
     } catch (err: unknown) {
       if (err instanceof Error && err.message.includes('403')) {
         router.push(`/verify-email?email=${encodeURIComponent(email)}`)
+      } else if (err instanceof Error && err.message.includes('503')) {
+        setError('ただいまメンテナンス中のため、ログインできません。')
       } else {
         setError('メールアドレスまたはパスワードが正しくありません。')
       }
@@ -51,6 +59,12 @@ function LoginPageInner() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="w-full max-w-md space-y-4">
+        {maintenance && (
+          <div className="bg-amber-50 border border-amber-300 text-amber-800 rounded-xl px-5 py-4 text-sm font-medium">
+            ⚠️ 現在メンテナンス中です。一般ユーザーはログインできません。
+          </div>
+        )}
       <div className="bg-white rounded-xl shadow-lg p-8 w-full max-w-md">
         <h1 className="text-2xl font-bold text-gray-900 mb-6">ログイン</h1>
 
@@ -120,6 +134,7 @@ function LoginPageInner() {
             新規登録
           </Link>
         </p>
+      </div>
       </div>
     </div>
   )

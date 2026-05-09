@@ -45,7 +45,10 @@ export default function Home() {
           </div>
 
           <div className="bg-white p-8 rounded-xl shadow-lg">
-            <div className="text-4xl mb-4">🌲</div>
+            <div className="flex items-center gap-2 mb-4">
+              <span className="text-4xl">🌲</span>
+              <span className="text-xs font-medium bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">整備中</span>
+            </div>
             <h3 className="text-xl font-semibold mb-3">フィールドガイド</h3>
             <p className="text-gray-600">
               形状・科・属・種で整理された、きのこの種データベースを閲覧できます。

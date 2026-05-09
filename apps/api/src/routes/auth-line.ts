@@ -196,6 +196,15 @@ export default async function (fastify: FastifyInstance) {
             localUser = user
         }
 
+        // ── Block non-admin login during maintenance ─────────────────────────
+        const ADMIN_ROLES = ['ADMIN', 'DEVELOPER', 'MODERATOR']
+        if (!ADMIN_ROLES.includes(localUser.role ?? '')) {
+            const maintenance = await fastify.prisma.siteSetting.findUnique({ where: { key: 'maintenanceMode' } })
+            if (maintenance?.value === 'true') {
+                return reply.redirect(`${FRONTEND_URL}/login?error=maintenance`)
+            }
+        }
+
         // ── Issue our own JWT and redirect to frontend ───────────────────────
         const token = fastify.jwt.sign({ id: localUser.id, email: localUser.email })
 
