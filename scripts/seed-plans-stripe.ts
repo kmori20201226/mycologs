@@ -40,7 +40,7 @@ async function main() {
 
     let sortOrder = 1
     for (const price of prices) {
-        const product = price.product as Stripe.Product
+        const product = price.product as any
         const productName: string = product?.name ?? price.id
         const priceYen: number = price.unit_amount ?? 0
 
