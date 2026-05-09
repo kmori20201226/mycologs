@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { apiClient, type Announcement, type Event, type Plan, type UserRequestItem } from '@/lib/api'
 import { getStoredUser, getSelectedClubId, getStoredClubs } from '@/lib/auth'
 
@@ -39,7 +39,8 @@ type Tab = 'info' | 'members' | 'requests' | 'events' | 'credits' | 'announcemen
 
 export default function ClubManagePage() {
   const router = useRouter()
-  const [tab, setTab] = useState<Tab>('info')
+  const searchParams = useSearchParams()
+  const [tab, setTab] = useState<Tab>((searchParams.get('tab') as Tab) ?? 'info')
 
   const [club, setClub] = useState<ClubDetail | null>(null)
   const [introduction, setIntroduction] = useState('')
