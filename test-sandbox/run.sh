@@ -69,7 +69,7 @@ cmd_seed_plans() {
   key=$(grep '^STRIPE_SECRET_KEY=' .env 2>/dev/null | cut -d= -f2-)
   if [ -z "$key" ]; then echo "Error: STRIPE_SECRET_KEY not set in .env"; exit 1; fi
   local prices
-  prices=$(stripe prices list --limit 20 --expand data.product --api-key "$key" -o json)
+  prices=$(stripe prices list --limit 20 --expand data.product --api-key "$key" --json)
   $COMPOSE exec -e STRIPE_PRICES_JSON="$prices" api npx ts-node scripts/seed-plans-stripe.ts
 }
 
