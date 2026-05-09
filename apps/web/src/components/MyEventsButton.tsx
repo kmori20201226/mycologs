@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { getStoredUser, getSelectedClubId, getStoredClubs } from '@/lib/auth'
+import { getStoredUser } from '@/lib/auth'
 import { apiClient } from '@/lib/api'
 
 export default function MyEventsButton() {
@@ -12,12 +12,7 @@ export default function MyEventsButton() {
   useEffect(() => {
     const user = getStoredUser()
     if (!user) return
-    const clubId = getSelectedClubId() ?? getStoredClubs()[0]?.id
-    if (!clubId) return
-
-    apiClient.getEvents({ clubId })
-      .then((evs) => { if (evs.length > 0) setShow(true) })
-      .catch(() => {})
+    setShow(true)
 
     apiClient.getActiveSubscription(user.id)
       .then((res) => setActive(res.active))
