@@ -567,6 +567,10 @@ class ApiClient {
     return this.request(`/users/${userId}/subscription/active`)
   }
 
+  async getClubActiveSubscription(clubId: number): Promise<{ active: boolean }> {
+    return this.request(`/clubs/${clubId}/subscription/active`)
+  }
+
   // Admin threads
   async getAdminThreads(): Promise<AdminThread[]> {
     return this.request('/admin-threads')
