@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import IdentifyButton from '@/components/IdentifyButton';
 
 export default function IdentifyPage() {
   return (
@@ -104,12 +105,12 @@ export default function IdentifyPage() {
           </div>
 
           <div className="text-center">
-            <Link
+            <IdentifyButton
               href="/posts/new"
               className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 rounded-lg font-semibold text-lg transition-colors inline-block"
             >
               同定投稿を作成する
-            </Link>
+            </IdentifyButton>
           </div>
 
           <div className="mt-10 text-center">

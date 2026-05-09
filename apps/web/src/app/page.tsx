@@ -2,6 +2,7 @@ import Link from "next/link";
 import ClubEventsButton from "@/components/ClubEventsButton";
 import MyEventsButton from "@/components/MyEventsButton";
 import AnnouncementBanner from "@/components/AnnouncementBanner";
+import IdentifyButton from "@/components/IdentifyButton";
 
 export default function Home() {
   return (
@@ -23,12 +24,12 @@ export default function Home() {
             >
               投稿を見る
             </Link>
-            <Link
+            <IdentifyButton
               href="/identify"
               className="bg-white hover:bg-gray-50 text-emerald-600 border-2 border-emerald-600 px-8 py-3 rounded-lg font-semibold transition-colors"
             >
               きのこを同定する
-            </Link>
+            </IdentifyButton>
             <MyEventsButton />
             <ClubEventsButton />
           </div>

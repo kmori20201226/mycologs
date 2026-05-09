@@ -54,6 +54,8 @@ function PostPageInner() {
   const [commentText, setCommentText] = useState('')
   const [commentSubmitting, setCommentSubmitting] = useState(false)
 
+  const [currentUser] = useState(() => getStoredUser())
+
   // Identification hint (local only — stored on Identification when accepted)
   const [hint, setHint] = useState('')
   const [committedHint, setCommittedHint] = useState<string | null>(null)
@@ -257,7 +259,8 @@ function PostPageInner() {
                 ) : null })()}
                 {(aiLoading || committedHint === null || hint !== committedHint) && <button
                   onClick={handleAiIdentify}
-                  disabled={aiLoading}
+                  disabled={aiLoading || !currentUser}
+                  title={!currentUser ? 'ログインが必要です' : undefined}
                   className={`inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors ${aiLoading ? 'cursor-wait' : ''}`}
                 >
                   {aiLoading ? (
