@@ -55,16 +55,13 @@ async function main() {
     })
     console.log(`Customer    : ${customer.id}`)
 
-    // 4. Attach test card (4242... always succeeds in test mode)
-    const pm = await stripe.paymentMethods.create({
-        type: 'card',
-        card: { number: '4242424242424242', exp_month: 12, exp_year: 2030, cvc: '123' },
-    })
-    await stripe.paymentMethods.attach(pm.id, { customer: customer.id })
+    // 4. Attach test payment method (pm_card_visa = Stripe's built-in test token for 4242 card)
+    const pmId = 'pm_card_visa'
+    await stripe.paymentMethods.attach(pmId, { customer: customer.id })
     await stripe.customers.update(customer.id, {
-        invoice_settings: { default_payment_method: pm.id },
+        invoice_settings: { default_payment_method: pmId },
     })
-    console.log(`Payment method: ${pm.id}`)
+    console.log(`Payment method: ${pmId}`)
 
     // 5. Create subscription — Stripe will charge immediately and fire invoice_payment.paid
     const subscription = await stripe.subscriptions.create({
