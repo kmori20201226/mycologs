@@ -63,9 +63,22 @@ export default function Navigation() {
       setSelectedClubId(newId)
       fetchPendingCount(newId, getStoredClubs())
     }
+    function refreshClubs() {
+      apiClient.request<ClubMembership[]>('/me/clubs', {
+        headers: { Authorization: `Bearer ${getToken() ?? ''}` }
+      }).then((fresh) => {
+        setStoredClubs(fresh)
+        setClubs(fresh)
+        const saved = getSelectedClubId()
+        const validId = fresh.find((c) => c.id === saved)?.id ?? fresh[0]?.id ?? null
+        _setSelectedClubId(validId)
+        setSelectedClubId(validId)
+      }).catch(() => {})
+    }
     window.addEventListener('pendingRequestResolved', onResolved)
     window.addEventListener('pendingRequestCreated', onCreated)
     window.addEventListener('clubChanged', onClubChanged)
+    window.addEventListener('clubsRefresh', refreshClubs)
 
     apiClient.request<ClubMembership[]>('/me/clubs', {
       headers: { Authorization: `Bearer ${token}` }
@@ -83,6 +96,7 @@ export default function Navigation() {
       window.removeEventListener('pendingRequestResolved', onResolved)
       window.removeEventListener('pendingRequestCreated', onCreated)
       window.removeEventListener('clubChanged', onClubChanged)
+      window.removeEventListener('clubsRefresh', refreshClubs)
     }
   }, [])
 

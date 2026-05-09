@@ -71,6 +71,9 @@ export default function ClubRequestsPage() {
       updateRow(row.id, { ...updated, replyDraft: '', resolving: false })
       setPendingCount((n) => Math.max(0, n - 1))
       window.dispatchEvent(new CustomEvent('pendingRequestResolved'))
+      if (row.request?.requestType === 'StartClub') {
+        window.dispatchEvent(new CustomEvent('clubsRefresh'))
+      }
     } catch {
       updateRow(row.id, { resolving: false })
     }
