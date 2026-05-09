@@ -37,9 +37,11 @@ async function poll<T>(label: string, fn: () => Promise<T | null>): Promise<T> {
 async function main() {
     console.log('=== Stripe Round Trip Test ===\n')
 
-    // 1. Find a paid plan in DB
-    const plan = await prisma.plan.findFirst({ where: { active: true, priceYen: { gt: 0 } } })
-    if (!plan) throw new Error('No active paid plan found — run seed-plans first')
+    // 1. Find a plan with a real Stripe price ID (starts with 'price_')
+    const plan = await prisma.plan.findFirst({
+        where: { active: true, priceYen: { gt: 0 }, id: { startsWith: 'price_' } }
+    })
+    if (!plan) throw new Error('No plan with a real Stripe price ID found — set a price_xxx ID via the admin panel first')
     console.log(`Plan        : ${plan.name} (${plan.id})`)
 
     // 2. Find admin user to associate with
