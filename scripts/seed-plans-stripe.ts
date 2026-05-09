@@ -2,9 +2,16 @@ import path from 'path'
 import dotenv from 'dotenv'
 dotenv.config({ path: path.resolve(__dirname, '../.env') })
 
+import Stripe from 'stripe'
 import { PrismaClient } from '../generated/prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
 
+if (!process.env.STRIPE_SECRET_KEY) {
+    console.error('STRIPE_SECRET_KEY is not set')
+    process.exit(1)
+}
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2026-04-22.dahlia' })
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! })
 const prisma = new PrismaClient({ adapter })
 
@@ -19,27 +26,22 @@ const FREE_PLAN = {
 }
 
 async function main() {
-    const json = process.env.STRIPE_PRICES_JSON
-    if (!json) throw new Error('STRIPE_PRICES_JSON is not set')
-
-    const data = JSON.parse(json)
-    const prices: any[] = data.data ?? []
-
-    if (prices.length === 0) {
-        console.log('No prices returned from Stripe — only seeding free plan')
-    }
-
     // Always upsert free plan
     await prisma.plan.upsert({ where: { id: FREE_PLAN.id }, create: FREE_PLAN, update: FREE_PLAN })
     console.log(`Upserted: ${FREE_PLAN.name} (${FREE_PLAN.id})`)
 
-    // Upsert one plan per active Stripe price
+    // Fetch active recurring prices from Stripe
+    const result = await stripe.prices.list({ limit: 20, active: true, expand: ['data.product'] })
+    const prices = result.data.filter(p => p.type === 'recurring')
+
+    if (prices.length === 0) {
+        console.log('No recurring prices found in Stripe — only free plan seeded')
+    }
+
     let sortOrder = 1
     for (const price of prices) {
-        if (!price.active) continue
-        if (price.type !== 'recurring') continue
-
-        const productName: string = price.product?.name ?? price.id
+        const product = price.product as Stripe.Product
+        const productName: string = product?.name ?? price.id
         const priceYen: number = price.unit_amount ?? 0
 
         // Read optional metadata set on the Stripe price
