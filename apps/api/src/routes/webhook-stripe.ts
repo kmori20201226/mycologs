@@ -92,26 +92,34 @@ export default async function (fastify: FastifyInstance) {
                         break
                     }
 
-                    const trialStart = stripeSub.trial_start ? new Date(stripeSub.trial_start * 1000) : null
-                    const trialEnd   = stripeSub.trial_end   ? new Date(stripeSub.trial_end   * 1000) : null
+                    const trialStart   = stripeSub.trial_start       ? new Date(stripeSub.trial_start       * 1000) : null
+                    const trialEnd     = stripeSub.trial_end         ? new Date(stripeSub.trial_end         * 1000) : null
+                    const periodStart  = stripeSub.current_period_start ? new Date(stripeSub.current_period_start * 1000) : null
+                    const periodEnd    = stripeSub.current_period_end   ? new Date(stripeSub.current_period_end   * 1000) : null
 
                     await prisma.subscription.upsert({
                         where: { id: stripeSubId },
                         create: {
-                            id:                stripeSubId,
-                            userId:            owner.userId,
-                            clubId:            owner.clubId,
-                            status:            mapStatus(stripeSub.status),
-                            planId:            stripeSub.items.data[0]?.price.id ?? '',
-                            cancelAtPeriodEnd: stripeSub.cancel_at_period_end,
+                            id:                 stripeSubId,
+                            userId:             owner.userId,
+                            clubId:             owner.clubId,
+                            status:             mapStatus(stripeSub.status),
+                            planId:             stripeSub.items.data[0]?.price.id ?? '',
+                            cancelAtPeriodEnd:  stripeSub.cancel_at_period_end,
                             trialStart,
                             trialEnd,
+                            currentPeriodStart: periodStart,
+                            currentPeriodEnd:   periodEnd,
+                            accessUntil:        periodEnd,
                         },
                         update: {
-                            userId:            owner.userId,
-                            clubId:            owner.clubId,
-                            status:            mapStatus(stripeSub.status),
-                            cancelAtPeriodEnd: stripeSub.cancel_at_period_end,
+                            userId:             owner.userId,
+                            clubId:             owner.clubId,
+                            status:             mapStatus(stripeSub.status),
+                            cancelAtPeriodEnd:  stripeSub.cancel_at_period_end,
+                            currentPeriodStart: periodStart,
+                            currentPeriodEnd:   periodEnd,
+                            accessUntil:        periodEnd,
                         }
                     })
 
