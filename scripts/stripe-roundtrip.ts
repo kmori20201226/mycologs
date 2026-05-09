@@ -85,38 +85,42 @@ async function main() {
         update: {},
     })
 
-    // 6. Poll for Payment record — written by the invoice_payment.paid webhook handler
-    const payment = await poll('invoice_payment.paid webhook', async () =>
-        prisma.payment.findFirst({ where: { subscriptionId: subscription.id } })
-    )
-    console.log(`  Payment   : ${payment.id}`)
-    console.log(`  Amount    : ${payment.amount} ${payment.currency}`)
-    console.log(`  Status    : ${payment.status}`)
+    let passed = false
+    try {
+        // 6. Poll for Payment record — written by the invoice_payment.paid webhook handler
+        const payment = await poll('invoice_payment.paid webhook', async () =>
+            prisma.payment.findFirst({ where: { subscriptionId: subscription.id } })
+        )
+        console.log(`  Payment   : ${payment.id}`)
+        console.log(`  Amount    : ${payment.amount} ${payment.currency}`)
+        console.log(`  Status    : ${payment.status}`)
 
-    // 7. Verify subscription period was updated by the webhook
-    const dbSub = await prisma.subscription.findUnique({ where: { id: subscription.id } })
-    if (dbSub?.currentPeriodEnd) {
-        console.log(`  Period end: ${dbSub.currentPeriodEnd.toISOString()}`)
-    } else {
-        console.log('  Warning: subscription period not updated (webhook may still be in flight)')
+        // 7. Verify subscription period was updated by the webhook
+        const dbSub = await prisma.subscription.findUnique({ where: { id: subscription.id } })
+        if (dbSub?.currentPeriodEnd) {
+            console.log(`  Period end: ${dbSub.currentPeriodEnd.toISOString()}`)
+        } else {
+            console.log('  Warning: subscription period not updated (webhook may still be in flight)')
+        }
+
+        passed = true
+    } finally {
+        // 8. Always clean up Stripe and DB test data
+        console.log('\nCleaning up...')
+        await stripe.subscriptions.cancel(subscription.id).catch(() => {})
+        await stripe.customers.del(customer.id).catch(() => {})
+        await prisma.payment.deleteMany({ where: { subscriptionId: subscription.id } }).catch(() => {})
+        await prisma.subscription.delete({ where: { id: subscription.id } }).catch(() => {})
+        console.log('Done.')
     }
 
-    // 8. Cleanup
-    console.log('\nCleaning up...')
-    await stripe.subscriptions.cancel(subscription.id)
-    await stripe.customers.del(customer.id)
-    await prisma.payment.deleteMany({ where: { subscriptionId: subscription.id } })
-    await prisma.subscription.delete({ where: { id: subscription.id } })
-    console.log('Done.\n')
-
-    console.log('=== PASSED ===')
+    if (passed) console.log('\n=== PASSED ===')
 }
 
 main()
     .catch(async (err) => {
         console.error('\n=== FAILED ===')
         console.error(err.message)
-        await prisma.$disconnect()
         process.exit(1)
     })
     .finally(() => prisma.$disconnect())
