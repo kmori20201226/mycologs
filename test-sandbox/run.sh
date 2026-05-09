@@ -7,20 +7,23 @@ cd "$SCRIPT_DIR"
 COMPOSE="docker compose"
 
 usage() {
-  echo "Usage: $0 {start|stop|restart|status|logs|migrate|seed-taxonomy|seed-admin|make-test-user|build|psql}"
+  echo "Usage: $0 {start|stop|restart|status|logs|migrate|seed-taxonomy|seed-admin|make-test-user|build|psql|maintenance}"
   echo ""
-  echo "  start          Start all containers and apply any pending migrations"
-  echo "  stop           Stop all containers"
-  echo "  restart        Stop then start"
-  echo "  status         Show container status"
-  echo "  logs           Tail logs (all services, or pass a service name)"
-  echo "  migrate        Apply pending Prisma migrations inside the running api container"
-  echo "  build          Rebuild all images and apply migrations (use after schema changes)"
-  echo "  seed-plans     Upsert default subscription plans"
-  echo "  seed-taxonomy  Run the taxonomy seed inside the api container"
-  echo "  seed-admin     Create the admin@localhost user inside the api container"
-  echo "  make-test-user Create clubs and users from testdata.csv"
-  echo "  psql           Open a psql session in the postgres container"
+  echo "  start            Start all containers and apply any pending migrations"
+  echo "  stop             Stop all containers"
+  echo "  restart          Stop then start"
+  echo "  status           Show container status"
+  echo "  logs             Tail logs (all services, or pass a service name)"
+  echo "  migrate          Apply pending Prisma migrations inside the running api container"
+  echo "  build            Rebuild all images and apply migrations (use after schema changes)"
+  echo "  seed-plans       Upsert default subscription plans"
+  echo "  seed-taxonomy    Run the taxonomy seed inside the api container"
+  echo "  seed-admin       Create the admin@localhost user inside the api container"
+  echo "  make-test-user   Create clubs and users from testdata.csv"
+  echo "  psql             Open a psql session in the postgres container"
+  echo "  maintenance on   Enable maintenance mode (non-admin login blocked)"
+  echo "  maintenance off  Disable maintenance mode"
+  echo "  stripe-test      Run Stripe round trip test (test keys only)"
   exit 1
 }
 
@@ -97,6 +100,26 @@ cmd_psql() {
   $COMPOSE exec postgres psql -U postgres mycologs
 }
 
+cmd_maintenance() {
+  local mode="${2:-}"
+  case "$mode" in
+    on)
+      $COMPOSE exec postgres psql -U postgres mycologs -c \
+        "INSERT INTO site_settings (key, value, updated_at) VALUES ('maintenanceMode', 'true', NOW()) ON CONFLICT (key) DO UPDATE SET value = 'true', updated_at = NOW();"
+      echo "Maintenance mode ON — non-admin login is now blocked."
+      ;;
+    off)
+      $COMPOSE exec postgres psql -U postgres mycologs -c \
+        "INSERT INTO site_settings (key, value, updated_at) VALUES ('maintenanceMode', 'false', NOW()) ON CONFLICT (key) DO UPDATE SET value = 'false', updated_at = NOW();"
+      echo "Maintenance mode OFF — login restored."
+      ;;
+    *)
+      echo "Usage: $0 maintenance {on|off}"
+      exit 1
+      ;;
+  esac
+}
+
 case "${1:-}" in
   start)        cmd_start ;;
   stop)         cmd_stop ;;
@@ -110,5 +133,7 @@ case "${1:-}" in
   make-test-user)  cmd_make_test_user ;;
   build)           cmd_build ;;
   psql)            cmd_psql ;;
-  *)            usage ;;
+  maintenance)     cmd_maintenance "$@" ;;
+  stripe-test)     $COMPOSE exec api npx ts-node scripts/stripe-roundtrip.ts ;;
+  *)               usage ;;
 esac
