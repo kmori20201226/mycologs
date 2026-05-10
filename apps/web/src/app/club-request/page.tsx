@@ -79,7 +79,7 @@ export default function ClubRequestPage() {
       window.dispatchEvent(new CustomEvent('pendingRequestCreated'))
       setSuccess(isLeave
         ? '退会申請がクラブ管理者に送信されました。'
-        : '参加申請がクラブ管理者に送信されました。')
+        : '参加申請がクラブ管理者に送信されました。クラブ管理者が承認するまでお待ちください。')
     } catch (err: any) {
       const msg = err?.message ?? ''
       if (msg.includes('409')) {
