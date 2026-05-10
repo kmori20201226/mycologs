@@ -31,6 +31,7 @@ export default function EventEditPage() {
   const [latitude, setLatitude] = useState('')
   const [startAt, setStartAt] = useState('')
   const [endAt, setEndAt] = useState('')
+  const [retrospective, setRetrospective] = useState('')
   const [clubName, setClubName] = useState<string>('')
   const [notFound, setNotFound] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -96,6 +97,7 @@ export default function EventEditPage() {
         setLatitude(ev.latitude != null ? String(ev.latitude) : '')
         setStartAt(toInputValue(ev.startAt))
         setEndAt(toInputValue(ev.endAt))
+        setRetrospective(ev.retrospective ?? '')
         setSavedBanner(ev.bannerImage)
         if (ev.clubId) {
           const clubs = getStoredClubs()
@@ -118,6 +120,7 @@ export default function EventEditPage() {
     latitude !== (original.latitude != null ? String(original.latitude) : '') ||
     startAt !== toInputValue(original.startAt) ||
     endAt !== toInputValue(original.endAt) ||
+    retrospective !== (original.retrospective ?? '') ||
     bannerFile !== null ||
     bannerDeleted
   )
@@ -201,6 +204,7 @@ export default function EventEditPage() {
         latitude: latitude !== '' ? Number(latitude) : null,
         startAt: startAt ? new Date(startAt).toISOString() : null,
         endAt: endAt ? new Date(endAt).toISOString() : null,
+        retrospective: retrospective.trim() || null,
       })
 
       setOriginal((prev) => prev ? {
@@ -451,6 +455,17 @@ export default function EventEditPage() {
                 accept="image/*"
                 className="hidden"
                 onChange={handleBannerSelect}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">振り返り</label>
+              <textarea
+                value={retrospective}
+                onChange={(e) => setRetrospective(e.target.value)}
+                rows={4}
+                placeholder="イベントの振り返りや感想を記入してください"
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
               />
             </div>
 
