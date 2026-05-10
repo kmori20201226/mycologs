@@ -108,6 +108,14 @@ export default function RegisterPage() {
             <p className="text-red-600 text-sm">{error}</p>
           )}
 
+          <p className="text-xs text-gray-500 text-center">
+            アカウントを作成することで、
+            <Link href="/privacy-policy" target="_blank" className="text-emerald-600 hover:underline">
+              プライバシーポリシー
+            </Link>
+            に同意したことになります。
+          </p>
+
           <button
             type="submit"
             disabled={loading}
