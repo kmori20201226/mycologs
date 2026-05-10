@@ -23,7 +23,7 @@ ARG GIT_BRANCH=unknown
 
 COPY apps/web/ ./apps/web/
 COPY packages/ ./packages/
-COPY version.txt ./version.txt
+COPY CHANGELOG.md ./CHANGELOG.md
 RUN printf '%s\n%s\n' "$GIT_HASH" "$GIT_BRANCH" > /app/git-info.txt
 RUN cd apps/web && npx next build
 
@@ -36,7 +36,7 @@ COPY --from=builder /app/node_modules /app/node_modules
 COPY --from=builder /app/apps/web/package.json ./
 COPY --from=builder /app/apps/web/.next ./.next
 COPY --from=builder /app/apps/web/public ./public
-COPY --from=builder /app/version.txt /app/version.txt
+COPY --from=builder /app/CHANGELOG.md /app/CHANGELOG.md
 COPY --from=builder /app/git-info.txt /app/git-info.txt
 
 EXPOSE 3001

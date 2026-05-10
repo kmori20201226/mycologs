@@ -1,12 +1,24 @@
 import fs from 'fs'
 import path from 'path'
-import ContactSection from './ContactSection'
+import AboutTabs, { type ChangelogEntry } from './AboutTabs'
 
-function readVersion(): string {
+function parseChangelog(): ChangelogEntry[] {
   try {
-    return fs.readFileSync(path.join(process.cwd(), '../../version.txt'), 'utf-8').trim()
+    const content = fs.readFileSync(path.join(process.cwd(), '../../CHANGELOG.md'), 'utf-8')
+    return content
+      .split(/^## /m)
+      .filter(Boolean)
+      .map((section) => {
+        const lines = section.trim().split('\n')
+        const header = lines[0]
+        const match = header.match(/^([\d.]+)\s*\(([^)]+)\)/)
+        const version = match?.[1] ?? header
+        const date = match?.[2] ?? ''
+        const items = lines.slice(1).filter((l) => l.startsWith('- ')).map((l) => l.slice(2))
+        return { version, date, items }
+      })
   } catch {
-    return '—'
+    return []
   }
 }
 
@@ -20,29 +32,16 @@ function readGitInfo(): { hash: string; branch: string } {
 }
 
 export default function AboutPage() {
-  const version = readVersion()
+  const changelog = parseChangelog()
   const git = readGitInfo()
+  const version = changelog[0]?.version ?? '—'
+  const versionString = `${version}-${git.branch}-${git.hash}`
 
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto px-4 py-12 max-w-xl">
-        <div className="bg-white rounded-2xl shadow p-8 space-y-6">
-
-          <div className="text-center">
-            <div className="text-5xl mb-3">🍄</div>
-            <h1 className="text-2xl font-bold text-gray-900">Mycologs</h1>
-            <p className="text-sm text-gray-400 mt-1">きのこ同定と菌類探索のプラットフォーム</p>
-          </div>
-
-          <div className="border-t pt-6">
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-500">バージョン</span>
-              <span className="font-mono font-medium text-gray-800">{version}-{git.branch}-{git.hash}</span>
-            </div>
-          </div>
-
-          <ContactSection />
-
+        <div className="bg-white rounded-2xl shadow p-8">
+          <AboutTabs versionString={versionString} changelog={changelog} />
         </div>
       </div>
     </div>
