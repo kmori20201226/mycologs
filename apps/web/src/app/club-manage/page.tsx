@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { Suspense, useEffect, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { apiClient, type Announcement, type Event, type Plan, type UserRequestItem } from '@/lib/api'
 import { getStoredUser, getSelectedClubId, getStoredClubs } from '@/lib/auth'
@@ -38,6 +38,10 @@ function formatDate(iso: string | null): string {
 type Tab = 'info' | 'members' | 'requests' | 'events' | 'credits' | 'announcement'
 
 export default function ClubManagePage() {
+  return <Suspense><ClubManagePageInner /></Suspense>
+}
+
+function ClubManagePageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [tab, setTab] = useState<Tab>((searchParams.get('tab') as Tab) ?? 'info')
