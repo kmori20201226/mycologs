@@ -24,3 +24,10 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* iOS Safari renders input text with reduced opacity by default */
+input, textarea, select {
+  color: inherit;
+  -webkit-text-fill-color: currentColor;
+  opacity: 1;
+}
