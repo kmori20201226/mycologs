@@ -34,18 +34,10 @@ export default function AboutPage() {
             <p className="text-sm text-gray-400 mt-1">きのこ同定と菌類探索のプラットフォーム</p>
           </div>
 
-          <div className="border-t pt-6 space-y-3">
+          <div className="border-t pt-6">
             <div className="flex justify-between text-sm">
               <span className="text-gray-500">バージョン</span>
-              <span className="font-mono font-medium text-gray-800">{version}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-500">ブランチ</span>
-              <span className="font-mono font-medium text-gray-800">{git.branch}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-500">コミット</span>
-              <span className="font-mono font-medium text-gray-800">{git.hash}</span>
+              <span className="font-mono font-medium text-gray-800">{version}-{git.branch}-{git.hash}</span>
             </div>
           </div>
 
