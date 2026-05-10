@@ -83,7 +83,9 @@ cmd_seed_admin() {
 }
 
 cmd_build() {
-  echo "Building all images..."
+  export GIT_HASH=$(git -C .. rev-parse --short HEAD 2>/dev/null || echo "unknown")
+  export GIT_BRANCH=$(git -C .. rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+  echo "Building all images... ($GIT_BRANCH@$GIT_HASH)"
   $COMPOSE build
   echo "Restarting api and running migrations..."
   $COMPOSE up -d api

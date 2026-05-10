@@ -76,6 +76,8 @@ services:
         INTERNAL_API_URL: http://api:3000
         NEXT_PUBLIC_STRIPE_PRICE_PERSONAL: ${NEXT_PUBLIC_STRIPE_PRICE_PERSONAL:-}
         NEXT_PUBLIC_STRIPE_PRICE_CLUB: ${NEXT_PUBLIC_STRIPE_PRICE_CLUB:-}
+        GIT_HASH: ${GIT_HASH:-unknown}
+        GIT_BRANCH: ${GIT_BRANCH:-unknown}
     container_name: mycologs-sandbox-web
     environment:
       INTERNAL_API_URL: http://api:3000

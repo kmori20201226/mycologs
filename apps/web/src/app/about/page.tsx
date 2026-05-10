@@ -10,8 +10,18 @@ function readVersion(): string {
   }
 }
 
+function readGitInfo(): { hash: string; branch: string } {
+  try {
+    const lines = fs.readFileSync(path.join(process.cwd(), '../../git-info.txt'), 'utf-8').trim().split('\n')
+    return { hash: lines[0] ?? 'unknown', branch: lines[1] ?? 'unknown' }
+  } catch {
+    return { hash: 'unknown', branch: 'unknown' }
+  }
+}
+
 export default function AboutPage() {
   const version = readVersion()
+  const git = readGitInfo()
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -28,6 +38,14 @@ export default function AboutPage() {
             <div className="flex justify-between text-sm">
               <span className="text-gray-500">バージョン</span>
               <span className="font-mono font-medium text-gray-800">{version}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-500">ブランチ</span>
+              <span className="font-mono font-medium text-gray-800">{git.branch}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-500">コミット</span>
+              <span className="font-mono font-medium text-gray-800">{git.hash}</span>
             </div>
           </div>
 
