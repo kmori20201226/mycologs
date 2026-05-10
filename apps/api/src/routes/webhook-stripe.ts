@@ -92,10 +92,25 @@ export default async function (fastify: FastifyInstance) {
                         break
                     }
 
-                    const trialStart   = stripeSub.trial_start       ? new Date(stripeSub.trial_start       * 1000) : null
-                    const trialEnd     = stripeSub.trial_end         ? new Date(stripeSub.trial_end         * 1000) : null
-                    const periodStart  = stripeSub.current_period_start ? new Date(stripeSub.current_period_start * 1000) : null
-                    const periodEnd    = stripeSub.current_period_end   ? new Date(stripeSub.current_period_end   * 1000) : null
+                    const trialStart   = stripeSub.trial_start ? new Date(stripeSub.trial_start * 1000) : null
+                    const trialEnd     = stripeSub.trial_end   ? new Date(stripeSub.trial_end   * 1000) : null
+
+                    // Retrieve the checkout invoice for reliable period data.
+                    // In v2026, current_period_start/end on the subscription object may return 0.
+                    const checkoutInvoiceId = typeof obj.invoice === 'string' ? obj.invoice : obj.invoice?.id
+                    let periodStart: Date | null = null
+                    let periodEnd:   Date | null = null
+                    if (checkoutInvoiceId) {
+                        const chkInv = await stripe.invoices.retrieve(checkoutInvoiceId) as any
+                        const line   = chkInv.lines?.data?.[0]
+                        periodStart  = line?.period?.start ? new Date(line.period.start * 1000) : null
+                        periodEnd    = line?.period?.end   ? new Date(line.period.end   * 1000) : null
+                    }
+                    // Fallback to subscription fields
+                    if (!periodEnd) {
+                        periodStart = stripeSub.current_period_start ? new Date(stripeSub.current_period_start * 1000) : null
+                        periodEnd   = stripeSub.current_period_end   ? new Date(stripeSub.current_period_end   * 1000) : null
+                    }
 
                     await prisma.subscription.upsert({
                         where: { id: stripeSubId },
@@ -151,8 +166,10 @@ export default async function (fastify: FastifyInstance) {
                     fastify.log.info({ owner }, 'invoice_payment.paid: owner resolved')
                     if (!owner) { fastify.log.warn(`invoice_payment.paid: no owner for customer ${customerId}`); break }
 
-                    const periodStart = invoice.period_start ? new Date(invoice.period_start * 1000) : null
-                    const periodEnd   = invoice.period_end   ? new Date(invoice.period_end   * 1000) : null
+                    // In v2026, invoice.period_start/end return 0; use line item period instead
+                    const invLine    = invoice.lines?.data?.[0]
+                    const periodStart = invLine?.period?.start ? new Date(invLine.period.start * 1000) : (invoice.period_start ? new Date(invoice.period_start * 1000) : null)
+                    const periodEnd   = invLine?.period?.end   ? new Date(invLine.period.end   * 1000) : (invoice.period_end   ? new Date(invoice.period_end   * 1000) : null)
 
                     await prisma.subscription.update({
                         where: { id: stripeSubId },
@@ -221,8 +238,10 @@ export default async function (fastify: FastifyInstance) {
                     fastify.log.info({ owner }, 'invoice.payment_succeeded: owner resolved')
                     if (!owner) { fastify.log.warn(`invoice.payment_succeeded: no owner for customer ${customerId}`); break }
 
-                    const periodStart = obj.period_start ? new Date(obj.period_start * 1000) : null
-                    const periodEnd   = obj.period_end   ? new Date(obj.period_end   * 1000) : null
+                    // In v2026, invoice.period_start/end return 0; use line item period instead
+                    const legacyLine  = obj.lines?.data?.[0]
+                    const periodStart = legacyLine?.period?.start ? new Date(legacyLine.period.start * 1000) : (obj.period_start ? new Date(obj.period_start * 1000) : null)
+                    const periodEnd   = legacyLine?.period?.end   ? new Date(legacyLine.period.end   * 1000) : (obj.period_end   ? new Date(obj.period_end   * 1000) : null)
 
                     await prisma.subscription.update({
                         where: { id: stripeSubId },
