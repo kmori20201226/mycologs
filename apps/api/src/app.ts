@@ -52,10 +52,17 @@ export async function buildApp() {
         bodyLimit: 52 * 1024 * 1024, // 52 MB to accommodate 50 MB file uploads
     })
 
+    const allowedOrigins = (process.env.FRONTEND_URL ?? 'http://localhost:3001')
+        .split(',').map(s => s.trim()).filter(Boolean)
     await app.register(cors, {
-        origin: process.env.FRONTEND_URL ?? 'http://localhost:3001',
+        origin: (origin, cb) => {
+            if (!origin || allowedOrigins.includes(origin)) return cb(null, true)
+            console.warn(`CORS blocked origin: "${origin}" (allowed: ${allowedOrigins.join(', ')})`)
+            cb(new Error('Not allowed by CORS'))
+        },
         methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
-        allowedHeaders: ['Content-Type', 'Authorization']
+        allowedHeaders: ['Content-Type', 'Authorization'],
+        credentials: true,
     })
     await app.register(multipart)
     await app.register(staticFiles, {
