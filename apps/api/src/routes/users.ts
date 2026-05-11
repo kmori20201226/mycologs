@@ -314,9 +314,12 @@ export default async function (fastify: FastifyInstance) {
     }, async (request, reply) => {
         const { id } = request.params as { id: string }
         const targetId = Number(id)
-        const caller = (request as any).user
+        const callerId = (request as any).user?.id
+        const caller = callerId
+            ? await fastify.prisma.user.findUnique({ where: { id: callerId }, select: { role: true } })
+            : null
 
-        if (!['ADMIN', 'DEVELOPER'].includes(caller.role ?? '')) {
+        if (!caller || !['ADMIN', 'DEVELOPER'].includes(caller.role ?? '')) {
             return reply.code(403).send({ error: 'Forbidden' })
         }
 
