@@ -58,7 +58,7 @@ export async function buildApp() {
         origin: (origin, cb) => {
             if (!origin || allowedOrigins.includes(origin)) return cb(null, true)
             console.warn(`CORS blocked origin: "${origin}" (allowed: ${allowedOrigins.join(', ')})`)
-            cb(new Error('Not allowed by CORS'))
+            cb(null, false)
         },
         methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
         allowedHeaders: ['Content-Type', 'Authorization'],
