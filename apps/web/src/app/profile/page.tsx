@@ -35,6 +35,10 @@ export default function ProfilePage() {
   const [credit, setCredit] = useState<number | null>(null)
   const [subActive, setSubActive] = useState(false)
   const [portalLoading, setPortalLoading] = useState(false)
+  const [withdrawing, setWithdrawing] = useState(false)
+  const [withdrawError, setWithdrawError] = useState('')
+  const [withdrawConfirm, setWithdrawConfirm] = useState(false)
+  const [withdrawDone, setWithdrawDone] = useState(false)
 
   useEffect(() => {
     const user = getStoredUser()
@@ -89,6 +93,22 @@ export default function ProfilePage() {
       }
     } finally {
       setHandleSaving(false)
+    }
+  }
+
+  async function handleWithdrawRequest() {
+    const user = getStoredUser()
+    if (!user) return
+    setWithdrawing(true)
+    setWithdrawError('')
+    try {
+      await apiClient.submitWithdrawRequest(user.id)
+      setWithdrawDone(true)
+      setWithdrawConfirm(false)
+    } catch {
+      setWithdrawError('申請の送信に失敗しました。もう一度お試しください。')
+    } finally {
+      setWithdrawing(false)
     }
   }
 
@@ -286,6 +306,50 @@ export default function ProfilePage() {
             >
               すべての投稿を見る →
             </Link>
+          )}
+        </div>
+
+        {/* Withdrawal */}
+        <div className="bg-white rounded-xl shadow p-6 mt-6 border border-red-100">
+          <h2 className="text-sm font-semibold text-red-600 uppercase tracking-wide mb-3">退会</h2>
+          {withdrawDone ? (
+            <p className="text-sm text-gray-600">
+              退会申請を受け付けました。管理者が処理するまでしばらくお待ちください。
+            </p>
+          ) : withdrawConfirm ? (
+            <div className="space-y-3">
+              <p className="text-sm text-gray-700">
+                退会すると、お名前・メールアドレス等の個人情報は削除されます。投稿・同定データは匿名化された状態で残ります。この操作は管理者が処理した後は元に戻せません。
+              </p>
+              {withdrawError && <p className="text-xs text-red-600">{withdrawError}</p>}
+              <div className="flex gap-2">
+                <button
+                  onClick={handleWithdrawRequest}
+                  disabled={withdrawing}
+                  className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-sm font-semibold rounded-lg transition-colors"
+                >
+                  {withdrawing ? '送信中…' : '退会申請を送信する'}
+                </button>
+                <button
+                  onClick={() => { setWithdrawConfirm(false); setWithdrawError('') }}
+                  className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold rounded-lg transition-colors"
+                >
+                  キャンセル
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-xs text-gray-500">
+                退会を希望する場合は申請を送信してください。管理者が確認後に処理します。
+              </p>
+              <button
+                onClick={() => setWithdrawConfirm(true)}
+                className="px-4 py-2 bg-white border border-red-400 hover:bg-red-50 text-red-600 text-sm font-semibold rounded-lg transition-colors"
+              >
+                退会を申請する
+              </button>
+            </div>
           )}
         </div>
 

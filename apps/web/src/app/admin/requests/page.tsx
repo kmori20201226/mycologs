@@ -20,7 +20,13 @@ function StatusBadge({ accepted }: { accepted: boolean | null }) {
   return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-600">否認</span>
 }
 
-type Tab = 'requests' | 'threads' | 'announcement' | 'plans' | 'settings'
+interface WithdrawRow extends UserRequestItem {
+  processing: boolean
+  processed: boolean
+  deletedAt: string | null
+}
+
+type Tab = 'requests' | 'withdraw' | 'threads' | 'announcement' | 'plans' | 'settings'
 
 export default function ClubRequestsPage() {
   const router = useRouter()
@@ -30,6 +36,9 @@ export default function ClubRequestsPage() {
   const [showResolved, setShowResolved] = useState(false)
   const [pendingCount, setPendingCount] = useState(0)
   const [unreadCount, setUnreadCount] = useState(0)
+  const [withdrawRows, setWithdrawRows] = useState<WithdrawRow[]>([])
+  const [withdrawLoading, setWithdrawLoading] = useState(false)
+  const [withdrawPendingCount, setWithdrawPendingCount] = useState(0)
 
   useEffect(() => {
     const user = getStoredUser()
@@ -45,6 +54,15 @@ export default function ClubRequestsPage() {
       })
       .catch(() => {})
       .finally(() => setLoading(false))
+
+    setWithdrawLoading(true)
+    apiClient.getUserRequests({ requestType: 'Withdraw' })
+      .then((items) => {
+        setWithdrawRows(items.map((r) => ({ ...r, processing: false, processed: false, deletedAt: null })))
+        setWithdrawPendingCount(items.filter((r) => r.accepted === null).length)
+      })
+      .catch(() => {})
+      .finally(() => setWithdrawLoading(false))
 
     apiClient.getAdminThreads().then((threads) => {
       const ADMIN_ROLES = ['ADMIN', 'DEVELOPER', 'MODERATOR']
@@ -96,6 +114,23 @@ export default function ClubRequestsPage() {
     }
   }
 
+  async function handleProcessWithdrawal(row: WithdrawRow) {
+    const user = getStoredUser()
+    if (!user) return
+    setWithdrawRows((prev) => prev.map((r) => r.id === row.id ? { ...r, processing: true } : r))
+    try {
+      const result = await apiClient.processWithdrawal(row.requester.id)
+      await apiClient.acceptUserRequest(row.id, { replierId: user.id, reply: null })
+      setWithdrawRows((prev) => prev.map((r) => r.id === row.id
+        ? { ...r, processing: false, processed: true, accepted: true, deletedAt: result.deletedAt }
+        : r
+      ))
+      setWithdrawPendingCount((n) => Math.max(0, n - 1))
+    } catch {
+      setWithdrawRows((prev) => prev.map((r) => r.id === row.id ? { ...r, processing: false } : r))
+    }
+  }
+
   const pending  = rows.filter((r) => r.accepted === null)
   const resolved = rows.filter((r) => r.accepted !== null)
 
@@ -108,7 +143,7 @@ export default function ClubRequestsPage() {
         </div>
 
         <div className="flex gap-1 mb-6 border-b border-gray-200">
-          {([['requests', 'クラブ申請', pendingCount], ['threads', 'お問い合わせ', unreadCount], ['announcement', 'お知らせ', 0], ['plans', 'プラン', 0], ['settings', 'サイト設定', 0]] as [Tab, string, number][]).map(([key, label, badge]) => (
+          {([['requests', 'クラブ申請', pendingCount], ['withdraw', '退会申請', withdrawPendingCount], ['threads', 'お問い合わせ', unreadCount], ['announcement', 'お知らせ', 0], ['plans', 'プラン', 0], ['settings', 'サイト設定', 0]] as [Tab, string, number][]).map(([key, label, badge]) => (
             <button
               key={key}
               onClick={() => setTab(key)}
@@ -127,6 +162,60 @@ export default function ClubRequestsPage() {
             </button>
           ))}
         </div>
+
+        {tab === 'withdraw' && (
+          withdrawLoading ? (
+            <div className="space-y-3">
+              {[1, 2].map((i) => (
+                <div key={i} className="bg-white rounded-xl shadow p-5 animate-pulse">
+                  <div className="h-4 bg-gray-200 rounded w-1/3 mb-2" />
+                  <div className="h-3 bg-gray-200 rounded w-1/2" />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {withdrawRows.length === 0 && (
+                <p className="text-sm text-gray-400">退会申請はありません。</p>
+              )}
+              {withdrawRows.map((row) => (
+                <div key={row.id} className={`bg-white rounded-xl shadow p-5 border-l-4 ${row.accepted === true ? 'border-gray-300' : 'border-red-400'}`}>
+                  <div className="flex items-start gap-3 mb-3">
+                    <div className="w-9 h-9 rounded-full bg-red-100 text-red-700 flex items-center justify-center text-sm font-bold shrink-0">
+                      {row.requester.name[0].toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-gray-900 text-sm">{row.requester.name}</p>
+                      <p className="text-xs text-gray-400">{row.requester.email}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        申請日: {new Date(row.createdAt).toLocaleDateString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </div>
+                    <StatusBadge accepted={row.accepted} />
+                  </div>
+
+                  {row.processed && row.deletedAt && (
+                    <div className="mb-3 bg-gray-50 rounded-lg px-4 py-3 text-xs text-gray-500 border border-gray-100">
+                      <p className="font-medium text-gray-700 mb-0.5">退会処理完了</p>
+                      <p>処理日時: {new Date(row.deletedAt).toLocaleString('ja-JP')}</p>
+                      <p className="mt-0.5 text-gray-400">個人情報は削除されました。</p>
+                    </div>
+                  )}
+
+                  {row.accepted === null && (
+                    <button
+                      onClick={() => handleProcessWithdrawal(row)}
+                      disabled={row.processing}
+                      className="flex items-center gap-1.5 px-4 py-1.5 disabled:opacity-50 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-lg transition-colors"
+                    >
+                      {row.processing ? '処理中…' : '処理する（退会を実行）'}
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )
+        )}
 
         {tab === 'threads' && (
           <AdminThreadsPanel

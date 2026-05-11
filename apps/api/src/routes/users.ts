@@ -1,6 +1,11 @@
 import { FastifyInstance } from 'fastify'
 import { createUserSchema, userSchema } from '../schemas/user'
 import crypto from 'crypto'
+import Stripe from 'stripe'
+
+const stripe = process.env.STRIPE_SECRET_KEY
+    ? new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2026-04-22.dahlia' as any })
+    : null
 
 export default async function (fastify: FastifyInstance) {
 
@@ -301,6 +306,52 @@ export default async function (fastify: FastifyInstance) {
         })
 
         return logs
+    })
+
+    // WITHDRAW — admin anonymises personal data and marks withdrawnAt
+    fastify.post('/admin/users/:id/withdraw', {
+        preHandler: [fastify.authenticate],
+    }, async (request, reply) => {
+        const { id } = request.params as { id: string }
+        const targetId = Number(id)
+        const caller = (request as any).user
+
+        if (!['ADMIN', 'DEVELOPER'].includes(caller.role ?? '')) {
+            return reply.code(403).send({ error: 'Forbidden' })
+        }
+
+        const user = await fastify.prisma.user.findUnique({ where: { id: targetId } })
+        if (!user) return reply.code(404).send({ error: 'User not found' })
+        if (user.deletedAt) return reply.code(409).send({ error: 'Already withdrawn' })
+
+        // Cancel active Stripe subscriptions
+        if (stripe) {
+            const subs = await fastify.prisma.subscription.findMany({
+                where: { userId: targetId, status: { in: ['active', 'trialing'] } },
+                select: { id: true }
+            })
+            await Promise.allSettled(subs.map((s) => stripe!.subscriptions.cancel(s.id)))
+        }
+
+        // Anonymise personal data
+        const garbage = crypto.randomBytes(16).toString('hex')
+        const updated = await fastify.prisma.user.update({
+            where: { id: targetId },
+            data: {
+                name:            '退会済みユーザー',
+                handleName:      null,
+                email:           `withdrawn_${garbage}@invalid.local`,
+                password_hash:   null,
+                line_id:         null,
+                tel:             null,
+                address:         null,
+                stripeCustomerId: null,
+                deletedAt:       new Date(),
+            },
+            select: { id: true, deletedAt: true }
+        })
+
+        return reply.send({ id: updated.id, deletedAt: updated.deletedAt })
     })
 
     fastify.delete('/users/:id', async (request, reply) => {

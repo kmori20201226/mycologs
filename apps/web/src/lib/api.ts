@@ -215,6 +215,17 @@ class ApiClient {
     })
   }
 
+  async submitWithdrawRequest(requesterId: number): Promise<UserRequestItem> {
+    return this.request('/user-requests', {
+      method: 'POST',
+      body: JSON.stringify({ requesterId, request: { requestType: 'Withdraw', message: '' } }),
+    })
+  }
+
+  async processWithdrawal(userId: number): Promise<{ id: number; deletedAt: string }> {
+    return this.request(`/admin/users/${userId}/withdraw`, { method: 'POST' })
+  }
+
   // Posts
   async getPosts(filter?: { eventId?: number }): Promise<unknown[]> {
     const params = new URLSearchParams()
