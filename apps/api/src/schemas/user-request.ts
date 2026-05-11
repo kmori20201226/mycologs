@@ -52,10 +52,10 @@ export const userRequestSchema = {
 
 export const createUserRequestSchema = {
     type: 'object',
-    required: ['requesterId', 'clubId'],
+    required: ['requesterId'],
     properties: {
         requesterId: { type: 'number' },
-        clubId: { type: 'number' },
+        clubId: { type: 'number', nullable: true },
         request: { type: 'object', nullable: true, additionalProperties: true }
     }
 }
