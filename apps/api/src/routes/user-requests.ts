@@ -120,6 +120,8 @@ export default async function (fastify: FastifyInstance) {
                 where: { id: target.clubId! },
                 data: { status: 'ACTIVE' }
             })
+        } else if (requestType === 'Withdraw') {
+            // No club side-effect; admin has already anonymised the user via /admin/users/:id/withdraw
         } else if (requestType === 'LeaveFromMember') {
             // Remove from club
             await fastify.prisma.clubUser.deleteMany({

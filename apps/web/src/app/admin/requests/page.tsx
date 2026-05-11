@@ -24,6 +24,7 @@ interface WithdrawRow extends UserRequestItem {
   processing: boolean
   processed: boolean
   deletedAt: string | null
+  error: string
 }
 
 type Tab = 'requests' | 'withdraw' | 'threads' | 'announcement' | 'plans' | 'settings'
@@ -58,7 +59,7 @@ export default function ClubRequestsPage() {
     setWithdrawLoading(true)
     apiClient.getUserRequests({ requestType: 'Withdraw' })
       .then((items) => {
-        setWithdrawRows(items.map((r) => ({ ...r, processing: false, processed: false, deletedAt: null })))
+        setWithdrawRows(items.map((r) => ({ ...r, processing: false, processed: false, deletedAt: null, error: '' })))
         setWithdrawPendingCount(items.filter((r) => r.accepted === null).length)
       })
       .catch(() => {})
@@ -126,8 +127,11 @@ export default function ClubRequestsPage() {
         : r
       ))
       setWithdrawPendingCount((n) => Math.max(0, n - 1))
-    } catch {
-      setWithdrawRows((prev) => prev.map((r) => r.id === row.id ? { ...r, processing: false } : r))
+    } catch (err: any) {
+      setWithdrawRows((prev) => prev.map((r) => r.id === row.id
+        ? { ...r, processing: false, error: err?.apiMessage ?? '処理に失敗しました。もう一度お試しください。' }
+        : r
+      ))
     }
   }
 
@@ -203,13 +207,16 @@ export default function ClubRequestsPage() {
                   )}
 
                   {row.accepted === null && (
-                    <button
-                      onClick={() => handleProcessWithdrawal(row)}
-                      disabled={row.processing}
-                      className="flex items-center gap-1.5 px-4 py-1.5 disabled:opacity-50 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-lg transition-colors"
-                    >
-                      {row.processing ? '処理中…' : '処理する（退会を実行）'}
-                    </button>
+                    <div className="space-y-2">
+                      {row.error && <p className="text-xs text-red-600">{row.error}</p>}
+                      <button
+                        onClick={() => handleProcessWithdrawal(row)}
+                        disabled={row.processing}
+                        className="flex items-center gap-1.5 px-4 py-1.5 disabled:opacity-50 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-lg transition-colors"
+                      >
+                        {row.processing ? '処理中…' : '処理する（退会を実行）'}
+                      </button>
+                    </div>
                   )}
                 </div>
               ))}
