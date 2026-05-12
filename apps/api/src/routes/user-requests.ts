@@ -14,6 +14,7 @@ export default async function (fastify: FastifyInstance) {
         schema: {
             body: createUserRequestSchema,
             response: {
+                200: userRequestSchema,
                 201: userRequestSchema,
                 409: { type: 'object', properties: { message: { type: 'string' } } }
             }
@@ -22,12 +23,13 @@ export default async function (fastify: FastifyInstance) {
     }, async (request, reply) => {
         const { requesterId, clubId, request: requestBody } = request.body as any
 
-        // Prevent duplicate pending request for the same club
+        // Return existing pending request instead of creating a duplicate
         const existing = await fastify.prisma.userRequest.findFirst({
-            where: { requesterId, clubId, accepted: null }
+            where: { requesterId, clubId: clubId ?? null, accepted: null },
+            include
         })
         if (existing) {
-            return reply.code(409).send({ message: 'A pending request for this club already exists' })
+            return reply.code(200).send(existing)
         }
 
         const userRequest = await fastify.prisma.userRequest.create({
