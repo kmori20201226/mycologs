@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify'
 import { createClubSchema, clubSchema, updateClubSchema } from '../schemas/club'
 import { userRequestSchema } from '../schemas/user-request'
+import { sendMail, getAdminEmails } from '../lib/mail'
 
 const requestInclude = {
     requester: { select: { id: true, name: true, email: true } },
@@ -56,6 +57,12 @@ export default async function (fastify: FastifyInstance) {
                 include: requestInclude
             })
         })
+
+        // Notify admins (fire-and-forget)
+        getAdminEmails(fastify.prisma).then(emails =>
+            sendMail(emails, '【Mycologs】クラブ立ち上げ申請が届きました',
+                `<p>${result.requester.name} さんからクラブ「${name}」の立ち上げ申請が届きました。</p><p>管理画面よりご確認ください。</p>`)
+        ).catch(() => {})
 
         return reply.code(201).send(result)
     })

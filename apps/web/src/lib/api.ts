@@ -656,11 +656,11 @@ class ApiClient {
     return this.request(`/plans/${encodeURIComponent(id)}/stripe-sync`)
   }
 
-  async getSiteSettings(): Promise<{ maintenanceMode: boolean }> {
+  async getSiteSettings(): Promise<{ maintenanceMode: boolean; adminEmail1: string; adminEmail2: string; adminEmail3: string }> {
     return this.request('/settings/site')
   }
 
-  async updateSiteSettings(data: { maintenanceMode: boolean }): Promise<{ maintenanceMode: boolean }> {
+  async updateSiteSettings(data: { maintenanceMode?: boolean; adminEmail1?: string; adminEmail2?: string; adminEmail3?: string }): Promise<{ maintenanceMode: boolean; adminEmail1: string; adminEmail2: string; adminEmail3: string }> {
     return this.request('/settings/site', { method: 'PUT', body: JSON.stringify(data) })
   }
 }

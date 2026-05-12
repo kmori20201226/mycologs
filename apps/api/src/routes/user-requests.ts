@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify'
 import { createUserRequestSchema, replyUserRequestSchema, userRequestSchema } from '../schemas/user-request'
+import { sendMail, getAdminEmails, getClubManagerEmails } from '../lib/mail'
 
 const include = {
     requester: { select: { id: true, name: true, email: true } },
@@ -36,6 +37,27 @@ export default async function (fastify: FastifyInstance) {
             data: { requesterId, clubId, request: requestBody ?? null },
             include
         })
+
+        // Send notification emails (fire-and-forget)
+        const requestType = requestBody?.requestType as string | undefined
+        const requesterName = userRequest.requester.name
+        if (requestType === 'Withdraw') {
+            getAdminEmails(fastify.prisma).then(emails =>
+                sendMail(emails, '【Mycologs】退会申請が届きました',
+                    `<p>${requesterName} さんから退会申請が届きました。</p><p>管理画面よりご確認ください。</p>`)
+            ).catch(() => {})
+        } else if (requestType === 'JoinToMember' && clubId) {
+            getClubManagerEmails(fastify.prisma, clubId).then(emails =>
+                sendMail(emails, '【Mycologs】クラブへの参加申請が届きました',
+                    `<p>${requesterName} さんからクラブへの参加申請が届きました。</p><p>クラブ管理画面よりご確認ください。</p>`)
+            ).catch(() => {})
+        } else if (requestType === 'LeaveFromMember' && clubId) {
+            getClubManagerEmails(fastify.prisma, clubId).then(emails =>
+                sendMail(emails, '【Mycologs】クラブからの脱退申請が届きました',
+                    `<p>${requesterName} さんからクラブからの脱退申請が届きました。</p><p>クラブ管理画面よりご確認ください。</p>`)
+            ).catch(() => {})
+        }
+
         return reply.code(201).send(userRequest)
     })
 
