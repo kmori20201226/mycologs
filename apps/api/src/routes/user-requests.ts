@@ -41,20 +41,24 @@ export default async function (fastify: FastifyInstance) {
         // Send notification emails (fire-and-forget)
         const requestType = requestBody?.requestType as string | undefined
         const requesterName = userRequest.requester.name
+        const base = (process.env.FRONTEND_URL ?? '').replace(/\/$/, '')
         if (requestType === 'Withdraw') {
+            const link = `${base}/admin/requests`
             getAdminEmails(fastify.prisma).then(emails =>
                 sendMail(emails, '【Mycologs】退会申請が届きました',
-                    `<p>${requesterName} さんから退会申請が届きました。</p><p>管理画面よりご確認ください。</p>`)
+                    `<p>${requesterName} さんから退会申請が届きました。</p><p><a href="${link}">管理画面で確認する</a></p>`)
             ).catch(() => {})
         } else if (requestType === 'JoinToMember' && clubId) {
+            const link = `${base}/club-manage?tab=requests`
             getClubManagerEmails(fastify.prisma, clubId).then(emails =>
                 sendMail(emails, '【Mycologs】クラブへの参加申請が届きました',
-                    `<p>${requesterName} さんからクラブへの参加申請が届きました。</p><p>クラブ管理画面よりご確認ください。</p>`)
+                    `<p>${requesterName} さんからクラブへの参加申請が届きました。</p><p><a href="${link}">クラブ管理画面で確認する</a></p>`)
             ).catch(() => {})
         } else if (requestType === 'LeaveFromMember' && clubId) {
+            const link = `${base}/club-manage?tab=requests`
             getClubManagerEmails(fastify.prisma, clubId).then(emails =>
                 sendMail(emails, '【Mycologs】クラブからの脱退申請が届きました',
-                    `<p>${requesterName} さんからクラブからの脱退申請が届きました。</p><p>クラブ管理画面よりご確認ください。</p>`)
+                    `<p>${requesterName} さんからクラブからの脱退申請が届きました。</p><p><a href="${link}">クラブ管理画面で確認する</a></p>`)
             ).catch(() => {})
         }
 

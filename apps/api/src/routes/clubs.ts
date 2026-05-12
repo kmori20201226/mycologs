@@ -59,9 +59,11 @@ export default async function (fastify: FastifyInstance) {
         })
 
         // Notify admins (fire-and-forget)
+        const base = (process.env.FRONTEND_URL ?? '').replace(/\/$/, '')
+        const link = `${base}/admin/requests`
         getAdminEmails(fastify.prisma).then(emails =>
             sendMail(emails, '【Mycologs】クラブ立ち上げ申請が届きました',
-                `<p>${result.requester.name} さんからクラブ「${name}」の立ち上げ申請が届きました。</p><p>管理画面よりご確認ください。</p>`)
+                `<p>${result.requester.name} さんからクラブ「${name}」の立ち上げ申請が届きました。</p><p><a href="${link}">管理画面で確認する</a></p>`)
         ).catch(() => {})
 
         return reply.code(201).send(result)

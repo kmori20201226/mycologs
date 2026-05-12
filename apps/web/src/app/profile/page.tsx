@@ -105,8 +105,13 @@ export default function ProfilePage() {
       await apiClient.submitWithdrawRequest(user.id)
       setWithdrawDone(true)
       setWithdrawConfirm(false)
-    } catch {
-      setWithdrawError('申請の送信に失敗しました。もう一度お試しください。')
+    } catch (err: any) {
+      if (err?.status === 409) {
+        setWithdrawDone(true)
+        setWithdrawConfirm(false)
+      } else {
+        setWithdrawError('申請の送信に失敗しました。もう一度お試しください。')
+      }
     } finally {
       setWithdrawing(false)
     }
