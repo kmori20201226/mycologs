@@ -18,6 +18,7 @@ const uploadRoutes: FastifyPluginAsync = async (fastify) => {
     fastify.post<{ Params: { postId: string } }>(
         '/posts/:postId/media/upload',
         {
+            preHandler: [fastify.authenticate],
             schema: {
                 params: {
                     type: 'object',
@@ -47,6 +48,7 @@ const uploadRoutes: FastifyPluginAsync = async (fastify) => {
             },
         },
         async (request, reply) => {
+            const { id: userId } = request.user as { id: number }
             const postId = Number(request.params.postId)
             if (isNaN(postId)) {
                 return reply.status(400).send({ error: 'Invalid post ID' })
@@ -67,7 +69,7 @@ const uploadRoutes: FastifyPluginAsync = async (fastify) => {
             }
 
             const ext = path.extname(file.filename).toLowerCase()
-            const storedName = `${crypto.randomUUID()}${ext}`
+            const storedName = `P-${userId}-${postId}-${crypto.randomBytes(4).toString('hex')}${ext}`
             const filePath = path.join(UPLOADS_DIR, storedName)
 
             try {

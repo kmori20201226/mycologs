@@ -26,6 +26,8 @@
     "seed-plans": "npx ts-node scripts/seed-plans.ts",
     "make-test-user": "npx ts-node scripts/make-test-user.ts",
     "import-gbif-taxonomy": "npx ts-node scripts/import-gbif-taxonomy.ts",
+    "backup-posts": "npx ts-node scripts/backup-posts.ts",
+    "restore-posts": "npx ts-node scripts/restore-posts.ts",
     "test:users": "npx ts-node apps/api/test/users.test.ts",
     "test:clubs": "npx ts-node apps/api/test/clubs.test.ts",
     "test:roles": "npx ts-node apps/api/test/roles.test.ts",

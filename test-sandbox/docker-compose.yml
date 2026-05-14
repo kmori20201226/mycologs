@@ -65,6 +65,7 @@ services:
         condition: service_healthy
     volumes:
       - ./uploads:/app/data/uploads
+      - ./backups:/app/backups
       - ./testdata.csv:/app/test-sandbox/testdata.csv:ro
 
   web:

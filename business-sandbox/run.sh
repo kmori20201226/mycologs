@@ -7,7 +7,7 @@ cd "$SCRIPT_DIR"
 COMPOSE="docker compose"
 
 usage() {
-  echo "Usage: $0 {start|stop|restart|status|logs|migrate|seed-plans|seed-taxonomy|seed-admin|build|psql|maintenance}"
+  echo "Usage: $0 {start|stop|restart|status|logs|migrate|seed-plans|seed-taxonomy|seed-admin|build|psql|maintenance|list-user|backup-posts|restore-posts}"
   echo ""
   echo "  start            Start all containers and apply any pending migrations"
   echo "  stop             Stop all containers"
@@ -22,6 +22,9 @@ usage() {
   echo "  psql             Open a psql session in the postgres container"
   echo "  maintenance on   Enable maintenance mode (non-admin login blocked)"
   echo "  maintenance off  Disable maintenance mode"
+  echo "  list-user        List all users (id and email)"
+  echo "  backup-posts [filter]  Export posts/media/identifications to ./backups/ (filter: e.g. 1-9,12,18)"
+  echo "  restore-posts <file>   Restore from a backup file in ./backups/"
   exit 1
 }
 
@@ -129,5 +132,10 @@ case "${1:-}" in
   build)         cmd_build ;;
   psql)          cmd_psql ;;
   maintenance)   cmd_maintenance "$@" ;;
+  list-user)     $COMPOSE exec api npx ts-node scripts/list-user.ts ;;
+  backup-posts)  mkdir -p backups && $COMPOSE exec api npx ts-node scripts/backup-posts.ts "${2:-}" ;;
+  restore-posts)
+    if [ -z "${2:-}" ]; then echo "Usage: $0 restore-posts <filename>"; exit 1; fi
+    $COMPOSE exec api npx ts-node scripts/restore-posts.ts /app/backups/"$2" ;;
   *)             usage ;;
 esac
