@@ -92,3 +92,14 @@ temp/
 test-sandbox/.env
 test-sandbox/pgdata/
 test-sandbox/uploads/
+test-sandbox/backups/
+
+# =========================
+# Business sandbox
+# =========================
+business-sandbox/backups/
+
+# =========================
+# Local backups
+# =========================
+/backups/
