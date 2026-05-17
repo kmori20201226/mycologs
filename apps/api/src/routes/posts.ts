@@ -86,12 +86,10 @@ function visibilityFilter(viewerId: number | null) {
     }
 }
 
-function getViewerId(request: any): number | null {
+async function getViewerId(request: any): Promise<number | null> {
     try {
-        const user = request.server.jwt.verify(
-            (request.headers.authorization ?? '').replace('Bearer ', '')
-        ) as { id: number }
-        return user.id
+        await request.jwtVerify()
+        return (request.user as { id: number }).id
     } catch {
         return null
     }
@@ -205,7 +203,7 @@ export default async function (fastify: FastifyInstance) {
         }
     }, async (request, reply) => {
         const { id } = request.params as any
-        const viewerId = getViewerId(request)
+        const viewerId = await getViewerId(request)
 
         const post = await fastify.prisma.post.findFirst({
             where: { id: Number(id), deletedAt: null, ...visibilityFilter(viewerId) },
@@ -224,7 +222,7 @@ export default async function (fastify: FastifyInstance) {
         }
     }, async (request, reply) => {
         const { eventId } = request.query as { eventId?: number }
-        const viewerId = getViewerId(request)
+        const viewerId = await getViewerId(request)
 
         const posts = await fastify.prisma.post.findMany({
             where: {

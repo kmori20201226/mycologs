@@ -63,6 +63,10 @@ function NewPostPageInner() {
   const [dragging, setDragging] = useState(false)
   const [warning, setWarning] = useState<ModerationWarning | null>(null)
   const [noMediaWarning, setNoMediaWarning] = useState(false)
+  const [visibility, setVisibility] = useState<'PUBLIC' | 'CLUBMEMBERONLY' | 'PRIVATE'>('PUBLIC')
+  const [selectedClubIds, setSelectedClubIds] = useState<number[]>([])
+  const [myClubs, setMyClubs] = useState<{ id: number; name: string }[]>([])
+  const [hasSubscription, setHasSubscription] = useState(false)
 
   useEffect(() => {
     const user = getStoredUser()
@@ -70,38 +74,61 @@ function NewPostPageInner() {
     const presetEventId = searchParams.get('eventId');
 
     (async () => {
-    const now = new Date()
-    const memberClubs = await apiClient.request<{ id: number }[]>('/me/clubs').catch(() => [] as { id: number }[])
-    const clubFetches = memberClubs.map((c) => apiClient.getEvents({ clubId: c.id }).catch(() => [] as Event[]))
-    const myFetch = apiClient.getEvents({ userId: user.id }).catch(() => [] as Event[])
+      const now = new Date()
+      const memberClubs = await apiClient.request<{ id: number; name: string }[]>('/me/clubs').catch(() => [] as { id: number; name: string }[])
 
-    Promise.all([Promise.all(clubFetches), myFetch]).then(([clubResults, myEvs]) => {
-      const clubEvs = clubResults.flat()
-      const clubIds = new Set(clubEvs.map((e) => e.id))
-      const myIds = new Set(myEvs.map((e) => e.id))
-
-      const seen = new Set<number>()
-      const merged: Event[] = []
-      for (const ev of [...clubEvs, ...myEvs]) {
-        if (!seen.has(ev.id)) { seen.add(ev.id); merged.push(ev) }
+      // Set default visibility based on club membership
+      if (memberClubs.length > 0) {
+        setMyClubs(memberClubs)
+        setVisibility('CLUBMEMBERONLY')
+        setSelectedClubIds(memberClubs.map((c) => c.id))
+      } else {
+        setVisibility('PUBLIC')
       }
 
-      const past = merged
-        .filter((ev) => !ev.startAt || new Date(ev.startAt) <= now)
-        .sort((a, b) => {
-          const ta = a.startAt ? new Date(a.startAt).getTime() : 0
-          const tb = b.startAt ? new Date(b.startAt).getTime() : 0
-          return tb - ta
+      // Check subscription for PRIVATE option
+      apiClient.request<{ hasSubscription: boolean }>(`/users/${user.id}/subscription-status`)
+        .then((res) => setHasSubscription(res.hasSubscription))
+        .catch(() => {
+          // Fallback: check subscriptions list
+          apiClient.request<{ status: string; planId: string }[]>(`/users/${user.id}/subscriptions`)
+            .then((subs) => {
+              const active = (subs ?? []).some((s) => ['active', 'trialing'].includes(s.status) && s.planId !== 'free')
+              setHasSubscription(active)
+            })
+            .catch(() => {})
         })
 
-      setClubEventIds(clubIds)
-      setMyEventIds(myIds)
-      setEvents(past)
-      if (presetEventId) {
-        const id = Number(presetEventId)
-        if (past.some((e) => e.id === id)) setEventId(id)
-      }
-    })
+      const clubFetches = memberClubs.map((c) => apiClient.getEvents({ clubId: c.id }).catch(() => [] as Event[]))
+      const myFetch = apiClient.getEvents({ userId: user.id }).catch(() => [] as Event[])
+
+      Promise.all([Promise.all(clubFetches), myFetch]).then(([clubResults, myEvs]) => {
+        const clubEvs = clubResults.flat()
+        const clubIds = new Set(clubEvs.map((e) => e.id))
+        const myIds = new Set(myEvs.map((e) => e.id))
+
+        const seen = new Set<number>()
+        const merged: Event[] = []
+        for (const ev of [...clubEvs, ...myEvs]) {
+          if (!seen.has(ev.id)) { seen.add(ev.id); merged.push(ev) }
+        }
+
+        const past = merged
+          .filter((ev) => !ev.startAt || new Date(ev.startAt) <= now)
+          .sort((a, b) => {
+            const ta = a.startAt ? new Date(a.startAt).getTime() : 0
+            const tb = b.startAt ? new Date(b.startAt).getTime() : 0
+            return tb - ta
+          })
+
+        setClubEventIds(clubIds)
+        setMyEventIds(myIds)
+        setEvents(past)
+        if (presetEventId) {
+          const id = Number(presetEventId)
+          if (past.some((e) => e.id === id)) setEventId(id)
+        }
+      })
     })()
   }, [])
 
@@ -149,6 +176,8 @@ function NewPostPageInner() {
     const result = await apiClient.createPost({
       userId: user.id,
       contents,
+      visibility,
+      clubIds: visibility === 'CLUBMEMBERONLY' ? selectedClubIds : undefined,
       ...(eventId !== '' ? { eventId: eventId as number } : {}),
       ...(confirmedModeration ? { confirmedModeration } : {}),
     })
@@ -319,6 +348,51 @@ function NewPostPageInner() {
                 </select>
               </div>
             )}
+
+            {/* Visibility */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">公開範囲</label>
+              <div className="flex flex-col gap-2">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input type="radio" name="visibility" value="PUBLIC" checked={visibility === 'PUBLIC'} onChange={() => setVisibility('PUBLIC')} disabled={submitting} className="accent-emerald-600" />
+                  <span className="text-sm text-gray-700">公開 — 誰でも見られる</span>
+                </label>
+                {myClubs.length > 0 && (
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input type="radio" name="visibility" value="CLUBMEMBERONLY" checked={visibility === 'CLUBMEMBERONLY'} onChange={() => setVisibility('CLUBMEMBERONLY')} disabled={submitting} className="accent-emerald-600 mt-0.5" />
+                    <div className="flex-1">
+                      <span className="text-sm text-gray-700">クラブメンバーのみ</span>
+                      {visibility === 'CLUBMEMBERONLY' && (
+                        <div className="mt-2 space-y-1.5">
+                          {myClubs.map((club) => (
+                            <label key={club.id} className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={selectedClubIds.includes(club.id)}
+                                onChange={(e) => {
+                                  if (e.target.checked) setSelectedClubIds((prev) => [...prev, club.id])
+                                  else setSelectedClubIds((prev) => prev.filter((id) => id !== club.id))
+                                }}
+                                disabled={submitting}
+                                className="accent-emerald-600"
+                              />
+                              <span className="text-sm text-gray-600">{club.name}</span>
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </label>
+                )}
+                <label className={`flex items-center gap-3 ${hasSubscription ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}>
+                  <input type="radio" name="visibility" value="PRIVATE" checked={visibility === 'PRIVATE'} onChange={() => hasSubscription && setVisibility('PRIVATE')} disabled={submitting || !hasSubscription} className="accent-emerald-600" />
+                  <span className="text-sm text-gray-700">
+                    自分のみ
+                    {!hasSubscription && <span className="ml-1 text-xs text-gray-400">（サブスクリプション必要）</span>}
+                  </span>
+                </label>
+              </div>
+            </div>
 
             {/* Drop zone */}
             <div>

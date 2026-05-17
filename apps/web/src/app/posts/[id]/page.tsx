@@ -6,10 +6,14 @@ import Link from 'next/link'
 import { apiClient, type MediaItem, type AiIdentification } from '@/lib/api'
 import { getStoredUser } from '@/lib/auth'
 
+type PostVisibility = 'PUBLIC' | 'CLUBMEMBERONLY' | 'PRIVATE'
+
 interface Post {
   id: number
   contents: string
   createdAt: string
+  visibility: PostVisibility
+  clubIds: number[]
   user: { id: number; name: string; handleName: string | null }
   event: { id: number; name: string; startAt: string | null } | null
 }
@@ -56,6 +60,13 @@ function PostPageInner() {
 
   const [currentUser] = useState(() => getStoredUser())
 
+  const [editingVisibility, setEditingVisibility] = useState(false)
+  const [pendingVisibility, setPendingVisibility] = useState<PostVisibility>('PUBLIC')
+  const [pendingClubIds, setPendingClubIds] = useState<number[]>([])
+  const [myClubs, setMyClubs] = useState<{ id: number; name: string }[]>([])
+  const [hasSubscription, setHasSubscription] = useState(false)
+  const [visibilityUpdating, setVisibilityUpdating] = useState(false)
+
   // Identification hint (local only — stored on Identification when accepted)
   const [hint, setHint] = useState('')
   const [committedHint, setCommittedHint] = useState<string | null>(null)
@@ -70,7 +81,21 @@ function PostPageInner() {
 
   useEffect(() => {
     apiClient.request<Post>(`/posts/${postId}`)
-      .then((p) => setPost(p))
+      .then((p) => {
+        setPost(p)
+        const user = getStoredUser()
+        if (user && user.id === p.user.id) {
+          apiClient.request<{ id: number; name: string }[]>('/me/clubs')
+            .then((clubs) => setMyClubs(clubs ?? []))
+            .catch(() => {})
+          apiClient.request<{ status: string; planId: string }[]>(`/users/${user.id}/subscriptions`)
+            .then((subs) => {
+              const active = (subs ?? []).some((s) => ['active', 'trialing'].includes(s.status) && s.planId !== 'free')
+              setHasSubscription(active)
+            })
+            .catch(() => {})
+        }
+      })
       .catch(() => setNotFound(true))
 
     apiClient.getPostMedia(postId)
@@ -157,6 +182,32 @@ function PostPageInner() {
   async function handleDeleteFollowup(id: number) {
     await apiClient.deleteFollowup(id)
     setFollowups((prev) => prev.filter((f) => f.id !== id))
+  }
+
+  function startEditingVisibility() {
+    if (!post) return
+    setPendingVisibility(post.visibility)
+    setPendingClubIds(post.clubIds ?? [])
+    setEditingVisibility(true)
+  }
+
+  async function saveVisibility() {
+    const user = getStoredUser()
+    if (!user || !post) return
+    setVisibilityUpdating(true)
+    try {
+      await apiClient.updatePost(post.id, {
+        userId: user.id,
+        visibility: pendingVisibility,
+        clubIds: pendingVisibility === 'CLUBMEMBERONLY' ? pendingClubIds : undefined,
+      })
+      setPost((prev) => prev ? { ...prev, visibility: pendingVisibility, clubIds: pendingVisibility === 'CLUBMEMBERONLY' ? pendingClubIds : [] } : prev)
+      setEditingVisibility(false)
+    } catch {
+      showToast('公開範囲の変更に失敗しました')
+    } finally {
+      setVisibilityUpdating(false)
+    }
   }
 
   async function handleAiIdentify() {
@@ -249,13 +300,23 @@ function PostPageInner() {
                   <span>{new Date(post.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}</span>
                 </div>
                 <div className="flex items-center gap-2">
+                {/* Visibility badge */}
+                <VisibilityBadge visibility={post.visibility} />
                 {(() => { const user = getStoredUser(); return user && user.id === post.user.id ? (
+                  <>
+                  <button
+                    onClick={startEditingVisibility}
+                    className="text-xs font-medium text-gray-500 bg-gray-100 hover:bg-gray-200 px-2.5 py-1 rounded-lg transition-colors"
+                  >
+                    公開設定
+                  </button>
                   <button
                     onClick={() => setConfirmDeletePost(true)}
                     className="text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 px-2.5 py-1 rounded-lg transition-colors"
                   >
                     削除
                   </button>
+                  </>
                 ) : null })()}
                 {(aiLoading || committedHint === null || hint !== committedHint) && <button
                   onClick={handleAiIdentify}
@@ -739,6 +800,60 @@ function PostPageInner() {
         </div>
       )}
 
+      {/* Visibility edit dialog */}
+      {editingVisibility && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl p-6 max-w-sm w-full space-y-4">
+            <h2 className="text-base font-semibold text-gray-900">公開範囲を変更</h2>
+            <div className="flex flex-col gap-2">
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input type="radio" name="edit-visibility" value="PUBLIC" checked={pendingVisibility === 'PUBLIC'} onChange={() => setPendingVisibility('PUBLIC')} className="accent-emerald-600" />
+                <span className="text-sm text-gray-700">公開 — 誰でも見られる</span>
+              </label>
+              {myClubs.length > 0 && (
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input type="radio" name="edit-visibility" value="CLUBMEMBERONLY" checked={pendingVisibility === 'CLUBMEMBERONLY'} onChange={() => setPendingVisibility('CLUBMEMBERONLY')} className="accent-emerald-600 mt-0.5" />
+                  <div className="flex-1">
+                    <span className="text-sm text-gray-700">クラブメンバーのみ</span>
+                    {pendingVisibility === 'CLUBMEMBERONLY' && (
+                      <div className="mt-2 space-y-1.5">
+                        {myClubs.map((club) => (
+                          <label key={club.id} className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={pendingClubIds.includes(club.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) setPendingClubIds((prev) => [...prev, club.id])
+                                else setPendingClubIds((prev) => prev.filter((id) => id !== club.id))
+                              }}
+                              className="accent-emerald-600"
+                            />
+                            <span className="text-sm text-gray-600">{club.name}</span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </label>
+              )}
+              <label className={`flex items-center gap-3 ${hasSubscription ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}>
+                <input type="radio" name="edit-visibility" value="PRIVATE" checked={pendingVisibility === 'PRIVATE'} onChange={() => hasSubscription && setPendingVisibility('PRIVATE')} disabled={!hasSubscription} className="accent-emerald-600" />
+                <span className="text-sm text-gray-700">
+                  自分のみ
+                  {!hasSubscription && <span className="ml-1 text-xs text-gray-400">（サブスクリプション必要）</span>}
+                </span>
+              </label>
+            </div>
+            <div className="flex justify-end gap-3 pt-1">
+              <button onClick={() => setEditingVisibility(false)} disabled={visibilityUpdating} className="px-4 py-2 text-sm font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">キャンセル</button>
+              <button onClick={saveVisibility} disabled={visibilityUpdating} className="px-4 py-2 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 rounded-lg transition-colors">
+                {visibilityUpdating ? '保存中…' : '保存'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Toast */}
       {toast && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-sm px-5 py-3 rounded-full shadow-lg z-50 animate-fade-in">
@@ -784,6 +899,16 @@ export default function PostPage() {
       <PostPageInner />
     </Suspense>
   )
+}
+
+function VisibilityBadge({ visibility }: { visibility: PostVisibility }) {
+  const map: Record<PostVisibility, { label: string; cls: string }> = {
+    PUBLIC:          { label: '公開',             cls: 'bg-gray-100 text-gray-500' },
+    CLUBMEMBERONLY:  { label: 'クラブのみ',       cls: 'bg-blue-50 text-blue-600' },
+    PRIVATE:         { label: '自分のみ',         cls: 'bg-yellow-50 text-yellow-700' },
+  }
+  const { label, cls } = map[visibility] ?? map.PUBLIC
+  return <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${cls}`}>{label}</span>
 }
 
 function AiConfidenceBadge({ confidence }: { confidence: string }) {

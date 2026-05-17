@@ -1,5 +1,12 @@
+-- CreateEnum (safe: no-op if already exists)
+DO $$ BEGIN
+    CREATE TYPE "PublicityType" AS ENUM ('PUBLIC', 'CLUBMEMBERONLY', 'PRIVATE');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
 -- AlterTable
-ALTER TABLE "posts" ADD COLUMN "visibility" TEXT NOT NULL DEFAULT 'PUBLIC';
+ALTER TABLE "posts" ADD COLUMN "visibility" "PublicityType" NOT NULL DEFAULT 'PUBLIC';
 
 -- CreateTable
 CREATE TABLE "post_clubs" (

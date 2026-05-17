@@ -242,6 +242,8 @@ class ApiClient {
     userId: number
     contents: string
     eventId?: number
+    visibility?: 'PUBLIC' | 'CLUBMEMBERONLY' | 'PRIVATE'
+    clubIds?: number[]
     confirmedModeration?: { category: string; comment: string }
   }): Promise<
     | { ok: true; id: number }
@@ -274,6 +276,8 @@ class ApiClient {
     userId: number
     contents?: string
     eventId?: number
+    visibility?: 'PUBLIC' | 'CLUBMEMBERONLY' | 'PRIVATE'
+    clubIds?: number[]
     confirmedModeration?: { category: string; comment: string }
   }): Promise<
     | { ok: true }
