@@ -4,6 +4,7 @@ import { PrismaPg } from '@prisma/adapter-pg'
 
 const adapter = new PrismaPg({
     connectionString: process.env.DATABASE_URL!,
+    max: 10,
 })
 
 import { FastifyInstance } from 'fastify'
