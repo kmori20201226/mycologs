@@ -57,6 +57,23 @@ function generateCode(): string {
     return String(Math.floor(100000 + Math.random() * 900000))
 }
 
+async function sendPasswordResetEmail(email: string, name: string, code: string): Promise<void> {
+    const from = process.env.MAIL_FROM ?? 'Mycologs <noreply@mycologs.club>'
+    await getResend().emails.send({
+        from,
+        to: email,
+        subject: '【Mycologs】パスワードリセットの確認',
+        html: `
+            <p>${name} 様</p>
+            <p>パスワードリセットのリクエストを受け付けました。</p>
+            <p>以下の確認コードを入力して新しいパスワードを設定してください。</p>
+            <p style="font-size:32px;font-weight:bold;letter-spacing:8px;margin:24px 0">${code}</p>
+            <p>このコードは${CODE_EXPIRY_MINUTES}分間有効です。</p>
+            <p>このメールに心当たりがない場合は無視してください。パスワードは変更されません。</p>
+        `
+    })
+}
+
 async function sendVerificationEmail(email: string, name: string, code: string): Promise<void> {
     const from = process.env.MAIL_FROM ?? 'Mycologs <noreply@mycologs.club>'
     await getResend().emails.send({
@@ -310,6 +327,102 @@ export default async function (fastify: FastifyInstance) {
         await fastify.prisma.user.update({ where: { id }, data: { password_hash } })
 
         return reply.send({ message: 'パスワードを変更しました' })
+    })
+
+    // POST /auth/forgot-password
+    fastify.post('/auth/forgot-password', {
+        schema: {
+            body: {
+                type: 'object',
+                required: ['email'],
+                properties: { email: { type: 'string', format: 'email' } }
+            },
+            response: {
+                200: { type: 'object', properties: { message: { type: 'string' } } }
+            }
+        }
+    }, async (request, reply) => {
+        const { email } = request.body as { email: string }
+
+        const user = await fastify.prisma.user.findUnique({
+            where: { email },
+            select: { id: true, name: true }
+        })
+
+        // Always return 200 to avoid leaking whether the email exists
+        if (!user) return reply.send({ message: 'コードを送信しました。' })
+
+        const existing = await fastify.prisma.passwordResetCode.findFirst({ where: { userId: user.id } })
+        if (existing) {
+            const secondsSinceSent = (Date.now() - existing.createdAt.getTime()) / 1000
+            if (secondsSinceSent < 60) {
+                return reply.send({ message: 'コードを送信しました。' })
+            }
+            await fastify.prisma.passwordResetCode.delete({ where: { id: existing.id } })
+        }
+
+        const code = generateCode()
+        const expiresAt = new Date(Date.now() + CODE_EXPIRY_MINUTES * 60 * 1000)
+        await fastify.prisma.passwordResetCode.create({ data: { userId: user.id, code, expiresAt } })
+        await sendPasswordResetEmail(email, user.name, code)
+
+        return reply.send({ message: 'コードを送信しました。' })
+    })
+
+    // POST /auth/reset-password
+    fastify.post('/auth/reset-password', {
+        schema: {
+            body: {
+                type: 'object',
+                required: ['email', 'code', 'newPassword'],
+                properties: {
+                    email:       { type: 'string', format: 'email' },
+                    code:        { type: 'string' },
+                    newPassword: { type: 'string', minLength: 8 }
+                }
+            },
+            response: {
+                200: { type: 'object', properties: { message: { type: 'string' } } },
+                400: { type: 'object', properties: { message: { type: 'string' } } },
+                404: { type: 'object', properties: { message: { type: 'string' } } }
+            }
+        }
+    }, async (request, reply) => {
+        const { email, code, newPassword } = request.body as { email: string; code: string; newPassword: string }
+
+        const user = await fastify.prisma.user.findUnique({
+            where: { email },
+            select: { id: true }
+        })
+        if (!user) return reply.code(404).send({ message: 'ユーザーが見つかりません。' })
+
+        const record = await fastify.prisma.passwordResetCode.findFirst({ where: { userId: user.id } })
+        if (!record) return reply.code(400).send({ message: '確認コードが見つかりません。再送信してください。' })
+
+        if (new Date() > record.expiresAt) {
+            await fastify.prisma.passwordResetCode.delete({ where: { id: record.id } })
+            return reply.code(400).send({ message: '確認コードの有効期限が切れています。再送信してください。' })
+        }
+
+        if (record.attempts >= MAX_ATTEMPTS) {
+            await fastify.prisma.passwordResetCode.delete({ where: { id: record.id } })
+            return reply.code(400).send({ message: '試行回数が上限に達しました。再送信してください。' })
+        }
+
+        if (record.code !== code.trim()) {
+            await fastify.prisma.passwordResetCode.update({
+                where: { id: record.id },
+                data: { attempts: { increment: 1 } }
+            })
+            const remaining = MAX_ATTEMPTS - record.attempts - 1
+            return reply.code(400).send({ message: `確認コードが正しくありません。残り${remaining}回試行できます。` })
+        }
+
+        const password_hash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS)
+        await fastify.prisma.user.update({ where: { id: user.id }, data: { password_hash } })
+        await fastify.prisma.passwordResetCode.delete({ where: { id: record.id } })
+
+        return reply.send({ message: 'パスワードを変更しました。' })
     })
 
     // GET /me/clubs — returns clubs the authenticated user belongs to

@@ -24,8 +24,10 @@ function LoginPageInner() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [maintenance, setMaintenance] = useState(false)
+  const [resetSuccess, setResetSuccess] = useState(false)
 
   useEffect(() => {
+    if (searchParams.get('reset') === '1') setResetSuccess(true)
     const errorCode = searchParams.get('error')
     if (errorCode) setError(LINE_ERROR_MESSAGES[errorCode] ?? 'エラーが発生しました。')
 
@@ -67,6 +69,12 @@ function LoginPageInner() {
         )}
       <div className="bg-white rounded-xl shadow-lg p-8 w-full max-w-md">
         <h1 className="text-2xl font-bold text-gray-900 mb-6">ログイン</h1>
+
+        {resetSuccess && (
+          <div className="mb-4 bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm px-4 py-3 rounded-lg">
+            パスワードを変更しました。新しいパスワードでログインしてください。
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -132,6 +140,11 @@ function LoginPageInner() {
           アカウントをお持ちでない方は{' '}
           <Link href="/register" className="text-emerald-600 hover:underline font-medium">
             新規登録
+          </Link>
+        </p>
+        <p className="mt-2 text-sm text-center">
+          <Link href="/forgot-password" className="text-gray-400 hover:text-emerald-600 hover:underline">
+            パスワードをお忘れの方
           </Link>
         </p>
       </div>

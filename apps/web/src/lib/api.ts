@@ -170,6 +170,20 @@ class ApiClient {
     });
   }
 
+  async forgotPassword(data: { email: string }): Promise<{ message: string }> {
+    return this.request('/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async resetPassword(data: { email: string; code: string; newPassword: string }): Promise<{ message: string }> {
+    return this.request('/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
   async login(data: { email: string; password: string }): Promise<AuthResponse> {
     return this.request('/auth/login', {
       method: 'POST',

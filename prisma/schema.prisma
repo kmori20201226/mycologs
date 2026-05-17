@@ -118,6 +118,7 @@ model User {
   subscriptions           Subscription[]
   payments                Payment[]
   emailVerificationCodes  EmailVerificationCode[]
+  passwordResetCodes      PasswordResetCode[]
   adminThreads            AdminThread[]
   adminMessages           AdminMessage[]          @relation("AdminMessageSender")
   announcements           Announcement[]          @relation("AnnouncementAuthor")
@@ -540,6 +541,19 @@ model EmailVerificationCode {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("email_verification_codes")
+}
+
+model PasswordResetCode {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  code      String
+  expiresAt DateTime @map("expires_at")
+  attempts  Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("password_reset_codes")
 }
 
 model Plan {
