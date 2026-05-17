@@ -37,6 +37,7 @@ model Club {
   subscriptions Subscription[]
   payments      Payment[]
   announcements Announcement[]
+  postClubs     PostClub[]
 
   @@map("clubs")
 }
@@ -317,14 +318,15 @@ model Event {
 }
 
 model Post {
-  id                 Int       @id @default(autoincrement())
-  eventId            Int?      @map("event_id")
-  userId             Int       @map("user_id")
-  parentPostId       Int?      @map("parent_post_id")
+  id                 Int           @id @default(autoincrement())
+  eventId            Int?          @map("event_id")
+  userId             Int           @map("user_id")
+  parentPostId       Int?          @map("parent_post_id")
   contents           String
-  deletedAt          DateTime? @map("deleted_at")
-  createdAt          DateTime  @default(now()) @map("created_at")
-  updatedAt          DateTime  @updatedAt @map("updated_at")
+  visibility         PublicityType @default(PUBLIC) @map("visibility")
+  deletedAt          DateTime?     @map("deleted_at")
+  createdAt          DateTime      @default(now()) @map("created_at")
+  updatedAt          DateTime      @updatedAt @map("updated_at")
 
   user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   event             Event?    @relation(fields: [eventId], references: [id])
@@ -333,8 +335,21 @@ model Post {
   identifications   Identification[]
   votes             Vote[]
   media             Media[]
+  postClubs         PostClub[]
 
   @@map("posts")
+}
+
+model PostClub {
+  id      Int   @id @default(autoincrement())
+  postId  Int   @map("post_id")
+  clubId  Int   @map("club_id")
+
+  post    Post  @relation(fields: [postId], references: [id], onDelete: Cascade)
+  club    Club  @relation(fields: [clubId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, clubId])
+  @@map("post_clubs")
 }
 
 model Identification {

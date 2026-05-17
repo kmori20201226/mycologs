@@ -1,3 +1,5 @@
+const visibilityEnum = { type: 'string', enum: ['PUBLIC', 'CLUBMEMBERONLY', 'PRIVATE'] }
+
 export const postSchema = {
     type: 'object',
     properties: {
@@ -6,6 +8,8 @@ export const postSchema = {
         parentPostId: { type: 'number', nullable: true },
         userId: { type: 'number' },
         contents: { type: 'string' },
+        visibility: visibilityEnum,
+        clubIds: { type: 'array', items: { type: 'number' } },
         createdAt: { type: 'string', format: 'date-time' },
         updatedAt: { type: 'string', format: 'date-time' },
         user: {
@@ -35,6 +39,8 @@ export const createPostSchema = {
         eventId: { type: 'number' },
         userId: { type: 'number' },
         contents: { type: 'string' },
+        visibility: visibilityEnum,
+        clubIds: { type: 'array', items: { type: 'number' } },
         confirmedModeration: {
             type: 'object',
             properties: {
@@ -51,6 +57,8 @@ export const updatePostSchema = {
         eventId: { type: 'number' },
         contents: { type: 'string' },
         userId: { type: 'number' },
+        visibility: visibilityEnum,
+        clubIds: { type: 'array', items: { type: 'number' } },
         confirmedModeration: {
             type: 'object',
             properties: {
