@@ -1,5 +1,23 @@
 server {
     listen 80;
+    server_name mycologs.club;
+    return 301 https://www.mycologs.club$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name mycologs.club;
+
+    ssl_certificate     /etc/letsencrypt/live/www.mycologs.club/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/www.mycologs.club/privkey.pem;
+    include             /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam         /etc/letsencrypt/ssl-dhparams.pem;
+
+    return 301 https://www.mycologs.club$request_uri;
+}
+
+server {
+    listen 80;
     server_name www.mycologs.club;
     return 301 https://$host$request_uri;
 }
