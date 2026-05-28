@@ -115,7 +115,8 @@ export default async function (fastify: FastifyInstance) {
             }
         }
     }, async (request, reply) => {
-        const { eventId, userId, contents, confirmedModeration, visibility: reqVisibility, clubIds: reqClubIds } = request.body as any
+        const { eventId, userId, contents: rawContents, confirmedModeration, visibility: reqVisibility, clubIds: reqClubIds } = request.body as any
+        const contents: string = rawContents ?? ''
 
         if (!confirmedModeration && contents) {
             let modResult: any
@@ -131,18 +132,20 @@ export default async function (fastify: FastifyInstance) {
             }
 
             if (!modResult.allowed) {
+                const validCategories = ['OFFENSIVE_SEXUAL', 'POTENTIALLY_OFFENSIVE', 'OFF_TOPIC_IMAGE', 'NONE']
+                const safeCategory = validCategories.includes(modResult.category) ? modResult.category : 'NONE'
                 await fastify.prisma.userLog.create({
                     data: {
                         userId:            Number(userId),
                         point:             Number(modResult.point ?? -5),
                         transactionType:   'POST',
-                        rejectionCategory: modResult.category,
+                        rejectionCategory: safeCategory,
                         userPost:          contents,
                         comment:           modResult.comment ?? '',
                         createdBy:         Number(userId),
                     },
-                })
-                return reply.code(422).send({ status: 'rejected', comment: modResult.comment })
+                }).catch(() => {})
+                return reply.code(422).send({ status: 'rejected', comment: modResult.comment ?? '' })
             }
 
             if (modResult.category !== 'PASS') {
@@ -285,6 +288,8 @@ export default async function (fastify: FastifyInstance) {
             }
 
             if (!modResult.allowed) {
+                const validCategories = ['OFFENSIVE_SEXUAL', 'POTENTIALLY_OFFENSIVE', 'OFF_TOPIC_IMAGE', 'NONE']
+                const safeCategory = validCategories.includes(modResult.category) ? modResult.category : 'NONE'
                 if (userId) {
                     await fastify.prisma.userLog.create({
                         data: {
@@ -292,14 +297,14 @@ export default async function (fastify: FastifyInstance) {
                             postId:            Number(id),
                             point:             Number(modResult.point ?? -5),
                             transactionType:   'UPDATE',
-                            rejectionCategory: modResult.category,
+                            rejectionCategory: safeCategory,
                             userPost:          updateData.contents,
                             comment:           modResult.comment ?? '',
                             createdBy:         Number(userId),
                         },
-                    })
+                    }).catch(() => {})
                 }
-                return reply.code(422).send({ status: 'rejected', comment: modResult.comment })
+                return reply.code(422).send({ status: 'rejected', comment: modResult.comment ?? '' })
             }
 
             if (modResult.category !== 'PASS') {
