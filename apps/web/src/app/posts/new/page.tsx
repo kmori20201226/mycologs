@@ -198,27 +198,27 @@ function NewPostPageInner() {
     postId = (result as { ok: true; id: number }).id
 
     // Upload media in parallel
+    let uploadedFailCount = 0
     if (files.length > 0) {
       setPhase('uploading')
       setUploadProgress({ done: 0, total: files.length })
 
-      let failCount = 0
       await Promise.all(
         files.map(async ({ file }) => {
           try {
             await apiClient.uploadPostMedia(postId, file)
           } catch {
-            failCount++
+            uploadedFailCount++
           } finally {
             setUploadProgress((prev) => ({ ...prev, done: prev.done + 1 }))
           }
         })
       )
-      setUploadFailCount(failCount)
+      setUploadFailCount(uploadedFailCount)
     }
 
     setPhase('done')
-    const qs = uploadFailCount > 0 ? `?uploadErrors=${uploadFailCount}` : ''
+    const qs = uploadedFailCount > 0 ? `?uploadErrors=${uploadedFailCount}` : ''
     router.push(`/posts/${postId}${qs}`)
   }
 

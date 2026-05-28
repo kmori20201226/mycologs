@@ -60,6 +60,7 @@ function PostPageInner() {
 
   const [currentUser] = useState(() => getStoredUser())
 
+  const [mediaLoaded, setMediaLoaded] = useState(false)
   const [editingCaption, setEditingCaption] = useState(false)
   const [pendingCaption, setPendingCaption] = useState('')
   const [captionSaving, setCaptionSaving] = useState(false)
@@ -103,8 +104,8 @@ function PostPageInner() {
       .catch(() => setNotFound(true))
 
     apiClient.getPostMedia(postId)
-      .then(setMedia)
-      .catch(() => {})
+      .then((m) => { setMedia(m); setMediaLoaded(true) })
+      .catch(() => { setMediaLoaded(true) })
 
     apiClient.getPostIdentifications(postId)
       .then((ids) => {
@@ -324,8 +325,8 @@ function PostPageInner() {
                 ) : null })()}
                 {(aiLoading || committedHint === null || hint !== committedHint) && <button
                   onClick={handleAiIdentify}
-                  disabled={aiLoading || !currentUser}
-                  title={!currentUser ? 'ログインが必要です' : undefined}
+                  disabled={aiLoading || !currentUser || (mediaLoaded && images.length === 0)}
+                  title={(mediaLoaded && images.length === 0) ? '写真を添付してから同定を依頼してください' : !currentUser ? 'ログインが必要です' : undefined}
                   className={`inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors ${aiLoading ? 'cursor-wait' : ''}`}
                 >
                   {aiLoading ? (
@@ -434,6 +435,11 @@ function PostPageInner() {
             </div>
 
             {/* Media gallery */}
+            {mediaLoaded && images.length === 0 && media.length === 0 && (
+              <div className="bg-white rounded-xl shadow p-6 mb-6 text-center text-sm text-gray-400">
+                写真が添付されていません
+              </div>
+            )}
             {images.length > 0 && (
               <div className="bg-white rounded-xl shadow p-6 mb-6">
                 <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-4">写真</h2>
