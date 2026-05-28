@@ -60,6 +60,10 @@ function PostPageInner() {
 
   const [currentUser] = useState(() => getStoredUser())
 
+  const [editingCaption, setEditingCaption] = useState(false)
+  const [pendingCaption, setPendingCaption] = useState('')
+  const [captionSaving, setCaptionSaving] = useState(false)
+
   const [editingVisibility, setEditingVisibility] = useState(false)
   const [pendingVisibility, setPendingVisibility] = useState<PostVisibility>('PUBLIC')
   const [pendingClubIds, setPendingClubIds] = useState<number[]>([])
@@ -348,7 +352,70 @@ function PostPageInner() {
                 </div>
               )}
 
-              <p className="text-gray-800 whitespace-pre-wrap">{post.contents}</p>
+              {(() => {
+                const isOwner = currentUser && currentUser.id === post.user.id
+                if (editingCaption) {
+                  return (
+                    <div className="space-y-2">
+                      <textarea
+                        value={pendingCaption}
+                        onChange={(e) => setPendingCaption(e.target.value)}
+                        rows={5}
+                        autoFocus
+                        className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
+                        disabled={captionSaving}
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          onClick={async () => {
+                            const user = getStoredUser()
+                            if (!user || !post) return
+                            setCaptionSaving(true)
+                            try {
+                              await apiClient.updatePost(post.id, { userId: user.id, contents: pendingCaption })
+                              setPost((prev) => prev ? { ...prev, contents: pendingCaption } : prev)
+                              setEditingCaption(false)
+                            } catch {
+                              showToast('キャプションの保存に失敗しました')
+                            } finally {
+                              setCaptionSaving(false)
+                            }
+                          }}
+                          disabled={captionSaving}
+                          className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-sm font-semibold rounded-lg transition-colors"
+                        >
+                          {captionSaving ? '保存中…' : '保存'}
+                        </button>
+                        <button
+                          onClick={() => setEditingCaption(false)}
+                          disabled={captionSaving}
+                          className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold rounded-lg transition-colors"
+                        >
+                          キャンセル
+                        </button>
+                      </div>
+                    </div>
+                  )
+                }
+                return (
+                  <div className="group flex items-start gap-2">
+                    <p className={`flex-1 whitespace-pre-wrap ${post.contents ? 'text-gray-800' : 'text-gray-400 italic'}`}>
+                      {post.contents || new Date(post.createdAt).toLocaleString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                    {isOwner && (
+                      <button
+                        onClick={() => { setPendingCaption(post.contents); setEditingCaption(true) }}
+                        className="shrink-0 text-gray-300 hover:text-gray-500 transition-colors opacity-0 group-hover:opacity-100 mt-0.5"
+                        aria-label="キャプションを編集"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+                )
+              })()}
 
               {/* Identification hint */}
               <div className="mt-4 pt-4 border-t border-gray-100">

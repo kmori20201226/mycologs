@@ -64,7 +64,9 @@ export default function PostsPage() {
                     </span>
                   )}
                 </div>
-                <p className="text-gray-900 line-clamp-3">{post.contents}</p>
+                <p className={`line-clamp-3 ${post.contents ? 'text-gray-900' : 'text-gray-400 italic'}`}>
+                  {post.contents || new Date(post.createdAt).toLocaleString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                </p>
                 <p className="text-emerald-600 font-medium text-sm mt-4">詳細を見る →</p>
               </Link>
             ))}

@@ -31,3 +31,22 @@ input, textarea, select {
   -webkit-text-fill-color: currentColor;
   opacity: 1;
 }
+
+/* High-contrast input fields */
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+textarea,
+select {
+  background-color: #ffffff;
+  color: #111111;
+  border-color: #374151;
+}
+
+@media (prefers-color-scheme: dark) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  textarea,
+  select {
+    background-color: #1a1a1a;
+    color: #f5f5f5;
+    border-color: #9ca3af;
+  }
+}

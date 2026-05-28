@@ -312,7 +312,7 @@ function NewPostPageInner() {
             {/* Contents */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                何を見つけましたか？
+                キャプション <span className="text-gray-400 font-normal">（任意）</span>
               </label>
               <textarea
                 value={contents}
@@ -320,7 +320,6 @@ function NewPostPageInner() {
                 rows={5}
                 placeholder="きのこの特徴、見つけた場所、気になる点などを記述してください…"
                 className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
-                required
                 disabled={submitting}
               />
             </div>
@@ -503,7 +502,7 @@ function NewPostPageInner() {
             <div className="flex items-center gap-3 pt-1">
               <button
                 type="submit"
-                disabled={submitting || contents.trim() === ''}
+                disabled={submitting}
                 className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white px-5 py-2 rounded-lg text-sm font-semibold transition-colors"
               >
                 {submitLabel()}
