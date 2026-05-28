@@ -184,7 +184,7 @@ function NewPostPageInner() {
 
     if (!result.ok) {
       if (result.status === 'rejected') {
-        setError(`この投稿は公開できません。\n${result.comment}`)
+        setError(`この投稿は公開できません。${result.comment ? `\n${result.comment}` : ''}`)
         setPhase('idle')
         return
       }

@@ -117,7 +117,7 @@ export default async function (fastify: FastifyInstance) {
     }, async (request, reply) => {
         const { eventId, userId, contents, confirmedModeration, visibility: reqVisibility, clubIds: reqClubIds } = request.body as any
 
-        if (!confirmedModeration) {
+        if (!confirmedModeration && contents) {
             let modResult: any
             try {
                 const res = await fetch(`${AI_SERVICE_URL}/api/moderation/evaluate`, {

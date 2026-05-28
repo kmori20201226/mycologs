@@ -34,7 +34,7 @@ export const postSchema = {
 
 export const createPostSchema = {
     type: 'object',
-    required: ['userId', 'contents'],
+    required: ['userId'],
     properties: {
         eventId: { type: 'number' },
         userId: { type: 'number' },
