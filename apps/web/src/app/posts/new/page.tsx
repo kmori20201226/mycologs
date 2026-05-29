@@ -4,7 +4,7 @@ import { Suspense, useEffect, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { apiClient, type Event } from '@/lib/api'
-import { getStoredUser } from '@/lib/auth'
+import { getStoredUser, getToken } from '@/lib/auth'
 
 interface FileEntry {
   id: string        // local key
@@ -200,21 +200,35 @@ function NewPostPageInner() {
     // Upload media in parallel
     let uploadedFailCount = 0
     if (files.length > 0) {
+      if (!getToken()) {
+        setError('セッションが切れています。再度ログインしてから投稿してください。\n（投稿は作成されましたが、写真がアップロードされていません）')
+        setPhase('idle')
+        return
+      }
+
       setPhase('uploading')
       setUploadProgress({ done: 0, total: files.length })
 
+      let authErrorOccurred = false
       await Promise.all(
         files.map(async ({ file }) => {
           try {
             await apiClient.uploadPostMedia(postId, file)
-          } catch {
+          } catch (e: any) {
             uploadedFailCount++
+            if (e?.status === 401) authErrorOccurred = true
           } finally {
             setUploadProgress((prev) => ({ ...prev, done: prev.done + 1 }))
           }
         })
       )
       setUploadFailCount(uploadedFailCount)
+
+      if (authErrorOccurred) {
+        setError('セッションが切れているため写真のアップロードに失敗しました。再度ログインして投稿し直してください。')
+        setPhase('idle')
+        return
+      }
     }
 
     setPhase('done')

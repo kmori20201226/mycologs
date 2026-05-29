@@ -483,7 +483,9 @@ class ApiClient {
     body.append('file', file)
     const response = await fetch(url, { method: 'POST', headers: authHeader, body })
     if (!response.ok) {
-      throw new Error(`Upload failed: ${file.name} => ${response.status} ${response.statusText}`)
+      const err: any = new Error(`Upload failed: ${file.name} => ${response.status}`)
+      err.status = response.status
+      throw err
     }
     return response.json()
   }
