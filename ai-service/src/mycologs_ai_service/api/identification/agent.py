@@ -3,6 +3,7 @@ from mycologs_ai_service.core.anthropic_client import client
 from mycologs_ai_service.api.identification.schemas import IdentificationRequest, IdentificationResult
 
 MODEL = "claude-opus-4-7"
+AGENT_VERSION = f"{MODEL}/prompt-v2"
 
 SYSTEM_PROMPT = """\
 あなたは日本の菌類を専門とするマイコロジスト（菌類学者）です。
@@ -62,4 +63,4 @@ def evaluate(payload: IdentificationRequest) -> IdentificationResult:
     )
 
     tool_use = next(b for b in message.content if b.type == "tool_use")
-    return IdentificationResult(**tool_use.input)
+    return IdentificationResult(**tool_use.input, agent_version=AGENT_VERSION)

@@ -59,6 +59,7 @@ export interface AiIdentification {
   similar_species: SimilarSpecies[]
   missing_info?: string[]
   disclaimer: string
+  agent_version?: string
 }
 
 export interface MediaItem {

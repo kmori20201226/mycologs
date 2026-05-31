@@ -36,3 +36,4 @@ class IdentificationResult(BaseModel):
     similar_species: list[SimilarSpecies]
     missing_info:    list[str] = Field(default_factory=list, description="同定に役立つが不足している情報（例: 胞子紋の色、断面の変色など）")
     disclaimer:      str
+    agent_version:   str = Field(default="", description="同定に使用したエージェントのバージョン")
