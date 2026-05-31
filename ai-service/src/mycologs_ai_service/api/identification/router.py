@@ -1,9 +1,12 @@
 import asyncio
+import logging
 from fastapi import APIRouter, Request
 
 from mycologs_ai_service.api.identification.schemas import IdentificationRequest, IdentificationResult
 from mycologs_ai_service.api.identification import agent
 from mycologs_ai_service.core.exceptions import client_disconnected, internal_error
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/identification", tags=["identification"])
 
@@ -44,4 +47,5 @@ async def evaluate_identification(payload: IdentificationRequest, request: Reque
     except Exception as e:
         if hasattr(e, "status_code"):
             raise
+        logger.exception("Identification failed: %s", e)
         raise internal_error(e)

@@ -600,6 +600,12 @@ function PostPageInner() {
                               ⚠️ {details.disclaimer}
                             </p>
                           )}
+
+                          {details.agent_version && (
+                            <p className="text-xs text-sky-400 text-right pt-1">
+                              {details.agent_version}
+                            </p>
+                          )}
                         </>
                       ) : (
                         <>
@@ -768,6 +774,12 @@ function PostPageInner() {
                   {aiResult.disclaimer && (
                     <p className="text-xs text-gray-500 border-t border-emerald-200 pt-3 leading-relaxed">
                       ⚠️ {aiResult.disclaimer}
+                    </p>
+                  )}
+
+                  {aiResult.agent_version && (
+                    <p className="text-xs text-sky-400 text-right pt-1">
+                      {aiResult.agent_version}
                     </p>
                   )}
 
