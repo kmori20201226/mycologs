@@ -18,6 +18,12 @@ class IdentificationRequest(BaseModel):
     hint:      str | None = None
 
 
+class SimilarSpecies(BaseModel):
+    japanese_name:      str = Field(..., description="類似種の日本語名")
+    scientific_name:    str = Field(..., description="類似種の学名")
+    how_to_distinguish: str = Field(..., description="本種との見分け方（日本語）")
+
+
 class IdentificationResult(BaseModel):
     scientific_name: str
     japanese_name:   str
@@ -26,6 +32,7 @@ class IdentificationResult(BaseModel):
     score:           float
     shape:           str
     edibility:       EdibilityLevel
-    key_features:    list[str | dict]
-    similar_species: list[str | dict]
+    key_features:    list[str]
+    similar_species: list[SimilarSpecies]
+    missing_info:    list[str] = Field(default_factory=list, description="同定に役立つが不足している情報（例: 胞子紋の色、断面の変色など）")
     disclaimer:      str

@@ -1,4 +1,3 @@
-import json
 import anthropic as _anthropic
 from mycologs_ai_service.core.anthropic_client import client
 from mycologs_ai_service.api.identification.schemas import IdentificationRequest, IdentificationResult
@@ -6,40 +5,23 @@ from mycologs_ai_service.api.identification.schemas import IdentificationRequest
 MODEL = "claude-opus-4-7"
 
 SYSTEM_PROMPT = """\
-You are a mycologist specialising in Japanese fungi.
-When given a mushroom photo, respond ONLY with a JSON object —
-no markdown fences, no preamble, no explanation outside the JSON.
+あなたは日本の菌類を専門とするマイコロジスト（菌類学者）です。
+与えられたキノコの写真をもとに同定を行い、report_identification ツールを使って結果を返してください。
 
-Required keys:
-  scientific_name   string   Best-guess binomial (e.g. "Amanita muscaria")
-  japanese_name     string   Standard Japanese name in katakana/kanji, or ""
-  confidence        string   One of: "high", "medium", "low"
-  score             number   confidence expressed in a number between 0.0 to 1.0.
-  shape             string   One of: Cap, Bracket, Coral, Tooth, Jelly, Cup,
-                             Puffball, Stinkhorn, Crust, Truffle
-  edibility         string   One of: edible, toxic, inedible, unknown
-  dialect_names     list     Regional/dialect Japanese names (方言名) if any exist,
-                             otherwise an empty list
-  key_features      list     2–4 visual features that led to this identification
-  similar_species   list     0–2 species that could be confused with this one
-  disclaimer        string   Always include a safety disclaimer about not
-                             relying on AI for edibility decisions
+同定にあたっての指針:
+- 撮影地は日本国内と仮定し、日本に自生または定着している種のみを考慮する
+- key_features には目視で確認できる特徴を 2〜4 点、初心者にも分かる言葉で挙げる
+- similar_species には外見が紛らわしい種を 0〜2 種挙げ、見分け方を具体的に説明する
+- missing_info には同定の確度を上げるために必要だが画像から判断できない情報を挙げる（例: 胞子紋の色、柄の基部の形状、匂いなど）
+- 画像にキノコが写っていない場合は scientific_name を空文字にし、disclaimer にその旨を記載する
+- disclaimer には食用判断を AI に委ねないよう促す安全上の注意を必ず含める
+- すべてのフィールドは日本語で記述する"""
 
-If the image does not contain a mushroom, set scientific_name to ""
-and explain briefly in the disclaimer field.
-The mushroom is assumed to have been found in Japan, so only consider
-species native to or commonly found in Japan.
-When describing key features, use simple language that a beginner could understand.
-For similar species, choose ones that are visually similar and briefly explain how to tell them apart.
-Always include a clear safety disclaimer, even for edible mushrooms.
-Requirements:
-- Always respond in Japanese
-- Use clear, natural Japanese
-- Include:
-  - 推定される種名（日本語名と学名）
-  - 特徴の説明
-  - 類似種との違い
-  - 食用可否（不明な場合は「不明」とする）"""
+_TOOL: _anthropic.types.ToolParam = {
+    "name": "report_identification",
+    "description": "キノコの同定結果を構造化データとして報告する",
+    "input_schema": IdentificationResult.model_json_schema(),
+}
 
 
 def evaluate(payload: IdentificationRequest) -> IdentificationResult:
@@ -60,16 +42,13 @@ def evaluate(payload: IdentificationRequest) -> IdentificationResult:
 
     has_coords = payload.latitude is not None and payload.longitude is not None
     location_line = (
-        f"GPS: latitude {payload.latitude}, longitude {payload.longitude}."
+        f"GPS: 緯度 {payload.latitude}、経度 {payload.longitude}"
         if has_coords
-        else "No GPS provided. Assume somewhere in Japan."
+        else "GPS情報なし。日本国内のどこかと仮定してください。"
     )
     hint_line = f"\n投稿者からのヒント: {payload.hint}" if payload.hint else ""
-    user_text = (
-        f"{location_line}{hint_line}\n複数の画像を総合的に見て同定してください。"
-        if len(payload.images) > 1
-        else f"{location_line}{hint_line}"
-    )
+    multi_line = "\n複数の画像を総合的に見て同定してください。" if len(payload.images) > 1 else ""
+    user_text = f"{location_line}{hint_line}{multi_line}"
 
     text_block: _anthropic.TextBlockParam = {"type": "text", "text": user_text}
 
@@ -77,15 +56,10 @@ def evaluate(payload: IdentificationRequest) -> IdentificationResult:
         model=MODEL,
         max_tokens=1024,
         system=SYSTEM_PROMPT,
+        tools=[_TOOL],
+        tool_choice={"type": "tool", "name": "report_identification"},
         messages=[{"role": "user", "content": [*image_blocks, text_block]}],
     )
 
-    raw = message.content[0].text.strip()
-
-    if raw.startswith("```"):
-        raw = "\n".join(raw.split("\n")[1:])
-    if raw.endswith("```"):
-        raw = "\n".join(raw.split("\n")[:-1])
-
-    data = json.loads(raw.strip())
-    return IdentificationResult(**data)
+    tool_use = next(b for b in message.content if b.type == "tool_use")
+    return IdentificationResult(**tool_use.input)
