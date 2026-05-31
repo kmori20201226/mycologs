@@ -557,11 +557,17 @@ function PostPageInner() {
                           {details.similar_species?.length > 0 && (
                             <div>
                               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">類似種</p>
-                              <ul className="space-y-1">
+                              <ul className="space-y-2">
                                 {details.similar_species.map((s, i) => (
                                   <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
                                     <span className="text-yellow-500 mt-0.5 shrink-0">△</span>
-                                    {typeof s === 'string' ? s : [s.name, s.difference].filter(Boolean).join(' — ')}
+                                    <span>
+                                      <span className="font-medium">{s.japanese_name}</span>
+                                      <span className="text-gray-400 ml-1 text-xs">({s.scientific_name})</span>
+                                      {s.how_to_distinguish && (
+                                        <span className="block text-gray-500 text-xs mt-0.5">{s.how_to_distinguish}</span>
+                                      )}
+                                    </span>
                                   </li>
                                 ))}
                               </ul>
@@ -714,16 +720,19 @@ function PostPageInner() {
                   {aiResult.similar_species?.length > 0 && (
                     <div>
                       <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">類似種</p>
-                      <ul className="space-y-1">
-                        {aiResult.similar_species.map((s, i) => {
-                          const label = typeof s === 'string' ? s : [s.name, s.difference].filter(Boolean).join(' — ')
-                          return (
-                            <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
-                              <span className="text-yellow-500 mt-0.5 shrink-0">△</span>
-                              {label}
-                            </li>
-                          )
-                        })}
+                      <ul className="space-y-2">
+                        {aiResult.similar_species.map((s, i) => (
+                          <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
+                            <span className="text-yellow-500 mt-0.5 shrink-0">△</span>
+                            <span>
+                              <span className="font-medium">{s.japanese_name}</span>
+                              <span className="text-gray-400 ml-1 text-xs">({s.scientific_name})</span>
+                              {s.how_to_distinguish && (
+                                <span className="block text-gray-500 text-xs mt-0.5">{s.how_to_distinguish}</span>
+                              )}
+                            </span>
+                          </li>
+                        ))}
                       </ul>
                     </div>
                   )}

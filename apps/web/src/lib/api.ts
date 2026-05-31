@@ -41,6 +41,12 @@ export interface TaxSpecies {
   updatedAt: string
 }
 
+export interface SimilarSpecies {
+  japanese_name: string
+  scientific_name: string
+  how_to_distinguish: string
+}
+
 export interface AiIdentification {
   scientific_name: string
   japanese_name: string
@@ -49,8 +55,9 @@ export interface AiIdentification {
   score: number
   shape: string
   edibility: string
-  key_features: (string | Record<string, string>)[]
-  similar_species: (string | Record<string, string>)[]
+  key_features: string[]
+  similar_species: SimilarSpecies[]
+  missing_info?: string[]
   disclaimer: string
 }
 
