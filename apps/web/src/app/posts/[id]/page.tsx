@@ -581,6 +581,20 @@ function PostPageInner() {
                             </div>
                           )}
 
+                          {details.missing_info && details.missing_info.length > 0 && (
+                            <div className="border-t border-emerald-200 pt-3">
+                              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">同定精度向上のために必要な情報</p>
+                              <ul className="space-y-1">
+                                {details.missing_info.map((m, i) => (
+                                  <li key={i} className="flex items-start gap-2 text-xs text-gray-500">
+                                    <span className="shrink-0 mt-0.5">?</span>
+                                    {m}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+
                           {details.disclaimer && (
                             <p className="text-xs text-gray-500 border-t border-emerald-200 pt-3 leading-relaxed">
                               ⚠️ {details.disclaimer}
@@ -731,6 +745,20 @@ function PostPageInner() {
                                 <span className="block text-gray-500 text-xs mt-0.5">{s.how_to_distinguish}</span>
                               )}
                             </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {aiResult.missing_info && aiResult.missing_info.length > 0 && (
+                    <div className="border-t border-emerald-200 pt-3">
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">同定精度向上のために必要な情報</p>
+                      <ul className="space-y-1">
+                        {aiResult.missing_info.map((m, i) => (
+                          <li key={i} className="flex items-start gap-2 text-xs text-gray-500">
+                            <span className="shrink-0 mt-0.5">?</span>
+                            {m}
                           </li>
                         ))}
                       </ul>
