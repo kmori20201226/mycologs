@@ -28,7 +28,8 @@ export const postSchema = {
                 id: { type: 'number' },
                 name: { type: 'string' }
             }
-        }
+        },
+        thumbnail: { type: 'string', nullable: true },
     }
 }
 

@@ -4,17 +4,21 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { apiClient } from '@/lib/api'
 
+const PAGE_SIZE = Number(process.env.NEXT_PUBLIC_POSTS_PAGE_SIZE ?? '9')
+
 interface Post {
   id: number
   contents: string
   createdAt: string
   visibility: string
+  thumbnail: string | null
   user: { id: number; name: string; handleName: string | null }
 }
 
 export default function PostsPage() {
   const [posts, setPosts] = useState<Post[]>([])
   const [loading, setLoading] = useState(true)
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
 
   useEffect(() => {
     apiClient.getPosts()
@@ -22,6 +26,9 @@ export default function PostsPage() {
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [])
+
+  const visiblePosts = posts.slice(0, visibleCount)
+  const hasMore = visibleCount < posts.length
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -37,40 +44,68 @@ export default function PostsPage() {
         </div>
 
         {loading ? (
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {[...Array(6)].map((_, i) => (
-              <div key={i} className="bg-white rounded-lg shadow-md p-6 animate-pulse">
-                <div className="h-3 bg-gray-200 rounded w-1/3 mb-3" />
-                <div className="h-4 bg-gray-200 rounded w-full mb-2" />
-                <div className="h-4 bg-gray-200 rounded w-5/6" />
+          <div className="grid gap-4 grid-cols-2 md:grid-cols-3">
+            {[...Array(PAGE_SIZE)].map((_, i) => (
+              <div key={i} className="bg-white rounded-lg shadow-md overflow-hidden animate-pulse">
+                <div className="aspect-square bg-gray-200" />
+                <div className="p-3 space-y-2">
+                  <div className="h-3 bg-gray-200 rounded w-2/3" />
+                  <div className="h-3 bg-gray-200 rounded w-full" />
+                </div>
               </div>
             ))}
           </div>
         ) : posts.length > 0 ? (
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {posts.map((post) => (
-              <Link
-                key={post.id}
-                href={`/posts/${post.id}`}
-                className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow block"
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-gray-600 text-sm">
-                    {post.user.handleName ?? post.user.name} · {new Date(post.createdAt).toLocaleDateString('ja-JP')}
-                  </p>
-                  {post.visibility !== 'PUBLIC' && (
-                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${post.visibility === 'PRIVATE' ? 'bg-yellow-50 text-yellow-700' : 'bg-blue-50 text-blue-600'}`}>
-                      {post.visibility === 'PRIVATE' ? '自分のみ' : 'クラブのみ'}
-                    </span>
+          <>
+            <div className="grid gap-4 grid-cols-2 md:grid-cols-3">
+              {visiblePosts.map((post) => (
+                <Link
+                  key={post.id}
+                  href={`/posts/${post.id}`}
+                  className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow block"
+                >
+                  {post.thumbnail ? (
+                    <div className="aspect-square overflow-hidden bg-gray-100">
+                      <img
+                        src={post.thumbnail}
+                        alt=""
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                      />
+                    </div>
+                  ) : (
+                    <div className="aspect-square bg-gray-100 flex items-center justify-center text-4xl">
+                      🍄
+                    </div>
                   )}
-                </div>
-                <p className={`line-clamp-3 ${post.contents ? 'text-gray-900' : 'text-gray-400 italic'}`}>
-                  {post.contents || new Date(post.createdAt).toLocaleString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                </p>
-                <p className="text-emerald-600 font-medium text-sm mt-4">詳細を見る →</p>
-              </Link>
-            ))}
-          </div>
+                  <div className="p-3">
+                    <p className="text-gray-500 text-xs mb-1">
+                      {post.user.handleName ?? post.user.name} · {new Date(post.createdAt).toLocaleDateString('ja-JP')}
+                      {post.visibility !== 'PUBLIC' && (
+                        <span className={`ml-2 px-1.5 py-0.5 rounded-full text-xs font-medium ${post.visibility === 'PRIVATE' ? 'bg-yellow-50 text-yellow-700' : 'bg-blue-50 text-blue-600'}`}>
+                          {post.visibility === 'PRIVATE' ? '自分のみ' : 'クラブのみ'}
+                        </span>
+                      )}
+                    </p>
+                    <p className={`text-sm line-clamp-2 ${post.contents ? 'text-gray-800' : 'text-gray-400 italic'}`}>
+                      {post.contents || '(キャプションなし)'}
+                    </p>
+                  </div>
+                </Link>
+              ))}
+            </div>
+
+            {hasMore && (
+              <div className="mt-8 text-center">
+                <button
+                  onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
+                  className="px-8 py-3 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-semibold rounded-lg shadow-sm transition-colors"
+                >
+                  もっと見る ({posts.length - visibleCount} 件)
+                </button>
+              </div>
+            )}
+          </>
         ) : (
           <div className="text-center py-12">
             <div className="text-6xl mb-4">🍄</div>

@@ -13,10 +13,17 @@ const POST_INCLUDE = {
     user: { select: { id: true, name: true, handleName: true, email: true } },
     event: { select: { id: true, name: true, startAt: true } },
     postClubs: { select: { clubId: true } },
+    media: { where: { deletedAt: null }, select: { url: true }, orderBy: { createdAt: 'asc' as const }, take: 1 },
 } as const
 
 function formatPost(post: any) {
-    return { ...post, clubIds: post.postClubs.map((pc: any) => pc.clubId), postClubs: undefined }
+    return {
+        ...post,
+        clubIds: post.postClubs.map((pc: any) => pc.clubId),
+        postClubs: undefined,
+        thumbnail: post.media?.[0]?.url ?? null,
+        media: undefined,
+    }
 }
 
 async function hasActiveSubscription(fastify: FastifyInstance, userId: number): Promise<boolean> {
