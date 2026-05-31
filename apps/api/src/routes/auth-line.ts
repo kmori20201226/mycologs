@@ -3,8 +3,8 @@ import crypto from 'crypto'
 
 const LINE_CHANNEL_ID     = process.env.LINE_LOGIN_CHANNEL_ID!
 const LINE_CHANNEL_SECRET = process.env.LINE_LOGIN_CHANNEL_SECRET!
-const CALLBACK_URL        = process.env.LINE_CALLBACK_URL ?? 'http://localhost:3000/auth/line/callback'
-const FRONTEND_URL        = process.env.FRONTEND_URL      ?? 'http://localhost:3001'
+const CALLBACK_URL        = process.env.LINE_CALLBACK_URL || 'http://localhost:3000/auth/line/callback'
+const FRONTEND_URL        = process.env.FRONTEND_URL      || 'http://localhost:3001'
 
 // In-memory session store: state → { timestamp, nonce }
 // Dev only — replace with Redis for production

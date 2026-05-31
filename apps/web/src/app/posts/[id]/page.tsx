@@ -64,6 +64,7 @@ function PostPageInner() {
   const [editingCaption, setEditingCaption] = useState(false)
   const [pendingCaption, setPendingCaption] = useState('')
   const [captionSaving, setCaptionSaving] = useState(false)
+  const [captionWarning, setCaptionWarning] = useState<{ category: string; comment: string } | null>(null)
 
   const [editingVisibility, setEditingVisibility] = useState(false)
   const [pendingVisibility, setPendingVisibility] = useState<PostVisibility>('PUBLIC')
@@ -373,7 +374,17 @@ function PostPageInner() {
                             if (!user || !post) return
                             setCaptionSaving(true)
                             try {
-                              await apiClient.updatePost(post.id, { userId: user.id, contents: pendingCaption })
+                              const result = await apiClient.updatePost(post.id, { userId: user.id, contents: pendingCaption })
+                              if (!result.ok) {
+                                if (result.status === 'rejected') {
+                                  showToast(`この内容は保存できません。${result.comment ? result.comment : ''}`)
+                                  return
+                                }
+                                if (result.status === 'warning') {
+                                  setCaptionWarning({ category: result.category, comment: result.comment })
+                                  return
+                                }
+                              }
                               setPost((prev) => prev ? { ...prev, contents: pendingCaption } : prev)
                               setEditingCaption(false)
                             } catch {
@@ -399,20 +410,36 @@ function PostPageInner() {
                   )
                 }
                 return (
-                  <div className="group flex items-start gap-2">
-                    <p className={`flex-1 whitespace-pre-wrap ${post.contents ? 'text-gray-800' : 'text-gray-400 italic'}`}>
-                      {post.contents || new Date(post.createdAt).toLocaleString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                    </p>
-                    {isOwner && (
-                      <button
-                        onClick={() => { setPendingCaption(post.contents); setEditingCaption(true) }}
-                        className="shrink-0 text-gray-300 hover:text-gray-500 transition-colors opacity-0 group-hover:opacity-100 mt-0.5"
-                        aria-label="キャプションを編集"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                        </svg>
-                      </button>
+                  <div>
+                    {post.contents ? (
+                      <div className="flex items-start gap-2">
+                        <p className="flex-1 whitespace-pre-wrap text-gray-800">{post.contents}</p>
+                        {isOwner && (
+                          <button
+                            onClick={() => { setPendingCaption(post.contents ?? ''); setEditingCaption(true) }}
+                            className="shrink-0 text-gray-400 hover:text-gray-600 transition-colors mt-0.5"
+                            aria-label="キャプションを編集"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                            </svg>
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <div>
+                        <p className="text-gray-400 italic">
+                          {new Date(post.createdAt).toLocaleString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                        {isOwner && (
+                          <button
+                            onClick={() => { setPendingCaption(''); setEditingCaption(true) }}
+                            className="mt-1 text-sm text-emerald-600 hover:text-emerald-700 hover:underline transition-colors"
+                          >
+                            キャプションを追加
+                          </button>
+                        )}
+                      </div>
                     )}
                   </div>
                 )
@@ -960,6 +987,55 @@ function PostPageInner() {
               {selectedMedia.description}
             </p>
           )}
+        </div>
+      )}
+
+      {captionWarning && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 space-y-4">
+            <div className="flex items-start gap-3">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-yellow-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+              </svg>
+              <div>
+                <h2 className="text-base font-semibold text-gray-900">投稿内容の注意</h2>
+                <p className="text-xs text-yellow-700 font-medium mt-0.5">
+                  {{ POTENTIALLY_OFFENSIVE: '不適切な可能性', OFF_TOPIC_IMAGE: 'きのこと無関係な可能性', OFFENSIVE_SEXUAL: '不適切なコンテンツ' }[captionWarning.category] ?? captionWarning.category}
+                </p>
+              </div>
+            </div>
+            <p className="text-sm text-gray-700 leading-relaxed">{captionWarning.comment}</p>
+            <p className="text-xs text-gray-500">このまま保存すると、内容が記録されます。修正することをお勧めします。</p>
+            <div className="flex gap-3 pt-1">
+              <button
+                onClick={async () => {
+                  const w = captionWarning
+                  setCaptionWarning(null)
+                  const user = getStoredUser()
+                  if (!user || !post) return
+                  setCaptionSaving(true)
+                  try {
+                    await apiClient.updatePost(post.id, { userId: user.id, contents: pendingCaption, confirmedModeration: w })
+                    setPost((prev) => prev ? { ...prev, contents: pendingCaption } : prev)
+                    setEditingCaption(false)
+                  } catch {
+                    showToast('キャプションの保存に失敗しました')
+                  } finally {
+                    setCaptionSaving(false)
+                  }
+                }}
+                className="flex-1 px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white text-sm font-semibold rounded-lg transition-colors"
+              >
+                このまま保存する
+              </button>
+              <button
+                onClick={() => setCaptionWarning(null)}
+                className="flex-1 px-4 py-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 text-sm font-semibold rounded-lg transition-colors"
+              >
+                修正する
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
