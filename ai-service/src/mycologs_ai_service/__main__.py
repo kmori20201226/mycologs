@@ -19,6 +19,7 @@ import sys
 import time
 from pathlib import Path
 import uvicorn
+from dotenv import load_dotenv
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -26,6 +27,7 @@ import uvicorn
 # ──────────────────────────────────────────────────────────────────────────────
 
 _PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
+load_dotenv(_PROJECT_ROOT / ".env")
 DEFAULT_PID_FILE = _PROJECT_ROOT / ".pids" / "ai-service.pid"
 DEFAULT_LOG_FILE = _PROJECT_ROOT / "logs" / "ai-service.log"
 

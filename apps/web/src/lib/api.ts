@@ -498,6 +498,10 @@ class ApiClient {
     return response.json()
   }
 
+  async deleteMedia(id: string): Promise<void> {
+    await this.request(`/media/${id}`, { method: 'DELETE' })
+  }
+
   // Identifications
   async getIdentifications(): Promise<unknown[]> {
     return this.request('/identifications');

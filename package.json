@@ -8,7 +8,7 @@
     "dev:web": "npm --workspace apps/web run dev",
     "build": "npm run build -ws",
     "start": "node apps/api/dist/server.js",
-    "start:web": "npm --workspace apps/web run start",
+    "start:web": "cd apps/web && next start -p 3001",
     "start:ai": "cd ai-service && mycologs-ai-service --daemon",
     "stop:ai": "cd ai-service && mycologs-ai-service --stop",
     "db:up": "docker compose -f docker/postgres/docker-compose.yml up -d",

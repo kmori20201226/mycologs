@@ -77,8 +77,21 @@ function PostPageInner() {
   const [hint, setHint] = useState('')
   const [committedHint, setCommittedHint] = useState<string | null>(null)
 
-  // AI identification state
-  const [aiResult, setAiResult] = useState<AiIdentification | null>(null)
+  // AI identification state — persisted in sessionStorage so back-navigation doesn't lose it
+  const sessionKey = `aiResult:${postId}`
+  const [aiResult, setAiResultState] = useState<AiIdentification | null>(() => {
+    try {
+      const saved = sessionStorage.getItem(`aiResult:${postId}`)
+      return saved ? JSON.parse(saved) : null
+    } catch { return null }
+  })
+  function setAiResult(result: AiIdentification | null) {
+    setAiResultState(result)
+    try {
+      if (result) sessionStorage.setItem(sessionKey, JSON.stringify(result))
+      else sessionStorage.removeItem(sessionKey)
+    } catch { /* ignore */ }
+  }
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState('')
   const [toast, setToast] = useState('')
@@ -462,31 +475,82 @@ function PostPageInner() {
             </div>
 
             {/* Media gallery */}
-            {mediaLoaded && images.length === 0 && media.length === 0 && (
-              <div className="bg-white rounded-xl shadow p-6 mb-6 text-center text-sm text-gray-400">
-                写真が添付されていません
-              </div>
-            )}
-            {images.length > 0 && (
-              <div className="bg-white rounded-xl shadow p-6 mb-6">
-                <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-4">写真</h2>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {images.map((img) => (
-                    <button
-                      key={img.id}
-                      onClick={() => setSelectedMedia(img)}
-                      className="relative aspect-square rounded-lg overflow-hidden bg-gray-100 hover:opacity-90 transition-opacity focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                    >
-                      <img
-                        src={img.thumbnailUrl ?? img.url}
-                        alt={img.description ?? img.originalName}
-                        className="w-full h-full object-cover"
-                      />
-                    </button>
-                  ))}
+            {(() => {
+              const _u = getStoredUser()
+              const isOwner = _u && post && _u.id === post.user.id
+              return (
+                <div className="bg-white rounded-xl shadow p-6 mb-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">写真</h2>
+                    {isOwner && (
+                      <label className="cursor-pointer inline-flex items-center gap-1.5 text-xs font-medium text-emerald-600 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-lg transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                        </svg>
+                        写真を追加
+                        <input
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          className="hidden"
+                          onChange={async (e) => {
+                            const files = Array.from(e.target.files ?? [])
+                            e.target.value = ''
+                            for (const file of files) {
+                              try {
+                                const uploaded = await apiClient.uploadPostMedia(postId, file)
+                                setMedia((prev) => [...prev, uploaded])
+                              } catch {
+                                showToast(`${file.name} のアップロードに失敗しました`)
+                              }
+                            }
+                          }}
+                        />
+                      </label>
+                    )}
+                  </div>
+                  {mediaLoaded && images.length === 0 && (
+                    <p className="text-sm text-gray-400 text-center py-4">写真が添付されていません</p>
+                  )}
+                  {images.length > 0 && (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      {images.map((img) => (
+                        <div key={img.id} className="relative group aspect-square rounded-lg overflow-hidden bg-gray-100">
+                          <button
+                            onClick={() => setSelectedMedia(img)}
+                            className="w-full h-full focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          >
+                            <img
+                              src={img.thumbnailUrl ?? img.url}
+                              alt={img.description ?? img.originalName}
+                              className="w-full h-full object-cover hover:opacity-90 transition-opacity"
+                            />
+                          </button>
+                          {isOwner && (
+                            <button
+                              onClick={async () => {
+                                try {
+                                  await apiClient.deleteMedia(img.id)
+                                  setMedia((prev) => prev.filter((m) => m.id !== img.id))
+                                } catch {
+                                  showToast('写真の削除に失敗しました')
+                                }
+                              }}
+                              className="absolute top-1.5 right-1.5 bg-black/60 hover:bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                              aria-label="削除"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              </div>
-            )}
+              )
+            })()}
 
             {/* Accepted identifications */}
             {acceptedIds.length > 0 && (
@@ -509,6 +573,14 @@ function PostPageInner() {
                         <div>
                         <p className="text-xl font-bold text-gray-900 italic">{name}</p>
                         {japaneseName && <p className="text-base text-gray-700">{japaneseName}</p>}
+                        {name !== '—' && (
+                          <Link
+                            href={`/identify/inat/${encodeURIComponent(name)}${japaneseName ? `?ja=${encodeURIComponent(japaneseName)}` : ''}`}
+                            className="inline-block mt-1 text-xs font-medium text-emerald-600 bg-emerald-50 hover:bg-emerald-100 px-2 py-0.5 rounded transition-colors"
+                          >
+                            同種のサンプル表示
+                          </Link>
+                        )}
                         {(details?.dialect_names?.length ?? 0) > 0 && (
                           <p className="text-sm text-gray-500">方言名: {details!.dialect_names.join('、')}</p>
                         )}
@@ -564,6 +636,12 @@ function PostPageInner() {
                                     <span>
                                       <span className="font-medium">{s.japanese_name}</span>
                                       <span className="text-gray-400 ml-1 text-xs">({s.scientific_name})</span>
+                                      <Link
+                                        href={`/identify/inat/${encodeURIComponent(s.scientific_name)}?ja=${encodeURIComponent(s.japanese_name)}`}
+                                        className="ml-1.5 text-xs font-medium text-emerald-600 bg-emerald-50 hover:bg-emerald-100 px-1.5 py-0.5 rounded transition-colors"
+                                      >
+                                        同種のサンプル表示
+                                      </Link>
                                       {s.how_to_distinguish && (
                                         <span className="block text-gray-500 text-xs mt-0.5">{s.how_to_distinguish}</span>
                                       )}
@@ -706,6 +784,12 @@ function PostPageInner() {
                           {aiResult.japanese_name && (
                             <p className="text-base text-gray-700 not-italic">{aiResult.japanese_name}</p>
                           )}
+                          <Link
+                            href={`/identify/inat/${encodeURIComponent(aiResult.scientific_name)}${aiResult.japanese_name ? `?ja=${encodeURIComponent(aiResult.japanese_name)}` : ''}`}
+                            className="inline-block mt-1 text-xs font-medium text-emerald-600 bg-emerald-50 hover:bg-emerald-100 px-2 py-0.5 rounded transition-colors"
+                          >
+                            同種のサンプル表示
+                          </Link>
                           {aiResult.dialect_names?.length > 0 && (
                             <p className="text-sm text-gray-500">方言名: {aiResult.dialect_names.join('、')}</p>
                           )}
@@ -747,6 +831,12 @@ function PostPageInner() {
                             <span>
                               <span className="font-medium">{s.japanese_name}</span>
                               <span className="text-gray-400 ml-1 text-xs">({s.scientific_name})</span>
+                              <Link
+                                href={`/identify/inat/${encodeURIComponent(s.scientific_name)}?ja=${encodeURIComponent(s.japanese_name)}`}
+                                className="ml-1.5 text-xs font-medium text-emerald-600 bg-emerald-50 hover:bg-emerald-100 px-1.5 py-0.5 rounded transition-colors"
+                              >
+                                同種のサンプル表示
+                              </Link>
                               {s.how_to_distinguish && (
                                 <span className="block text-gray-500 text-xs mt-0.5">{s.how_to_distinguish}</span>
                               )}
