@@ -1,0 +1,21 @@
+[build-system]
+requires      = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name        = "inat-images"
+version     = "0.1.0"
+description = "iNaturalist image downloader for mycologs"
+requires-python = ">=3.11"
+
+dependencies = [
+    "requests>=2.31",
+    "tqdm>=4.66",
+]
+
+[project.scripts]
+inat-images = "inat_images.cli:main"
+
+[tool.setuptools.packages.find]
+where   = ["."]
+include = ["inat_images*"]
