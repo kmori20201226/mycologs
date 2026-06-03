@@ -57,6 +57,7 @@ services:
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
       FREE_TIER_CREDITS: ${FREE_TIER_CREDITS:-50}
       AI_IDENTIFICATION_COST: ${AI_IDENTIFICATION_COST:-10}
+      INAT_IMAGES_DIR: /app/data/inat-images
     depends_on:
       postgres:
         condition: service_healthy
@@ -65,6 +66,7 @@ services:
     volumes:
       - ./uploads:/app/data/uploads
       - ./backups:/app/backups
+      - ../iNaturalist-images:/app/data/inat-images:ro
 
   web:
     build:

@@ -37,6 +37,7 @@ import planRoutes from './routes/plans'
 import siteSettingsRoutes from './routes/site-settings'
 
 const UPLOADS_DIR = path.resolve(__dirname, '../../../data/uploads')
+const INAT_IMAGES_DIR = process.env.INAT_IMAGES_DIR ?? path.resolve(__dirname, '../../../iNaturalist-images')
 
 export async function buildApp() {
     const LOG_DIR = path.resolve(__dirname, '../../../logs')
@@ -70,6 +71,13 @@ export async function buildApp() {
         prefix: '/uploads/',
         decorateReply: false,
     })
+    if (fs.existsSync(INAT_IMAGES_DIR)) {
+        await app.register(staticFiles, {
+            root: INAT_IMAGES_DIR,
+            prefix: '/inat-images/',
+            decorateReply: false,
+        })
+    }
     await app.register(dbPlugin)
     await app.register(jwtPlugin)
     await app.register(stripeWebhookRoutes)

@@ -58,6 +58,7 @@ services:
       STRIPE_PRICE_CLUB: ${STRIPE_PRICE_CLUB:-}
       FREE_TIER_CREDITS: ${FREE_TIER_CREDITS:-50}
       AI_IDENTIFICATION_COST: ${AI_IDENTIFICATION_COST:-10}
+      INAT_IMAGES_DIR: /app/data/inat-images
     depends_on:
       postgres:
         condition: service_healthy
@@ -67,6 +68,7 @@ services:
       - ./uploads:/app/data/uploads
       - ./backups:/app/backups
       - ./testdata.csv:/app/test-sandbox/testdata.csv:ro
+      - ../iNaturalist-images:/app/data/inat-images:ro
 
   web:
     build:
