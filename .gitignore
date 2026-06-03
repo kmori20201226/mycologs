@@ -98,6 +98,12 @@ test-sandbox/backups/
 # Business sandbox
 # =========================
 business-sandbox/backups/
+business-sandbox/uploads/
+
+# =========================
+# iNaturalist sample images
+# =========================
+iNaturalist-images/
 
 # =========================
 # Local backups

@@ -37,7 +37,7 @@ import planRoutes from './routes/plans'
 import siteSettingsRoutes from './routes/site-settings'
 
 const UPLOADS_DIR = path.resolve(__dirname, '../../../data/uploads')
-const INAT_IMAGES_DIR = process.env.INAT_IMAGES_DIR ?? path.resolve(__dirname, '../../../iNaturalist-images')
+const INAT_IMAGES_DIR = process.env.INAT_IMAGES_DIR ?? '/app/samples/iNaturalist-images'
 
 export async function buildApp() {
     const LOG_DIR = path.resolve(__dirname, '../../../logs')
@@ -107,6 +107,5 @@ export async function buildApp() {
     await app.register(announcementRoutes)
     await app.register(planRoutes)
     await app.register(siteSettingsRoutes)
-
     return app
 }
