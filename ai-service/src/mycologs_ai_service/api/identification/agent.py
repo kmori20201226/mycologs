@@ -3,7 +3,7 @@ from mycologs_ai_service.core.anthropic_client import client
 from mycologs_ai_service.api.identification.schemas import IdentificationRequest, IdentificationResult
 
 MODEL = "claude-opus-4-7"
-AGENT_VERSION = f"{MODEL}/prompt-v2"
+AGENT_VERSION = f"{MODEL}/prompt-v2.1"
 
 SYSTEM_PROMPT = """\
 あなたは日本の菌類を専門とするマイコロジスト（菌類学者）です。
