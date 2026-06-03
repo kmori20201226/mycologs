@@ -60,6 +60,7 @@ export interface AiIdentification {
   missing_info?: string[]
   disclaimer: string
   agent_version?: string
+  hint?: string | null
 }
 
 export interface MediaItem {

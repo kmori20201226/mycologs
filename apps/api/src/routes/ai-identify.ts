@@ -121,6 +121,6 @@ export default async function (fastify: FastifyInstance) {
         }
 
         const result = await response.json()
-        return reply.send(result)
+        return reply.send({ ...result, hint: hint || null })
     })
 }

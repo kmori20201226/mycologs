@@ -33,7 +33,7 @@ class IdentificationResult(BaseModel):
     shape:           str
     edibility:       EdibilityLevel
     key_features:    list[str]
-    similar_species: list[SimilarSpecies]
+    similar_species: list[SimilarSpecies] = Field(default_factory=list) = Field(default_factory=list)
     missing_info:    list[str] = Field(default_factory=list, description="同定に役立つが不足している情報（例: 胞子紋の色、断面の変色など）")
     disclaimer:      str = Field(default="※ AIによる同定は参考情報です。食用の判断をAIに委ねず、必ず専門家にご確認ください。")
     agent_version:   str = Field(default="", description="同定に使用したエージェントのバージョン")

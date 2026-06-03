@@ -804,6 +804,10 @@ function PostPageInner() {
                     <p className="text-xs text-gray-500">形状: <span className="text-gray-700 font-medium">{aiResult.shape}</span></p>
                   )}
 
+                  {aiResult.hint && (
+                    <p className="text-xs text-gray-500">同定ヒント: <span className="text-gray-700 font-medium">{aiResult.hint}</span></p>
+                  )}
+
                   {aiResult.key_features?.length > 0 && (
                     <div>
                       <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">特徴</p>
