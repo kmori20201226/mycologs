@@ -37,6 +37,7 @@ server {
         proxy_set_header   Upgrade           $http_upgrade;
         proxy_set_header   Connection        "upgrade";
 
+        proxy_read_timeout   300s;
         client_max_body_size 55m;
     }
 }
