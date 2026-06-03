@@ -2,9 +2,8 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   experimental: {
-    // Disable the 30s default proxy timeout so long-running AI identification
-    // requests are not cut off. Timeouts are handled by nginx and Fastify.
-    proxyTimeout: null,
+    // Default is 30s which cuts off AI identification. Set to 10 minutes.
+    proxyTimeout: 600_000,
   },
   async rewrites() {
     const dest = process.env.INTERNAL_API_URL
