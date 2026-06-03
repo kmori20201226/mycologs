@@ -90,8 +90,8 @@ cmd_build() {
   export GIT_BRANCH=$(git -C .. rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
   echo "Building all images... ($GIT_BRANCH@$GIT_HASH)"
   $COMPOSE build
-  echo "Restarting api and running migrations..."
-  $COMPOSE up -d api
+  echo "Restarting services and running migrations..."
+  $COMPOSE up -d api web ai-service
   $COMPOSE exec api npx prisma migrate deploy
 }
 
