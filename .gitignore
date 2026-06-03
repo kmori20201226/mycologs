@@ -98,6 +98,7 @@ test-sandbox/backups/
 # Business sandbox
 # =========================
 business-sandbox/backups/
+business-sandbox/pgdata/
 business-sandbox/uploads/
 
 # =========================
