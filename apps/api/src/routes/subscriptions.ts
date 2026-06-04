@@ -2,7 +2,7 @@ import { FastifyInstance } from 'fastify'
 import Stripe from 'stripe'
 import { subscriptionSchema, createSubscriptionSchema, updateSubscriptionSchema } from '../schemas/subscription'
 
-const FRONTEND_URL = process.env.FRONTEND_URL ?? 'http://localhost:3001'
+const FRONTEND_URL = (process.env.FRONTEND_URL ?? 'http://localhost:3001').split(',')[0].trim()
 
 function getStripe() {
     const key = process.env.STRIPE_SECRET_KEY
