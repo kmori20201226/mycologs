@@ -1,6 +1,8 @@
 import { FastifyInstance } from 'fastify'
 
-const GSI_URL = 'https://msearch.gsi.go.jp/address-search/AddressSearch'
+// GSI (Geospatial Information Authority of Japan) address-search endpoint.
+// Overridable via env so tests can point at a stub.
+const GSI_URL = process.env.GSI_GEOCODE_URL ?? 'https://msearch.gsi.go.jp/address-search/AddressSearch'
 
 export default async function (fastify: FastifyInstance) {
     fastify.post('/ai/geocode', {
