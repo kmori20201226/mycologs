@@ -6,6 +6,11 @@ const LINE_CHANNEL_SECRET = process.env.LINE_LOGIN_CHANNEL_SECRET!
 const CALLBACK_URL        = process.env.LINE_CALLBACK_URL || 'http://localhost:3000/auth/line/callback'
 const FRONTEND_URL        = process.env.APP_URL ?? (process.env.CORS_ORIGINS ?? 'http://localhost:3001').split(',')[0]!.trim()
 
+// LINE serves OAuth on two hosts: access.line.me (authorize) and api.line.me
+// (token/verify/profile). Overridable via env so tests can point at a stub.
+const LINE_AUTH_BASE      = process.env.LINE_AUTH_BASE ?? 'https://access.line.me'
+const LINE_API_BASE       = process.env.LINE_API_BASE  ?? 'https://api.line.me'
+
 // In-memory session store: state → { timestamp, nonce }
 // Dev only — replace with Redis for production
 const sessionStore = new Map<string, { ts: number; nonce: string }>()
@@ -25,7 +30,7 @@ async function verifyIdToken(
     nonce: string,
 ): Promise<Record<string, any> | null> {
     try {
-        const res = await fetch('https://api.line.me/oauth2/v2.1/verify', {
+        const res = await fetch(`${LINE_API_BASE}/oauth2/v2.1/verify`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: new URLSearchParams({
@@ -60,7 +65,7 @@ export default async function (fastify: FastifyInstance) {
             scope:         'profile openid email',
         })
 
-        return reply.redirect(`https://access.line.me/oauth2/v2.1/authorize?${params}`)
+        return reply.redirect(`${LINE_AUTH_BASE}/oauth2/v2.1/authorize?${params}`)
     })
 
     // GET /auth/line/callback
@@ -84,7 +89,7 @@ export default async function (fastify: FastifyInstance) {
         // ── Exchange code for tokens ─────────────────────────────────────────
         let lineTokens: any
         try {
-            const tokenRes = await fetch('https://api.line.me/oauth2/v2.1/token', {
+            const tokenRes = await fetch(`${LINE_API_BASE}/oauth2/v2.1/token`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                 body: new URLSearchParams({
@@ -114,7 +119,7 @@ export default async function (fastify: FastifyInstance) {
         // ── Get LINE profile (always available with profile scope) ───────────
         let lineProfile: any
         try {
-            const profileRes = await fetch('https://api.line.me/v2/profile', {
+            const profileRes = await fetch(`${LINE_API_BASE}/v2/profile`, {
                 headers: { Authorization: `Bearer ${lineTokens.access_token}` },
             })
             lineProfile = await profileRes.json()
