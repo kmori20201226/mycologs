@@ -59,7 +59,7 @@ export default async function (fastify: FastifyInstance) {
         })
 
         // Notify admins (fire-and-forget)
-        const base = (process.env.FRONTEND_URL ?? '').split(',')[0].trim().replace(/\/$/, '')
+        const base = (process.env.APP_URL ?? (process.env.CORS_ORIGINS ?? '').split(',')[0].trim()).replace(/\/$/, '')
         const link = `${base}/admin/requests`
         getAdminEmails(fastify.prisma).then(emails =>
             sendMail(emails, '【Mycologs】クラブ立ち上げ申請が届きました',

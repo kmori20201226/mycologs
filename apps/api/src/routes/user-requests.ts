@@ -41,7 +41,7 @@ export default async function (fastify: FastifyInstance) {
         // Send notification emails (fire-and-forget)
         const requestType = requestBody?.requestType as string | undefined
         const requesterName = userRequest.requester.name
-        const base = (process.env.FRONTEND_URL ?? '').split(',')[0].trim().replace(/\/$/, '')
+        const base = (process.env.APP_URL ?? (process.env.CORS_ORIGINS ?? '').split(',')[0].trim()).replace(/\/$/, '')
         if (requestType === 'Withdraw') {
             const link = `${base}/admin/requests`
             getAdminEmails(fastify.prisma).then(emails =>

@@ -53,7 +53,7 @@ export async function buildApp() {
         bodyLimit: 52 * 1024 * 1024, // 52 MB to accommodate 50 MB file uploads
     })
 
-    const allowedOrigins = (process.env.FRONTEND_URL ?? 'http://localhost:3001')
+    const allowedOrigins = (process.env.CORS_ORIGINS ?? process.env.FRONTEND_URL ?? 'http://localhost:3001')
         .split(',').map(s => s.trim()).filter(Boolean)
     await app.register(cors, {
         origin: (origin, cb) => {

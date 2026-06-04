@@ -40,7 +40,8 @@ services:
     environment:
       DATABASE_URL: postgresql://postgres:password@postgres:5432/mycologs
       AI_SERVICE_URL: http://ai-service:3002
-      FRONTEND_URL: http://localhost:3001
+      CORS_ORIGINS: http://localhost:3001
+      APP_URL: http://localhost:3001
       API_URL: ${API_URL:-http://localhost:3000}
       JWT_SECRET: ${JWT_SECRET}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
