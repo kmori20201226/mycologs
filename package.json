@@ -42,7 +42,8 @@
     "test:identifications": "npx ts-node apps/api/test/identifications.test.ts",
     "test:votes": "npx ts-node apps/api/test/votes.test.ts",
     "test:media": "npx ts-node apps/api/test/media.test.ts",
-    "test": "npm run test:users && npm run test:clubs && npm run test:roles && npm run test:oauth-accounts && npm run test:shapes && npm run test:families && npm run test:genera && npm run test:species && npm run test:events && npm run test:posts && npm run test:followups && npm run test:identifications && npm run test:votes && npm run test:media"
+    "test:auth-line": "npx ts-node apps/api/test/auth-line.test.ts",
+    "test": "npm run test:users && npm run test:clubs && npm run test:roles && npm run test:oauth-accounts && npm run test:shapes && npm run test:families && npm run test:genera && npm run test:species && npm run test:events && npm run test:posts && npm run test:followups && npm run test:identifications && npm run test:votes && npm run test:media && npm run test:auth-line"
   },
   "keywords": [],
   "author": "Kazuya Mori",
