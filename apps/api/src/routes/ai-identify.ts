@@ -140,7 +140,7 @@ export default async function (fastify: FastifyInstance) {
             // alert the admins, and tell the user it's a temporary outage.
             if (response.status === 503 && detail.includes('insufficient_ai_credit')) {
                 if (refundCredit) await refundCredit().catch(() => {})
-                await notifyAiCreditExhausted(fastify.prisma)
+                await notifyAiCreditExhausted(fastify.prisma, request.log)
                 return reply.code(503).send({
                     code:    'ai_service_unavailable',
                     message: '現在、AI同定機能を一時的にご利用いただけません。管理者へ通知しましたので、復旧までしばらくお待ちください。（クレジットは消費されていません）',

@@ -27,7 +27,15 @@ export async function getAdminEmails(prisma: PrismaClient): Promise<string[]> {
 const AI_CREDIT_ALERT_KEY = 'aiCreditAlertSentAt'
 const AI_CREDIT_ALERT_THROTTLE_MS = 60 * 60 * 1000 // 1 hour
 
-export async function notifyAiCreditExhausted(prisma: PrismaClient): Promise<void> {
+// Minimal structural logger so this lib stays decoupled from Fastify; pass
+// `fastify.log` / `request.log` at the call site. Optional so tests can omit it.
+type Logger = {
+    info:  (...args: any[]) => void
+    warn:  (...args: any[]) => void
+    error: (...args: any[]) => void
+}
+
+export async function notifyAiCreditExhausted(prisma: PrismaClient, log?: Logger): Promise<void> {
     const now = Date.now()
     const last = await prisma.siteSetting.findUnique({ where: { key: AI_CREDIT_ALERT_KEY } })
     if (last) {
@@ -36,23 +44,42 @@ export async function notifyAiCreditExhausted(prisma: PrismaClient): Promise<voi
     }
 
     const admins = await getAdminEmails(prisma)
-    if (admins.length === 0) return
+    if (admins.length === 0) {
+        // Without this log a misconfigured deploy looks identical to a working
+        // one: the user sees the outage message but no alert is ever sent.
+        log?.error('AI credit exhausted but no admin emails are configured (Site Settings → adminEmail1/2/3); no alert sent')
+        return
+    }
 
-    // Mark as sent before awaiting the send so concurrent failures don't all fire.
+    // Claim the throttle window first so a burst of concurrent failures can't all
+    // fire. If the send then fails we release it (below) so the alert isn't lost
+    // for a whole hour over a transient/misconfigured mail problem.
     await prisma.siteSetting.upsert({
         where:  { key: AI_CREDIT_ALERT_KEY },
         create: { key: AI_CREDIT_ALERT_KEY, value: new Date(now).toISOString() },
         update: { value: new Date(now).toISOString() },
     })
 
-    await sendMail(
-        admins,
-        '【Mycologs】AIクレジット残高不足のお知らせ',
-        `<p>Anthropic APIのクレジット残高が不足しており、AI同定機能が停止しています。</p>
+    try {
+        await sendMail(
+            admins,
+            '【Mycologs】AIクレジット残高不足のお知らせ',
+            `<p>Anthropic APIのクレジット残高が不足しており、AI同定機能が停止しています。</p>
 <p>ユーザーには「一時的に利用できない」旨を表示し、消費されたクレジットは自動返却しています。</p>
 <p>復旧するには <a href="https://console.anthropic.com/settings/billing">Anthropic Console（Plans &amp; Billing）</a> でクレジットを購入してください。</p>
 <p style="color:#888;font-size:12px;">※ この通知は最大1時間に1回送信されます。</p>`
-    ).catch(() => { /* never let a mail failure break the request path */ })
+        )
+        log?.info({ admins }, 'AI credit-exhaustion alert sent to admins')
+    } catch (err) {
+        // Roll the throttle back so the next exhaustion event retries instead of
+        // being suppressed for an hour, and surface the cause (bad RESEND key,
+        // unverified MAIL_FROM domain, etc.) which was previously swallowed.
+        await prisma.siteSetting.update({
+            where: { key: AI_CREDIT_ALERT_KEY },
+            data:  { value: new Date(0).toISOString() },
+        }).catch(() => {})
+        log?.error({ err }, 'Failed to send AI credit-exhaustion alert to admins')
+    }
 }
 
 export async function getClubManagerEmails(prisma: PrismaClient, clubId: number): Promise<string[]> {

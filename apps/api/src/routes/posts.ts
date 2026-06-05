@@ -23,7 +23,7 @@ async function runModeration(fastify: FastifyInstance, contents: string): Promis
         if (res.status === 503) {
             const body = await res.text()
             if (body.includes('insufficient_ai_credit')) {
-                await notifyAiCreditExhausted(fastify.prisma)
+                await notifyAiCreditExhausted(fastify.prisma, fastify.log)
                 return 'unavailable'
             }
         }
