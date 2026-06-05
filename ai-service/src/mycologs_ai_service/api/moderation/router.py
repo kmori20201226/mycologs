@@ -3,7 +3,12 @@ from fastapi import APIRouter, Request
 
 from mycologs_ai_service.api.moderation.schemas import ModerationRequest, ModerationResult
 from mycologs_ai_service.api.moderation import agent
-from mycologs_ai_service.core.exceptions import client_disconnected, internal_error
+from mycologs_ai_service.core.exceptions import (
+    client_disconnected,
+    insufficient_credit,
+    internal_error,
+    is_insufficient_credit,
+)
 
 router = APIRouter(prefix="/moderation", tags=["moderation"])
 
@@ -42,6 +47,8 @@ async def evaluate_post(payload: ModerationRequest, request: Request):
         return ai_task.result()
 
     except Exception as e:
+        if is_insufficient_credit(e):
+            raise insufficient_credit()
         if hasattr(e, "status_code"):  # re-raise HTTPExceptions as-is
             raise
         raise internal_error(e)

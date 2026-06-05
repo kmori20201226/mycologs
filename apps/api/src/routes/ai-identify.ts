@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify'
 import fs from 'fs'
 import path from 'path'
 import sharp from 'sharp'
+import { notifyAiCreditExhausted } from '../lib/mail'
 
 const UPLOADS_DIR = path.resolve(__dirname, '../../../../data/uploads')
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL ?? 'http://localhost:3002'
@@ -66,7 +67,10 @@ export default async function (fastify: FastifyInstance) {
         })
 
         // ── Credit check ─────────────────────────────────────────────────────
+        // Remember how to undo the deduction so we can refund if the AI call
+        // can't be fulfilled for reasons outside the user's control.
         const eventClubId = post?.event?.clubId ?? null
+        let refundCredit: (() => Promise<void>) | null = null
         if (eventClubId) {
             const deducted = await fastify.prisma.club.updateMany({
                 where: { id: eventClubId, credit: { gte: AI_COST } },
@@ -75,6 +79,12 @@ export default async function (fastify: FastifyInstance) {
             if (deducted.count === 0) {
                 return reply.code(402).send({ message: 'クラブのクレジットが不足しています。サブスクリプションを更新してください。' })
             }
+            refundCredit = async () => {
+                await fastify.prisma.club.update({
+                    where: { id: eventClubId },
+                    data:  { credit: { increment: AI_COST } },
+                })
+            }
         } else if (userId) {
             const deducted = await fastify.prisma.user.updateMany({
                 where: { id: Number(userId), credit: { gte: AI_COST } },
@@ -82,6 +92,12 @@ export default async function (fastify: FastifyInstance) {
             })
             if (deducted.count === 0) {
                 return reply.code(402).send({ message: 'クレジットが不足しています。サブスクリプションを購入してください。' })
+            }
+            refundCredit = async () => {
+                await fastify.prisma.user.update({
+                    where: { id: Number(userId) },
+                    data:  { credit: { increment: AI_COST } },
+                })
             }
         }
 
@@ -92,6 +108,7 @@ export default async function (fastify: FastifyInstance) {
         })
 
         if (images.length === 0) {
+            if (refundCredit) await refundCredit().catch(() => {})
             return reply.code(422).send({ message: 'No images attached to this post.' })
         }
 
@@ -117,6 +134,20 @@ export default async function (fastify: FastifyInstance) {
 
         if (!response.ok) {
             const detail = await response.text()
+
+            // The Anthropic *account* credit is exhausted (a platform-billing
+            // problem, not the user's fault): refund the credit we just took,
+            // alert the admins, and tell the user it's a temporary outage.
+            if (response.status === 503 && detail.includes('insufficient_ai_credit')) {
+                if (refundCredit) await refundCredit().catch(() => {})
+                await notifyAiCreditExhausted(fastify.prisma)
+                return reply.code(503).send({
+                    code:    'ai_service_unavailable',
+                    message: '現在、AI同定機能を一時的にご利用いただけません。管理者へ通知しましたので、復旧までしばらくお待ちください。（クレジットは消費されていません）',
+                })
+            }
+
+            if (refundCredit) await refundCredit().catch(() => {})
             return reply.code(response.status).send({ message: detail })
         }
 

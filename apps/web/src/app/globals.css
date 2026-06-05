@@ -50,3 +50,13 @@ select {
     border-color: #9ca3af;
   }
 }
+
+/* Camera-capture controls only make sense on touch devices. On desktop the
+   `capture` attribute is ignored, so the button would just duplicate the file
+   picker — hide it there. We require BOTH no-hover AND a coarse pointer, which
+   matches phones/tablets but excludes desktops and touch laptops that also have
+   a mouse/touchpad (those report hover: hover). */
+.touch-only { display: none; }
+@media (hover: none) and (pointer: coarse) {
+  .touch-only { display: inline-flex; }
+}

@@ -1,8 +1,38 @@
 import { FastifyInstance } from 'fastify'
 import { PublicityType } from '../../../../generated/prisma/client'
 import { createPostSchema, postSchema, updatePostSchema } from '../schemas/post'
+import { notifyAiCreditExhausted } from '../lib/mail'
 
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL ?? 'http://localhost:3002'
+
+const AI_UNAVAILABLE_MESSAGE =
+    '現在、投稿のAIチェックを一時的にご利用いただけません。管理者へ通知しましたので、復旧までしばらくお待ちください。'
+
+// Run a post through the moderation agent. Returns the agent's verdict, or the
+// sentinel 'unavailable' when the Anthropic *account* credit is exhausted — in
+// that case the caller must reject the post (the admin is notified here). Any
+// other failure fails open (returns PASS) to match the prior behaviour: a
+// transient AI outage shouldn't block posting or penalise the user.
+async function runModeration(fastify: FastifyInstance, contents: string): Promise<any | 'unavailable'> {
+    try {
+        const res = await fetch(`${AI_SERVICE_URL}/api/moderation/evaluate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ post: contents }),
+        })
+        if (res.status === 503) {
+            const body = await res.text()
+            if (body.includes('insufficient_ai_credit')) {
+                await notifyAiCreditExhausted(fastify.prisma)
+                return 'unavailable'
+            }
+        }
+        if (!res.ok) return { allowed: true, category: 'PASS', comment: '' }
+        return await res.json()
+    } catch {
+        return { allowed: true, category: 'PASS', comment: '' }
+    }
+}
 
 const CATEGORY_POINTS: Record<string, number> = {
     POTENTIALLY_OFFENSIVE: -2,
@@ -118,6 +148,13 @@ export default async function (fastify: FastifyInstance) {
                         category: { type: 'string' },
                         comment:  { type: 'string' },
                     }
+                },
+                503: {
+                    type: 'object',
+                    properties: {
+                        status:  { type: 'string' },
+                        message: { type: 'string' },
+                    }
                 }
             }
         }
@@ -126,16 +163,10 @@ export default async function (fastify: FastifyInstance) {
         const contents: string = rawContents ?? ''
 
         if (!confirmedModeration && contents) {
-            let modResult: any
-            try {
-                const res = await fetch(`${AI_SERVICE_URL}/api/moderation/evaluate`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ post: contents }),
-                })
-                modResult = await res.json()
-            } catch {
-                modResult = { allowed: true, category: 'PASS', comment: '' }
+            const modResult = await runModeration(fastify, contents)
+
+            if (modResult === 'unavailable') {
+                return reply.code(503).send({ status: 'unavailable', message: AI_UNAVAILABLE_MESSAGE })
             }
 
             if (!modResult.allowed) {
@@ -264,6 +295,13 @@ export default async function (fastify: FastifyInstance) {
                         category: { type: 'string' },
                         comment:  { type: 'string' },
                     }
+                },
+                503: {
+                    type: 'object',
+                    properties: {
+                        status:  { type: 'string' },
+                        message: { type: 'string' },
+                    }
                 }
             }
         }
@@ -282,16 +320,10 @@ export default async function (fastify: FastifyInstance) {
         }
 
         if (updateData.contents && !confirmedModeration) {
-            let modResult: any
-            try {
-                const res = await fetch(`${AI_SERVICE_URL}/api/moderation/evaluate`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ post: updateData.contents }),
-                })
-                modResult = await res.json()
-            } catch {
-                modResult = { allowed: true, category: 'PASS', comment: '' }
+            const modResult = await runModeration(fastify, updateData.contents)
+
+            if (modResult === 'unavailable') {
+                return reply.code(503).send({ status: 'unavailable', message: AI_UNAVAILABLE_MESSAGE })
             }
 
             if (!modResult.allowed) {

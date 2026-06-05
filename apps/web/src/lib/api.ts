@@ -272,6 +272,7 @@ class ApiClient {
     | { ok: true; id: number }
     | { ok: false; status: 'rejected'; comment: string }
     | { ok: false; status: 'warning'; category: string; comment: string }
+    | { ok: false; status: 'unavailable'; message: string }
   > {
     const url = `${this.baseURL}/posts`
     let authHeader: Record<string, string> = {}
@@ -287,6 +288,10 @@ class ApiClient {
     if (response.status === 422) {
       const body = await response.json()
       return { ok: false, ...body }
+    }
+    if (response.status === 503) {
+      const body = await response.json()
+      return { ok: false, status: 'unavailable', message: body.message }
     }
     if (!response.ok) {
       throw new Error(`API request failed: ${url} => ${response.status} ${response.statusText}`)
@@ -306,6 +311,7 @@ class ApiClient {
     | { ok: true }
     | { ok: false; status: 'rejected'; comment: string }
     | { ok: false; status: 'warning'; category: string; comment: string }
+    | { ok: false; status: 'unavailable'; message: string }
   > {
     const url = `${this.baseURL}/posts/${id}`
     let authHeader: Record<string, string> = {}
@@ -321,6 +327,10 @@ class ApiClient {
     if (response.status === 422) {
       const body = await response.json()
       return { ok: false, ...body }
+    }
+    if (response.status === 503) {
+      const body = await response.json()
+      return { ok: false, status: 'unavailable', message: body.message }
     }
     if (!response.ok) {
       throw new Error(`API request failed: ${url} => ${response.status} ${response.statusText}`)

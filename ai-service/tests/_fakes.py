@@ -6,6 +6,22 @@ Each agent does `from ...core.anthropic_client import client` and calls
 """
 from types import SimpleNamespace
 
+import anthropic
+import httpx
+
+
+def credit_exhausted_error() -> anthropic.BadRequestError:
+    """A real Anthropic 400 error mimicking an exhausted account credit balance."""
+    request = httpx.Request("POST", "https://api.anthropic.com/v1/messages")
+    response = httpx.Response(400, request=request)
+    return anthropic.BadRequestError(
+        "Error code: 400 - {'type': 'error', 'error': {'type': "
+        "'invalid_request_error', 'message': 'Your credit balance is too low "
+        "to access the Anthropic API.'}}",
+        response=response,
+        body=None,
+    )
+
 
 def text_message(text: str):
     """A response whose first content block is text (moderation/geocoding)."""

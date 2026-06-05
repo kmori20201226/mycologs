@@ -3,7 +3,12 @@ from fastapi import APIRouter, Request
 
 from mycologs_ai_service.api.geocoding.schemas import GeocodingRequest, GeocodingResult
 from mycologs_ai_service.api.geocoding import agent
-from mycologs_ai_service.core.exceptions import client_disconnected, internal_error
+from mycologs_ai_service.core.exceptions import (
+    client_disconnected,
+    insufficient_credit,
+    internal_error,
+    is_insufficient_credit,
+)
 
 router = APIRouter(prefix="/geocoding", tags=["geocoding"])
 
@@ -35,6 +40,8 @@ async def evaluate_geocoding(payload: GeocodingRequest, request: Request):
         return ai_task.result()
 
     except Exception as e:
+        if is_insufficient_credit(e):
+            raise insufficient_credit()
         if hasattr(e, "status_code"):
             raise
         raise internal_error(e)

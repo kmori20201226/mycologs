@@ -4,7 +4,12 @@ from fastapi import APIRouter, Request
 
 from mycologs_ai_service.api.identification.schemas import IdentificationRequest, IdentificationResult
 from mycologs_ai_service.api.identification import agent
-from mycologs_ai_service.core.exceptions import client_disconnected, internal_error
+from mycologs_ai_service.core.exceptions import (
+    client_disconnected,
+    insufficient_credit,
+    internal_error,
+    is_insufficient_credit,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +50,9 @@ async def evaluate_identification(payload: IdentificationRequest, request: Reque
         return ai_task.result()
 
     except Exception as e:
+        if is_insufficient_credit(e):
+            logger.error("Anthropic account credit exhausted: %s", e)
+            raise insufficient_credit()
         if hasattr(e, "status_code"):
             raise
         logger.exception("Identification failed: %s", e)

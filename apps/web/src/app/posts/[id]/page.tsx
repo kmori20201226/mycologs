@@ -229,6 +229,19 @@ function PostPageInner() {
     }
   }
 
+  async function uploadPhotos(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? [])
+    e.target.value = ''
+    for (const file of files) {
+      try {
+        const uploaded = await apiClient.uploadPostMedia(postId, file)
+        setMedia((prev) => [...prev, uploaded])
+      } catch {
+        showToast(`${file.name} のアップロードに失敗しました`)
+      }
+    }
+  }
+
   async function handleAiIdentify() {
     const images = media.filter((m) => m.type === 'IMAGE')
     if (images.length === 0) {
@@ -248,6 +261,9 @@ function PostPageInner() {
       if (err?.status === 402) {
         const isClub = err?.apiMessage?.includes('クラブ')
         setAiError(isClub ? 'insufficient_credit_club' : 'insufficient_credit_user')
+      } else if (err?.status === 503) {
+        // Anthropic account credit exhausted — temporary outage on our side.
+        setAiError('ai_service_unavailable')
       } else {
         setAiError('同定に失敗しました。もう一度お試しください。')
       }
@@ -397,6 +413,10 @@ function PostPageInner() {
                                   setCaptionWarning({ category: result.category, comment: result.comment })
                                   return
                                 }
+                                if (result.status === 'unavailable') {
+                                  showToast(result.message)
+                                  return
+                                }
                               }
                               setPost((prev) => prev ? { ...prev, contents: pendingCaption } : prev)
                               setEditingCaption(false)
@@ -483,30 +503,37 @@ function PostPageInner() {
                   <div className="flex items-center justify-between mb-4">
                     <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">写真</h2>
                     {isOwner && (
-                      <label className="cursor-pointer inline-flex items-center gap-1.5 text-xs font-medium text-emerald-600 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-lg transition-colors">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                        </svg>
-                        写真を追加
-                        <input
-                          type="file"
-                          accept="image/*"
-                          multiple
-                          className="hidden"
-                          onChange={async (e) => {
-                            const files = Array.from(e.target.files ?? [])
-                            e.target.value = ''
-                            for (const file of files) {
-                              try {
-                                const uploaded = await apiClient.uploadPostMedia(postId, file)
-                                setMedia((prev) => [...prev, uploaded])
-                              } catch {
-                                showToast(`${file.name} のアップロードに失敗しました`)
-                              }
-                            }
-                          }}
-                        />
-                      </label>
+                      <div className="flex items-center gap-2">
+                        <label className="cursor-pointer inline-flex items-center gap-1.5 text-xs font-medium text-emerald-600 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-lg transition-colors">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                          </svg>
+                          写真を追加
+                          <input
+                            type="file"
+                            accept="image/*"
+                            multiple
+                            className="hidden"
+                            onChange={uploadPhotos}
+                          />
+                        </label>
+                        {/* Touch-only: capture forces the camera, so it's shown
+                            only on touch devices (hidden on desktop via .touch-only). */}
+                        <label className="touch-only cursor-pointer items-center gap-1.5 text-xs font-medium text-emerald-600 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-lg transition-colors">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" />
+                          </svg>
+                          撮影
+                          <input
+                            type="file"
+                            accept="image/*"
+                            capture="environment"
+                            className="hidden"
+                            onChange={uploadPhotos}
+                          />
+                        </label>
+                      </div>
                     )}
                   </div>
                   {mediaLoaded && images.length === 0 && (
@@ -736,7 +763,12 @@ function PostPageInner() {
                 </div>
               )}
 
-              {aiError && (
+              {aiError === 'ai_service_unavailable' ? (
+                <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-800 text-sm">
+                  現在、AI同定機能を一時的にご利用いただけません。管理者へ通知しましたので、復旧までしばらくお待ちください。
+                  <span className="block mt-1 text-amber-700">（クレジットは消費されていません）</span>
+                </div>
+              ) : aiError && (
                 <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-red-700 text-sm">
                   {aiError === 'insufficient_credit_user' ? (
                     <>
