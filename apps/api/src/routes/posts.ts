@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify'
 import { PublicityType } from '../../../../generated/prisma/client'
 import { createPostSchema, postSchema, updatePostSchema } from '../schemas/post'
 import { notifyAiCreditExhausted } from '../lib/mail'
+import { recordAiUsage } from '../lib/ai-usage'
 
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL ?? 'http://localhost:3002'
 
@@ -169,6 +170,15 @@ export default async function (fastify: FastifyInstance) {
                 return reply.code(503).send({ status: 'unavailable', message: AI_UNAVAILABLE_MESSAGE })
             }
 
+            // postId is unknown here (the post isn't created yet, and may be
+            // rejected) — record the cost against the user only.
+            await recordAiUsage(fastify.prisma, {
+                kind:   'moderate',
+                usage:  modResult.usage,
+                userId: userId ? Number(userId) : null,
+                log:    request.log,
+            })
+
             if (!modResult.allowed) {
                 const validCategories = ['OFFENSIVE_SEXUAL', 'POTENTIALLY_OFFENSIVE', 'OFF_TOPIC_IMAGE', 'NONE']
                 const safeCategory = validCategories.includes(modResult.category) ? modResult.category : 'NONE'
@@ -325,6 +335,14 @@ export default async function (fastify: FastifyInstance) {
             if (modResult === 'unavailable') {
                 return reply.code(503).send({ status: 'unavailable', message: AI_UNAVAILABLE_MESSAGE })
             }
+
+            await recordAiUsage(fastify.prisma, {
+                kind:   'moderate',
+                usage:  modResult.usage,
+                postId: Number(id),
+                userId: userId ? Number(userId) : null,
+                log:    request.log,
+            })
 
             if (!modResult.allowed) {
                 const validCategories = ['OFFENSIVE_SEXUAL', 'POTENTIALLY_OFFENSIVE', 'OFF_TOPIC_IMAGE', 'NONE']

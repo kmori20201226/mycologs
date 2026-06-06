@@ -3,6 +3,7 @@ import fs from 'fs'
 import path from 'path'
 import sharp from 'sharp'
 import { notifyAiCreditExhausted } from '../lib/mail'
+import { recordAiUsage } from '../lib/ai-usage'
 
 const UPLOADS_DIR = path.resolve(__dirname, '../../../../data/uploads')
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL ?? 'http://localhost:3002'
@@ -152,6 +153,16 @@ export default async function (fastify: FastifyInstance) {
         }
 
         const result = await response.json()
-        return reply.send({ ...result, hint: hint || null })
+        await recordAiUsage(fastify.prisma, {
+            kind:   'identify',
+            usage:  result?.usage,
+            postId: Number(postId),
+            userId: userId ? Number(userId) : null,
+            clubId: eventClubId,
+            log:    request.log,
+        })
+        // `usage` is internal cost bookkeeping — don't leak it to the client.
+        const { usage: _usage, ...clientResult } = result ?? {}
+        return reply.send({ ...clientResult, hint: hint || null })
     })
 }

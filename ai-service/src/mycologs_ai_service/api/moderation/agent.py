@@ -1,5 +1,6 @@
 import json
 from mycologs_ai_service.core.anthropic_client import client
+from mycologs_ai_service.core.usage import AiUsage
 from mycologs_ai_service.api.moderation.schemas import ModerationResult, CATEGORY_POINTS
 
 MODEL = "claude-opus-4-5"
@@ -74,4 +75,5 @@ def evaluate(post: str) -> ModerationResult:
         allowed=category != "OFFENSIVE_SEXUAL",
         confidence=float(data.get("confidence", 1.0)),
         comment=data.get("comment", ""),
+        usage=AiUsage.from_message(MODEL, message.usage),
     )

@@ -1,5 +1,6 @@
 import json
 from mycologs_ai_service.core.anthropic_client import client
+from mycologs_ai_service.core.usage import AiUsage
 from mycologs_ai_service.api.geocoding.schemas import GeocodingRequest, GeocodingResult
 
 MODEL = "claude-haiku-4-5-20251001"
@@ -31,4 +32,4 @@ def evaluate(payload: GeocodingRequest) -> GeocodingResult:
         raw = raw.rsplit("```", 1)[0].strip()
 
     data = json.loads(raw)
-    return GeocodingResult(**data)
+    return GeocodingResult(**data, usage=AiUsage.from_message(MODEL, message.usage))

@@ -1,6 +1,8 @@
 from typing import Literal
 from pydantic import BaseModel, Field
 
+from mycologs_ai_service.core.usage import AiUsage
+
 ModerationCategory = Literal[
     "OFFENSIVE_SEXUAL",
     "POTENTIALLY_OFFENSIVE",
@@ -26,3 +28,4 @@ class ModerationResult(BaseModel):
     allowed:    bool
     confidence: float = Field(..., ge=0.0, le=1.0)
     comment:    str
+    usage:      AiUsage | None = None  # stamped by the service, not the model

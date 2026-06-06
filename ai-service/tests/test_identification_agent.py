@@ -29,6 +29,23 @@ def test_tool_use_result_stamps_agent_version(monkeypatch):
     assert result.agent_version == agent.AGENT_VERSION
 
 
+def test_tool_use_result_stamps_usage(monkeypatch):
+    client = FakeClient(tool_message(VALID_INPUT))
+    monkeypatch.setattr(agent, "client", client)
+    result = agent.evaluate(make_payload())
+    assert result.usage is not None
+    assert result.usage.model == agent.MODEL
+    assert result.usage.input_tokens == 100
+    assert result.usage.output_tokens == 50
+
+
+def test_usage_excluded_from_tool_input_schema(monkeypatch):
+    # The model must not be asked to generate usage/agent_version itself.
+    schema = agent._build_input_schema()
+    assert "usage" not in schema["properties"]
+    assert "agent_version" not in schema["properties"]
+
+
 def test_missing_tool_use_raises(monkeypatch):
     client = FakeClient(text_message("I cannot identify this."))
     monkeypatch.setattr(agent, "client", client)

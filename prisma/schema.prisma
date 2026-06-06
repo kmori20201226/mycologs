@@ -592,3 +592,28 @@ model SiteSetting {
 
   @@map("site_settings")
 }
+
+// One row per Anthropic API call the platform makes (identification, post
+// moderation, geocoding). Token counts come from the model's `usage` object;
+// costMicroUsd is computed at write time from a per-model rate table.
+// postId/userId/clubId are plain ints (no FK relations) so this stays an
+// append-only cost ledger that survives deletion of the referenced rows.
+model AiUsageLog {
+  id                  Int      @id @default(autoincrement())
+  kind                String   // "identify" | "moderate" | "geocode"
+  model               String   // anthropic model id that served the call
+  inputTokens         Int      @map("input_tokens")
+  outputTokens        Int      @map("output_tokens")
+  cacheCreationTokens Int      @default(0) @map("cache_creation_tokens")
+  cacheReadTokens     Int      @default(0) @map("cache_read_tokens")
+  costMicroUsd        Int      @map("cost_micro_usd") // integer micro-USD (1e-6 USD); no float drift
+  postId              Int?     @map("post_id")
+  userId              Int?     @map("user_id")
+  clubId              Int?     @map("club_id")
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@index([clubId, createdAt])
+  @@index([userId, createdAt])
+  @@map("ai_usage_log")
+}

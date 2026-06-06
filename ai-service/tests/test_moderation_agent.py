@@ -40,3 +40,11 @@ def test_defaults_when_fields_missing(monkeypatch):
     result = run(monkeypatch, '{"category":"PASS"}')
     assert result.confidence == 1.0
     assert result.comment == ""
+
+
+def test_usage_is_stamped(monkeypatch):
+    result = run(monkeypatch, '{"category":"PASS","confidence":0.9,"comment":"OK"}')
+    assert result.usage is not None
+    assert result.usage.model == agent.MODEL
+    assert result.usage.input_tokens == 100
+    assert result.usage.output_tokens == 50
