@@ -113,6 +113,18 @@ export default async function (fastify: FastifyInstance) {
             return reply.code(422).send({ message: 'No images attached to this post.' })
         }
 
+        // Defense-in-depth: the post's images may still be uploading in the
+        // background. Identifying on a partial set wastes credit, so refund and
+        // ask the caller to wait. The UI also disables the button until complete.
+        const expectedMediaCount = post?.expectedMediaCount ?? 0
+        if (expectedMediaCount > 0 && images.length < expectedMediaCount) {
+            if (refundCredit) await refundCredit().catch(() => {})
+            return reply.code(409).send({
+                code:    'media_incomplete',
+                message: '画像のアップロードが完了してから同定をご依頼ください。（クレジットは消費されていません）',
+            })
+        }
+
         // Build image payload (resize each image before encoding)
         const encodedImages = await Promise.all(
             images.map(async (img) => {

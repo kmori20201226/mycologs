@@ -11,6 +11,7 @@ import {
 } from '@/lib/auth'
 import { menuEntries, type MenuVisibility } from '@/config/menu'
 import { apiClient } from '@/lib/api'
+import { getUploadSnapshot } from '@/lib/uploadManager'
 
 function isVisible(
   visibleTo: MenuVisibility[],
@@ -129,6 +130,14 @@ export default function Navigation() {
   }
 
   function handleLogout() {
+    // Logging out clears the auth cookie and does a full page load, which would
+    // drop any in-progress background uploads. Confirm before throwing them away.
+    if (getUploadSnapshot().pendingCount > 0) {
+      const ok = window.confirm(
+        '写真のアップロードが進行中です。ログアウトすると未完了の写真は失われます。ログアウトしますか？',
+      )
+      if (!ok) return
+    }
     clearAuth()
     window.location.href = '/'
   }

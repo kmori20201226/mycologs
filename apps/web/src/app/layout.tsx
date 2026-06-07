@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Navigation from "@/components/Navigation";
+import UploadStatus from "@/components/UploadStatus";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -32,6 +33,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         <Navigation />
         <main className="flex-1">{children}</main>
+        <UploadStatus />
         <footer className="bg-gray-900 text-white py-8">
           <div className="container mx-auto px-4 text-center">
             <p>&copy; 2026 Mycologs. きのこ愛好家をつなぐプラットフォーム。</p>

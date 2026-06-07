@@ -1,10 +1,11 @@
 'use client'
 
 import { Suspense, useEffect, useRef, useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { apiClient, type Event } from '@/lib/api'
-import { getStoredUser, getToken } from '@/lib/auth'
+import { getStoredUser } from '@/lib/auth'
+import { enqueueUploads } from '@/lib/uploadManager'
 
 interface FileEntry {
   id: string        // local key
@@ -12,7 +13,7 @@ interface FileEntry {
   preview: string | null  // object URL for images
 }
 
-type SubmitPhase = 'idle' | 'moderating' | 'creating' | 'uploading' | 'done'
+type SubmitPhase = 'idle' | 'moderating' | 'creating'
 
 interface ModerationWarning {
   category: string
@@ -44,7 +45,6 @@ function formatBytes(bytes: number) {
 }
 
 function NewPostPageInner() {
-  const router = useRouter()
   const searchParams = useSearchParams()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const cameraInputRef = useRef<HTMLInputElement>(null)
@@ -57,9 +57,8 @@ function NewPostPageInner() {
   const [myEventIds, setMyEventIds] = useState<Set<number>>(new Set())
   const [files, setFiles] = useState<FileEntry[]>([])
   const [phase, setPhase] = useState<SubmitPhase>('idle')
-  const [uploadProgress, setUploadProgress] = useState({ done: 0, total: 0 })
   const [error, setError] = useState('')
-  const [uploadFailCount, setUploadFailCount] = useState(0)
+  const [lastPostId, setLastPostId] = useState<number | null>(null)
   const [notAuthed, setNotAuthed] = useState(false)
   const [dragging, setDragging] = useState(false)
   const [warning, setWarning] = useState<ModerationWarning | null>(null)
@@ -173,12 +172,12 @@ function NewPostPageInner() {
     if (!user) { setNotAuthed(true); return }
 
     setPhase('creating')
-    let postId: number
     const result = await apiClient.createPost({
       userId: user.id,
       contents,
       visibility,
       clubIds: visibility === 'CLUBMEMBERONLY' ? selectedClubIds : undefined,
+      expectedMediaCount: files.length,
       ...(eventId !== '' ? { eventId: eventId as number } : {}),
       ...(confirmedModeration ? { confirmedModeration } : {}),
     })
@@ -201,45 +200,23 @@ function NewPostPageInner() {
       }
     }
 
-    postId = (result as { ok: true; id: number }).id
+    const postId = (result as { ok: true; id: number }).id
 
-    // Upload media in parallel
-    let uploadedFailCount = 0
+    // Hand the images to the background uploader and return immediately, so the
+    // user can compose the next post while they upload. The post was created
+    // with expectedMediaCount = files.length, so it stays "incomplete" (and the
+    // Identify button disabled) until these finish.
     if (files.length > 0) {
-      if (!getToken()) {
-        setError('セッションが切れています。再度ログインしてから投稿してください。\n（投稿は作成されましたが、写真がアップロードされていません）')
-        setPhase('idle')
-        return
-      }
-
-      setPhase('uploading')
-      setUploadProgress({ done: 0, total: files.length })
-
-      let authErrorOccurred = false
-      await Promise.all(
-        files.map(async ({ file }) => {
-          try {
-            await apiClient.uploadPostMedia(postId, file)
-          } catch (e: any) {
-            uploadedFailCount++
-            if (e?.status === 401) authErrorOccurred = true
-          } finally {
-            setUploadProgress((prev) => ({ ...prev, done: prev.done + 1 }))
-          }
-        })
-      )
-      setUploadFailCount(uploadedFailCount)
-
-      if (authErrorOccurred) {
-        setError('セッションが切れているため写真のアップロードに失敗しました。再度ログインして投稿し直してください。')
-        setPhase('idle')
-        return
-      }
+      const label = contents.trim().slice(0, 24) || `投稿 #${postId}`
+      enqueueUploads(postId, user.id, label, files.map((f) => f.file))
     }
 
-    setPhase('done')
-    const qs = uploadedFailCount > 0 ? `?uploadErrors=${uploadedFailCount}` : ''
-    router.push(`/posts/${postId}${qs}`)
+    // Reset the form so the user can immediately compose the next post.
+    files.forEach((f) => { if (f.preview) URL.revokeObjectURL(f.preview) })
+    setFiles([])
+    setContents('')
+    setPhase('idle')
+    setLastPostId(postId)
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -249,7 +226,7 @@ function NewPostPageInner() {
     if (files.length === 0) { setNoMediaWarning(true); return }
     setError('')
     setWarning(null)
-    setUploadFailCount(0)
+    setLastPostId(null)
     setPhase('moderating')
     try {
       await doCreatePost()
@@ -278,7 +255,6 @@ function NewPostPageInner() {
   const submitLabel = () => {
     if (phase === 'moderating') return '確認中…'
     if (phase === 'creating') return '投稿作成中…'
-    if (phase === 'uploading') return `アップロード中 ${uploadProgress.done}/${uploadProgress.total}…`
     return '投稿'
   }
 
@@ -527,20 +503,11 @@ function NewPostPageInner() {
               <p className="text-red-500 text-sm whitespace-pre-line">{error}</p>
             )}
 
-            {/* Upload progress bar */}
-            {phase === 'uploading' && (
-              <div>
-                <div className="flex justify-between text-xs text-gray-500 mb-1">
-                  <span>アップロード中…</span>
-                  <span>{uploadProgress.done}/{uploadProgress.total}</span>
-                </div>
-                <div className="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-emerald-500 rounded-full transition-all duration-300"
-                    style={{ width: `${uploadProgress.total > 0 ? (uploadProgress.done / uploadProgress.total) * 100 : 0}%` }}
-                  />
-                </div>
-              </div>
+            {lastPostId && (
+              <p className="text-emerald-700 text-sm">
+                投稿しました。写真はバックグラウンドでアップロードしています。{' '}
+                <Link href={`/posts/${lastPostId}`} className="underline">投稿を見る</Link>
+              </p>
             )}
 
             <div className="flex items-center gap-3 pt-1">
@@ -583,7 +550,7 @@ function NewPostPageInner() {
                 setNoMediaWarning(false)
                 setError('')
                 setWarning(null)
-                setUploadFailCount(0)
+                setLastPostId(null)
                 setPhase('moderating')
                 doCreatePost().catch(() => { setError('投稿の作成に失敗しました。もう一度お試しください。'); setPhase('idle') })
               }}

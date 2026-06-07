@@ -160,7 +160,7 @@ export default async function (fastify: FastifyInstance) {
             }
         }
     }, async (request, reply) => {
-        const { eventId, userId, contents: rawContents, confirmedModeration, visibility: reqVisibility, clubIds: reqClubIds } = request.body as any
+        const { eventId, userId, contents: rawContents, confirmedModeration, visibility: reqVisibility, clubIds: reqClubIds, expectedMediaCount } = request.body as any
         const contents: string = rawContents ?? ''
 
         if (!confirmedModeration && contents) {
@@ -218,6 +218,7 @@ export default async function (fastify: FastifyInstance) {
                 userId: Number(userId),
                 contents,
                 visibility: resolved.visibility,
+                expectedMediaCount: Number(expectedMediaCount ?? 0),
                 postClubs: { create: resolved.clubIds.map(clubId => ({ clubId })) },
             },
             include: POST_INCLUDE,

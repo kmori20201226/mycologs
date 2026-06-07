@@ -45,7 +45,20 @@ const noopLog = { warn: () => {}, error: () => {} }
 
 test('AI usage cost logging', async (t) => {
     const app = await buildApp()
-    t.after(() => app.close())
+    // Self-clean: remove the rows this run created (scoped by the per-run
+    // timestamp) before closing. Deleting the users cascades their posts/media;
+    // ai_usage_log has no cascade, so clear it first.
+    t.after(async () => {
+        const users = await app.prisma.user.findMany({
+            where: { email: { startsWith: 'ai-usage-', endsWith: `-${ts}@example.com` } },
+            select: { id: true },
+        })
+        const ids = users.map((u) => u.id)
+        await app.prisma.aiUsageLog.deleteMany({ where: { userId: { in: ids } } })
+        await app.prisma.userLog.deleteMany({ where: { OR: [{ userId: { in: ids } }, { createdBy: { in: ids } }] } })
+        await app.prisma.user.deleteMany({ where: { id: { in: ids } } })
+        await app.close()
+    })
 
     const ts = Date.now()
     const makeUser = (suffix: string, credit = 0) =>

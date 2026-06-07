@@ -14,6 +14,7 @@ interface Post {
   createdAt: string
   visibility: PostVisibility
   clubIds: number[]
+  expectedMediaCount?: number
   user: { id: number; name: string; handleName: string | null }
   event: { id: number; name: string; startAt: string | null } | null
 }
@@ -134,6 +135,27 @@ function PostPageInner() {
       .then((f) => setFollowups(f as Followup[]))
       .catch(() => {})
   }, [postId])
+
+  // While this post's images are still uploading (in this or another session),
+  // poll so they appear and the Identify button unlocks once complete. Also
+  // refresh the post so a reconciled expectedMediaCount (user gave up on a
+  // failed image) stops the poll instead of looping forever.
+  useEffect(() => {
+    const expected = post?.expectedMediaCount ?? 0
+    if (!mediaLoaded || expected === 0) return
+    if (media.filter((m) => m.type === 'IMAGE').length >= expected) return
+    const t = setInterval(async () => {
+      try {
+        const [m, p] = await Promise.all([
+          apiClient.getPostMedia(postId),
+          apiClient.request<Post>(`/posts/${postId}`),
+        ])
+        setMedia(m)
+        setPost(p)
+      } catch { /* keep polling */ }
+    }, 3000)
+    return () => clearInterval(t)
+  }, [postId, post?.expectedMediaCount, mediaLoaded, media])
 
   function showToast(msg: string) {
     setToast(msg)
@@ -264,6 +286,9 @@ function PostPageInner() {
       } else if (err?.status === 503) {
         // Anthropic account credit exhausted — temporary outage on our side.
         setAiError('ai_service_unavailable')
+      } else if (err?.status === 409) {
+        // Images still uploading in the background — no credit charged.
+        setAiError(err?.apiMessage ?? '画像のアップロードが完了してから同定をご依頼ください。')
       } else {
         setAiError('同定に失敗しました。もう一度お試しください。')
       }
@@ -285,6 +310,10 @@ function PostPageInner() {
 
   const images = media.filter((m) => m.type === 'IMAGE')
   const otherMedia = media.filter((m) => m.type !== 'IMAGE')
+  // The post's images may still be uploading in the background; block Identify
+  // until they're all in (it needs the full set, and the API refuses + refunds
+  // an incomplete identification anyway).
+  const mediaIncomplete = mediaLoaded && images.length < (post?.expectedMediaCount ?? 0)
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -355,8 +384,8 @@ function PostPageInner() {
                 ) : null })()}
                 {(aiLoading || committedHint === null || hint !== committedHint) && <button
                   onClick={handleAiIdentify}
-                  disabled={aiLoading || !currentUser || (mediaLoaded && images.length === 0)}
-                  title={(mediaLoaded && images.length === 0) ? '写真を添付してから同定を依頼してください' : !currentUser ? 'ログインが必要です' : undefined}
+                  disabled={aiLoading || !currentUser || (mediaLoaded && images.length === 0) || mediaIncomplete}
+                  title={mediaIncomplete ? '写真のアップロードが完了するまでお待ちください' : (mediaLoaded && images.length === 0) ? '写真を添付してから同定を依頼してください' : !currentUser ? 'ログインが必要です' : undefined}
                   className={`inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors ${aiLoading ? 'cursor-wait' : ''}`}
                 >
                   {aiLoading ? (
@@ -536,8 +565,13 @@ function PostPageInner() {
                       </div>
                     )}
                   </div>
-                  {mediaLoaded && images.length === 0 && (
+                  {mediaLoaded && images.length === 0 && !mediaIncomplete && (
                     <p className="text-sm text-gray-400 text-center py-4">写真が添付されていません</p>
+                  )}
+                  {mediaIncomplete && (
+                    <p className="text-sm text-amber-600 text-center py-2">
+                      写真をアップロード中…（{images.length}/{post?.expectedMediaCount}）
+                    </p>
                   )}
                   {images.length > 0 && (
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">

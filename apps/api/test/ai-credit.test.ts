@@ -49,7 +49,21 @@ async function withAi<T>(handler: AiHandler, fn: () => Promise<T>): Promise<T> {
 
 test('AI credit exhaustion handling', async (t) => {
     const app = await buildApp()
-    t.after(() => app.close())
+    // Self-clean: tests hit the real dev DB, so remove the rows this run created
+    // (scoped by the per-run timestamp) before closing. Deleting the users
+    // cascades their posts/media/identifications/votes; user_log and
+    // ai_usage_log have no cascade, so clear them first.
+    t.after(async () => {
+        const users = await app.prisma.user.findMany({
+            where: { email: { startsWith: 'ai-credit-', endsWith: `-${ts}@example.com` } },
+            select: { id: true },
+        })
+        const ids = users.map((u) => u.id)
+        await app.prisma.aiUsageLog.deleteMany({ where: { userId: { in: ids } } })
+        await app.prisma.userLog.deleteMany({ where: { OR: [{ userId: { in: ids } }, { createdBy: { in: ids } }] } })
+        await app.prisma.user.deleteMany({ where: { id: { in: ids } } })
+        await app.close()
+    })
 
     // Pin the admin-alert throttle to "just now" so notifyAiCreditExhausted()
     // always short-circuits and never tries to send a real email during tests.
@@ -171,5 +185,30 @@ test('AI credit exhaustion handling', async (t) => {
         } finally {
             fs.rmSync(filePath, { force: true })
         }
+    })
+
+    await t.test('identification refuses and refunds while images are still uploading', async () => {
+        const user = await makeUser('id-incomplete', 100)
+        // Two images expected (background upload) but only one has arrived.
+        const post = await app.prisma.post.create({
+            data: { userId: user.id, contents: `アップロード中 ${ts}`, expectedMediaCount: 2 },
+        })
+        await app.prisma.media.create({
+            data: {
+                filename: `incomplete-${ts}.jpg`, originalName: 'x.jpg', url: `/uploads/incomplete-${ts}.jpg`,
+                type: 'IMAGE', mimeType: 'image/jpeg', size: 1, postId: post.id,
+            },
+        })
+
+        // No AI stub needed: the route returns before the Anthropic call.
+        const res = await app.inject({
+            method: 'POST', url: `/posts/${post.id}/ai-identify`, payload: { userId: user.id },
+        })
+
+        assert.equal(res.statusCode, 409)
+        assert.equal((res.json() as any).code, 'media_incomplete')
+
+        const fresh = await app.prisma.user.findUnique({ where: { id: user.id } })
+        assert.equal(fresh!.credit, 100) // deducted 10, then refunded 10 — not charged
     })
 })

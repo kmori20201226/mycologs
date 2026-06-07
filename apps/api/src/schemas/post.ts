@@ -9,6 +9,7 @@ export const postSchema = {
         userId: { type: 'number' },
         contents: { type: 'string' },
         visibility: visibilityEnum,
+        expectedMediaCount: { type: 'number' },
         clubIds: { type: 'array', items: { type: 'number' } },
         createdAt: { type: 'string', format: 'date-time' },
         updatedAt: { type: 'string', format: 'date-time' },
@@ -41,6 +42,7 @@ export const createPostSchema = {
         userId: { type: 'number' },
         contents: { type: 'string' },
         visibility: visibilityEnum,
+        expectedMediaCount: { type: 'number' },
         clubIds: { type: 'array', items: { type: 'number' } },
         confirmedModeration: {
             type: 'object',
@@ -59,6 +61,7 @@ export const updatePostSchema = {
         contents: { type: 'string' },
         userId: { type: 'number' },
         visibility: visibilityEnum,
+        expectedMediaCount: { type: 'number' },
         clubIds: { type: 'array', items: { type: 'number' } },
         confirmedModeration: {
             type: 'object',

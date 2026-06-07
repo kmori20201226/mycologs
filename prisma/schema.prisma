@@ -325,6 +325,10 @@ model Post {
   parentPostId       Int?          @map("parent_post_id")
   contents           String
   visibility         PublicityType @default(PUBLIC) @map("visibility")
+  // Number of images the author is uploading (set at create time). The post is
+  // "media-complete" once its IMAGE media count reaches this. 0 = nothing
+  // pending (backward compatible with posts created before background uploads).
+  expectedMediaCount Int           @default(0) @map("expected_media_count")
   deletedAt          DateTime?     @map("deleted_at")
   createdAt          DateTime      @default(now()) @map("created_at")
   updatedAt          DateTime      @updatedAt @map("updated_at")
