@@ -22,6 +22,17 @@ function parseChangelog(): ChangelogEntry[] {
   }
 }
 
+// Version is the web app's own package.json version (cwd is apps/web at runtime,
+// same assumption the CHANGELOG read above relies on).
+function readVersion(): string {
+  try {
+    const pkg = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf-8'))
+    return pkg.version ?? '—'
+  } catch {
+    return '—'
+  }
+}
+
 function readGitInfo(): { hash: string; branch: string } {
   try {
     const lines = fs.readFileSync(path.join(process.cwd(), '../../git-info.txt'), 'utf-8').trim().split('\n')
@@ -34,7 +45,7 @@ function readGitInfo(): { hash: string; branch: string } {
 export default function AboutPage() {
   const changelog = parseChangelog()
   const git = readGitInfo()
-  const version = changelog[0]?.version ?? '—'
+  const version = readVersion()
   const versionString = `${version}-${git.branch}-${git.hash}`
 
   return (
