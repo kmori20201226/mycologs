@@ -11,6 +11,17 @@ export const postSchema = {
         visibility: visibilityEnum,
         expectedMediaCount: { type: 'number' },
         clubIds: { type: 'array', items: { type: 'number' } },
+        mentionedSpecies: {
+            type: 'array',
+            items: {
+                type: 'object',
+                properties: {
+                    id: { type: 'number' },
+                    scientificName: { type: 'string' },
+                    japaneseName: { type: 'string' },
+                },
+            },
+        },
         createdAt: { type: 'string', format: 'date-time' },
         updatedAt: { type: 'string', format: 'date-time' },
         user: {

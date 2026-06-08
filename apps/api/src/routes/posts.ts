@@ -57,6 +57,56 @@ function formatPost(post: any) {
     }
 }
 
+type MentionedSpecies = { id: number; scientificName: string; japaneseName: string }
+
+// Deterministically find the mushrooms mentioned in a post's text by matching
+// known species Japanese names against the contents — no AI call. Used to seed
+// identification candidates (with iNaturalist links) in the UI.
+async function extractMentionedSpecies(fastify: FastifyInstance, contents: string): Promise<MentionedSpecies[]> {
+    if (!contents || !contents.trim()) return []
+
+    // Species whose Japanese name appears verbatim in the post text. ≥2 chars
+    // keeps famous short names (松茸, ナメコ) while excluding 1-char noise.
+    const rows = await fastify.prisma.$queryRaw<MentionedSpecies[]>`
+        SELECT id, scientific_name AS "scientificName", japanese_name AS "japaneseName"
+        FROM species
+        WHERE deleted_at IS NULL
+          AND japanese_name IS NOT NULL
+          AND char_length(japanese_name) >= 2
+          AND strpos(${contents}, japanese_name) > 0
+    `
+
+    // Containment dedup over text spans: drop a match whose occurrence sits fully
+    // inside a longer match (テングタケ inside ベニテングタケ), but keep a shorter
+    // name that also appears standalone elsewhere.
+    type Span = { start: number; end: number; sp: MentionedSpecies }
+    const spans: Span[] = []
+    for (const sp of rows) {
+        let i = contents.indexOf(sp.japaneseName)
+        while (i !== -1) {
+            spans.push({ start: i, end: i + sp.japaneseName.length, sp })
+            i = contents.indexOf(sp.japaneseName, i + 1)
+        }
+    }
+    spans.sort((a, b) => (b.end - b.start) - (a.end - a.start)) // longest first
+    const kept: Span[] = []
+    for (const s of spans) {
+        if (!kept.some((k) => k.start <= s.start && s.end <= k.end)) kept.push(s)
+    }
+
+    // Unique species, in order of first appearance, capped.
+    kept.sort((a, b) => a.start - b.start)
+    const seen = new Set<number>()
+    const result: MentionedSpecies[] = []
+    for (const s of kept) {
+        if (seen.has(s.sp.id)) continue
+        seen.add(s.sp.id)
+        result.push(s.sp)
+        if (result.length >= 20) break
+    }
+    return result
+}
+
 async function hasActiveSubscription(fastify: FastifyInstance, userId: number): Promise<boolean> {
     const sub = await fastify.prisma.subscription.findFirst({
         where: {
@@ -263,7 +313,8 @@ export default async function (fastify: FastifyInstance) {
         })
 
         if (!post) return reply.code(404).send({ message: 'Post not found' })
-        return formatPost(post)
+        const mentionedSpecies = await extractMentionedSpecies(fastify, post.contents)
+        return { ...formatPost(post), mentionedSpecies }
     })
 
     // LIST ALL

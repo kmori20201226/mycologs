@@ -15,6 +15,7 @@ interface Post {
   visibility: PostVisibility
   clubIds: number[]
   expectedMediaCount?: number
+  mentionedSpecies?: { id: number; scientificName: string; japaneseName: string }[]
   user: { id: number; name: string; handleName: string | null }
   event: { id: number; name: string; startAt: string | null } | null
 }
@@ -521,6 +522,28 @@ function PostPageInner() {
                 />
                 <p className="text-xs text-gray-400 mt-1">同定を依頼するときにAIへ送信されます</p>
               </div>
+
+              {/* Mushrooms mentioned in the post text (deterministic match against
+                  known species names) — quick iNaturalist reference links. */}
+              {post.mentionedSpecies && post.mentionedSpecies.length > 0 && (
+                <div className="mt-4 pt-4 border-t border-gray-100">
+                  <p className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                    投稿で言及されたきのこ
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {post.mentionedSpecies.map((s) => (
+                      <Link
+                        key={s.id}
+                        href={`/identify/inat/${encodeURIComponent(s.scientificName)}?ja=${encodeURIComponent(s.japaneseName)}`}
+                        className="inline-flex items-center bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-sm px-2.5 py-1 rounded-full transition-colors"
+                      >
+                        {s.japaneseName}
+                      </Link>
+                    ))}
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1.5">名前をタップするとiNaturalistの参考写真を表示します</p>
+                </div>
+              )}
             </div>
 
             {/* Media gallery */}
