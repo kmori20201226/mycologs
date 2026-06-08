@@ -186,6 +186,50 @@ test('AI usage cost logging', async (t) => {
         }
     })
 
+    await t.test('forwards candidates to the ai-service and returns the evaluations', async () => {
+        const user = await makeUser('id-cands', 100)
+        const post = await app.prisma.post.create({ data: { userId: user.id, contents: `候補 ${ts}` } })
+
+        fs.mkdirSync(UPLOADS_DIR, { recursive: true })
+        const filename = `ai-usage-cand-${ts}.jpg`
+        const filePath = path.join(UPLOADS_DIR, filename)
+        await sharp({ create: { width: 8, height: 8, channels: 3, background: { r: 1, g: 2, b: 3 } } }).jpeg().toFile(filePath)
+        await app.prisma.media.create({
+            data: {
+                filename, originalName: filename, url: `/uploads/${filename}`, type: 'IMAGE',
+                mimeType: 'image/jpeg', size: fs.statSync(filePath).size, postId: post.id,
+            },
+        })
+
+        const candidates = [
+            { japanese_name: 'ベニテングタケ', scientific_name: 'Amanita muscaria' },
+            { japanese_name: 'タマゴタケ', scientific_name: 'Amanita caesareoides' },
+        ]
+        const identifyResult = {
+            scientific_name: 'Amanita muscaria',
+            candidate_evaluations: [
+                { japanese_name: 'ベニテングタケ', scientific_name: 'Amanita muscaria', matches: true, confidence: 'high', score: 0.9, reason: 'x' },
+            ],
+            usage: { model: 'claude-opus-4-7', input_tokens: 100, output_tokens: 50 },
+        }
+
+        let forwarded: any = null
+        try {
+            const res = await withAi(
+                (_url, init) => { forwarded = JSON.parse(String(init?.body ?? '{}')); return jsonResponse(identifyResult) },
+                () => app.inject({ method: 'POST', url: `/posts/${post.id}/ai-identify`, payload: { userId: user.id, candidates } }),
+            )
+
+            assert.equal(res.statusCode, 200)
+            assert.deepEqual(forwarded.candidates, candidates) // reached the ai-service body
+            const body = res.json() as any
+            assert.equal(body.candidate_evaluations[0].matches, true) // evaluations passed back to client
+            assert.equal(body.usage, undefined) // usage still stripped
+        } finally {
+            fs.rmSync(filePath, { force: true })
+        }
+    })
+
     await t.test('a moderated post create writes a moderate row (postId null)', async () => {
         const user = await makeUser('mod-route')
         const modResult = {

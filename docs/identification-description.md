@@ -47,6 +47,7 @@ Two adjustments happen between the raw AI result and what is stored:
 | `key_features` | `string[]` | yes | 2–4 visually observable features, in Japanese, beginner-friendly. |
 | `similar_species` | `SimilarSpecies[]` | yes | 0–2 look-alike species with how to tell them apart (may be empty). See below. |
 | `missing_info` | `string[]` | optional | Information that would raise confidence but isn't visible in the image (e.g. spore-print color, stem base, smell). |
+| `candidate_evaluations` | `CandidateEvaluation[]` | optional | Present only for **guided identification** (when the poster's mentioned species were passed as candidates). One entry per candidate: how well the images match it. See below. Empty/absent for open-ended identification. |
 | `disclaimer` | `string` | yes | Safety notice. Defaults to: 「※ AIによる同定は参考情報です。食用の判断をAIに委ねず、必ず専門家にご確認ください。」 |
 | `agent_version` | `string` | optional | Model / prompt version that produced the result, e.g. `"claude-opus-4-7/prompt-v2.1"`. Useful for tracing which agent version generated an older row. |
 | `hint` | `string \| null` | optional | The user-supplied hint passed to the AI for this identification (added by the gateway). |
@@ -58,6 +59,25 @@ Two adjustments happen between the raw AI result and what is stored:
 | `japanese_name` | `string` | Look-alike species' Japanese name. |
 | `scientific_name` | `string` | Look-alike species' scientific name. |
 | `how_to_distinguish` | `string` | How to tell it apart from the proposed species (Japanese). |
+
+### `CandidateEvaluation` (elements of `candidate_evaluations`)
+
+| Field | Type | Description |
+|---|---|---|
+| `japanese_name` | `string` | Candidate's Japanese name (echo of the input candidate). |
+| `scientific_name` | `string` | Candidate's scientific name (echo of the input). Used to link `specieId` when the candidate is saved. |
+| `matches` | `boolean` | Whether the images match this candidate. |
+| `confidence` | `"high" \| "medium" \| "low"` | Confidence in the verdict. |
+| `score` | `number` | Match score (0.0–1.0). |
+| `reason` | `string` | Short Japanese justification (matched / conflicting features). |
+
+> **Saved-candidate variant.** When a user saves an individual candidate (guided
+> identification), the new `Identification.description` stores that
+> **`CandidateEvaluation` object itself** — not the full result above. It shares
+> `scientific_name` / `japanese_name` / `confidence` / `score`, but carries
+> `matches` + `reason` instead of the open-guess fields (`shape`, `key_features`,
+> `similar_species`, …). Treat `description` as either shape and read fields
+> defensively, per the convention noted above.
 
 ## Example
 

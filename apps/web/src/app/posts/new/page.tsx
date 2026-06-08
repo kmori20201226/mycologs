@@ -314,7 +314,7 @@ function NewPostPageInner() {
                 value={contents}
                 onChange={(e) => setContents(e.target.value)}
                 rows={5}
-                placeholder="きのこの特徴、見つけた場所、気になる点などを記述してください…"
+                placeholder={"きのこの特徴、見つけた場所、気になる点などを記述してください…\n本文に書いたきのこの名前は、AI同定の候補として使われます。"}
                 className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
                 disabled={submitting}
               />

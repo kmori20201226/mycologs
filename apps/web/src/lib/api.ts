@@ -47,6 +47,15 @@ export interface SimilarSpecies {
   how_to_distinguish: string
 }
 
+export interface CandidateEvaluation {
+  japanese_name: string
+  scientific_name: string
+  matches: boolean
+  confidence: 'high' | 'medium' | 'low'
+  score: number
+  reason?: string
+}
+
 export interface AiIdentification {
   scientific_name: string
   japanese_name: string
@@ -58,6 +67,7 @@ export interface AiIdentification {
   key_features: string[]
   similar_species: SimilarSpecies[]
   missing_info?: string[]
+  candidate_evaluations?: CandidateEvaluation[]
   disclaimer: string
   agent_version?: string
   hint?: string | null
@@ -478,10 +488,16 @@ class ApiClient {
   }
 
   // AI identification
-  async aiIdentify(postId: number, hint?: string, userId?: number): Promise<AiIdentification> {
+  async aiIdentify(
+    postId: number,
+    hint?: string,
+    userId?: number,
+    candidates?: { japanese_name: string; scientific_name: string }[],
+  ): Promise<AiIdentification> {
     const body: Record<string, unknown> = {}
     if (hint)   body.hint   = hint
     if (userId) body.userId = userId
+    if (candidates && candidates.length) body.candidates = candidates
     return this.request(`/posts/${postId}/ai-identify`, {
       method: 'POST',
       body: JSON.stringify(body),

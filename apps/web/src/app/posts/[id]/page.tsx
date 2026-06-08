@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useRef, useState } from 'react'
 import { useParams, useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { apiClient, type MediaItem, type AiIdentification } from '@/lib/api'
+import { apiClient, type MediaItem, type AiIdentification, type CandidateEvaluation } from '@/lib/api'
 import { getStoredUser } from '@/lib/auth'
 
 type PostVisibility = 'PUBLIC' | 'CLUBMEMBERONLY' | 'PRIVATE'
@@ -196,6 +196,27 @@ function PostPageInner() {
     setAiAccepted(false)
   }
 
+  // Save one candidate evaluation as an identification proposal — authored by
+  // the current user, left unaccepted, deduped by species.
+  async function handleSaveCandidate(c: CandidateEvaluation) {
+    const user = getStoredUser()
+    if (!user) return
+    const exists = identifications.some(
+      (i) => i.species?.scientificName === c.scientific_name || i.description?.scientific_name === c.scientific_name,
+    )
+    if (exists) { showToast('この種は既に登録されています'); return }
+    const created = await apiClient.createIdentification({
+      postId,
+      userId: user.id,
+      identificationHint: hint || null,
+      score: c.score ?? null,
+      description: c as unknown as Record<string, unknown>,
+    })
+    const newIdent: Identification = { ...(created as any), accepted: false, description: c as unknown as AiIdentification }
+    setIdentifications((prev) => [...prev, newIdent])
+    showToast(`${c.japanese_name} を候補として登録しました`)
+  }
+
   async function handleDecline(id: number) {
     await apiClient.deleteIdentification(id)
     setIdentifications((prev) => prev.filter((i) => i.id !== id))
@@ -277,7 +298,12 @@ function PostPageInner() {
     setAiResult(null)
     setCommittedHint(hint)
     try {
-      const result = await apiClient.aiIdentify(postId, hint || undefined, currentUser?.id)
+      // Auto-include up to 3 mentioned species (Phase 1) as candidates for the
+      // AI to compare against the images.
+      const candidates = (post?.mentionedSpecies ?? [])
+        .slice(0, 3)
+        .map((s) => ({ japanese_name: s.japaneseName, scientific_name: s.scientificName }))
+      const result = await apiClient.aiIdentify(postId, hint || undefined, currentUser?.id, candidates.length ? candidates : undefined)
       setAiResult(result)
       setTimeout(() => identSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
     } catch (err: any) {
@@ -315,6 +341,10 @@ function PostPageInner() {
   // until they're all in (it needs the full set, and the API refuses + refunds
   // an incomplete identification anyway).
   const mediaIncomplete = mediaLoaded && images.length < (post?.expectedMediaCount ?? 0)
+  // Species already proposed on this post — used to dedupe the candidate "save" action.
+  const identifiedSciNames = new Set(
+    identifications.flatMap((i) => [i.species?.scientificName, i.description?.scientific_name].filter(Boolean) as string[]),
+  )
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -426,6 +456,7 @@ function PostPageInner() {
                         className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
                         disabled={captionSaving}
                       />
+                      <p className="text-xs text-gray-400">本文に書いたきのこの名前は、AI同定の候補として使われます。</p>
                       <div className="flex gap-2">
                         <button
                           onClick={async () => {
@@ -936,6 +967,49 @@ function PostPageInner() {
                             </span>
                           </li>
                         ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {aiResult.candidate_evaluations && aiResult.candidate_evaluations.length > 0 && (
+                    <div className="border-t border-emerald-200 pt-3">
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">投稿で挙げた候補との照合</p>
+                      <ul className="space-y-2">
+                        {aiResult.candidate_evaluations.map((c, i) => {
+                          const alreadySaved = identifiedSciNames.has(c.scientific_name)
+                          return (
+                            <li key={i} className="rounded-lg bg-white border border-emerald-100 p-2.5">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className={c.matches ? 'text-emerald-600' : 'text-gray-400'}>{c.matches ? '◯' : '✕'}</span>
+                                <span className="font-medium text-gray-800">{c.japanese_name}</span>
+                                <span className="text-gray-400 text-xs">({c.scientific_name})</span>
+                                <AiConfidenceBadge confidence={c.confidence} />
+                                {c.score != null && (
+                                  <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-600">スコア: {Math.round(c.score * 100)}%</span>
+                                )}
+                                <Link
+                                  href={`/identify/inat/${encodeURIComponent(c.scientific_name)}?ja=${encodeURIComponent(c.japanese_name)}`}
+                                  className="text-xs font-medium text-emerald-600 bg-emerald-50 hover:bg-emerald-100 px-1.5 py-0.5 rounded transition-colors"
+                                >
+                                  同種のサンプル表示
+                                </Link>
+                              </div>
+                              {c.reason && <p className="text-xs text-gray-500 mt-1">{c.reason}</p>}
+                              <div className="mt-1.5">
+                                {alreadySaved ? (
+                                  <span className="text-xs text-gray-400">登録済み</span>
+                                ) : currentUser ? (
+                                  <button
+                                    onClick={() => handleSaveCandidate(c)}
+                                    className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-white border border-emerald-500 text-emerald-600 hover:bg-emerald-50 transition-colors"
+                                  >
+                                    候補として保存
+                                  </button>
+                                ) : null}
+                              </div>
+                            </li>
+                          )
+                        })}
                       </ul>
                     </div>
                   )}

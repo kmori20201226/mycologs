@@ -4,7 +4,7 @@ from mycologs_ai_service.core.usage import AiUsage
 from mycologs_ai_service.api.identification.schemas import IdentificationRequest, IdentificationResult
 
 MODEL = "claude-opus-4-7"
-AGENT_VERSION = f"{MODEL}/prompt-v2.1"
+AGENT_VERSION = f"{MODEL}/prompt-v2.2"
 
 SYSTEM_PROMPT = """\
 あなたは日本の菌類を専門とするマイコロジスト（菌類学者）です。
@@ -17,6 +17,7 @@ SYSTEM_PROMPT = """\
 - missing_info には同定の確度を上げるために必要だが画像から判断できない情報を挙げる（例: 胞子紋の色、柄の基部の形状、匂いなど）
 - 画像にキノコが写っていない場合は scientific_name を空文字にし、disclaimer にその旨を記載する
 - disclaimer には食用判断を AI に委ねないよう促す安全上の注意を必ず含める
+- 投稿者が候補種を挙げている場合、各候補について画像と照合し、candidate_evaluations に matches（該当可否）・confidence・score・reason（日本語の根拠）を記入する。候補がなければ candidate_evaluations は空にする
 - すべてのフィールドは日本語で記述する"""
 
 def _build_input_schema() -> dict:
@@ -57,13 +58,20 @@ def evaluate(payload: IdentificationRequest) -> IdentificationResult:
     )
     hint_line = f"\n投稿者からのヒント: {payload.hint}" if payload.hint else ""
     multi_line = "\n複数の画像を総合的に見て同定してください。" if len(payload.images) > 1 else ""
-    user_text = f"{location_line}{hint_line}{multi_line}"
+    candidate_line = ""
+    if payload.candidates:
+        listed = "、".join(f"{c.japanese_name}（{c.scientific_name}）" for c in payload.candidates)
+        candidate_line = (
+            f"\n投稿者が挙げた候補種: {listed}"
+            "\nこれらの候補それぞれについて画像と照合し、candidate_evaluations に記入してください。"
+        )
+    user_text = f"{location_line}{hint_line}{multi_line}{candidate_line}"
 
     text_block: _anthropic.TextBlockParam = {"type": "text", "text": user_text}
 
     message = client.messages.create(
         model=MODEL,
-        max_tokens=1024,
+        max_tokens=2048,
         system=SYSTEM_PROMPT,
         tools=[_TOOL],
         tool_choice={"type": "tool", "name": "report_identification"},

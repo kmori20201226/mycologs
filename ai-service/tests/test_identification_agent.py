@@ -1,7 +1,7 @@
 import pytest
 
 from mycologs_ai_service.api.identification import agent
-from mycologs_ai_service.api.identification.schemas import IdentificationRequest, IdentificationImage
+from mycologs_ai_service.api.identification.schemas import IdentificationRequest, IdentificationImage, CandidateInput
 from _fakes import FakeClient, text_message, tool_message
 
 VALID_INPUT = {
@@ -71,3 +71,44 @@ def test_request_without_gps_uses_fallback_line(monkeypatch):
 
     text_block = client.messages.calls[0]["messages"][0]["content"][-1]["text"]
     assert "GPS情報なし" in text_block
+
+
+def test_candidates_are_listed_in_the_prompt(monkeypatch):
+    client = FakeClient(tool_message(VALID_INPUT))
+    monkeypatch.setattr(agent, "client", client)
+    agent.evaluate(make_payload(candidates=[
+        CandidateInput(japanese_name="ベニテングタケ", scientific_name="Amanita muscaria"),
+        CandidateInput(japanese_name="タマゴタケ", scientific_name="Amanita caesareoides"),
+    ]))
+
+    text_block = client.messages.calls[0]["messages"][0]["content"][-1]["text"]
+    assert "候補種" in text_block
+    assert "ベニテングタケ" in text_block
+    assert "タマゴタケ" in text_block
+
+
+def test_candidate_evaluations_parse_from_result(monkeypatch):
+    payload_input = {
+        **VALID_INPUT,
+        "candidate_evaluations": [
+            {"japanese_name": "ベニテングタケ", "scientific_name": "Amanita muscaria",
+             "matches": True, "confidence": "high", "score": 0.9, "reason": "赤い傘と白いイボが一致"},
+            {"japanese_name": "タマゴタケ", "scientific_name": "Amanita caesareoides",
+             "matches": False, "confidence": "low", "score": 0.1, "reason": "白いイボがあり該当しない"},
+        ],
+    }
+    client = FakeClient(tool_message(payload_input))
+    monkeypatch.setattr(agent, "client", client)
+    result = agent.evaluate(make_payload())
+
+    assert len(result.candidate_evaluations) == 2
+    assert result.candidate_evaluations[0].matches is True
+    assert result.candidate_evaluations[0].confidence == "high"
+    assert result.candidate_evaluations[1].matches is False
+
+
+def test_no_candidates_leaves_evaluations_empty(monkeypatch):
+    client = FakeClient(tool_message(VALID_INPUT))
+    monkeypatch.setattr(agent, "client", client)
+    result = agent.evaluate(make_payload())
+    assert result.candidate_evaluations == []

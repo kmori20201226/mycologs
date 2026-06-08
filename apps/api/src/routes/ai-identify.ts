@@ -54,12 +54,26 @@ export default async function (fastify: FastifyInstance) {
                 properties: {
                     hint:   { type: 'string' },
                     userId: { type: 'integer' },
+                    candidates: {
+                        type: 'array',
+                        items: {
+                            type: 'object',
+                            properties: {
+                                japanese_name:   { type: 'string' },
+                                scientific_name: { type: 'string' },
+                            },
+                        },
+                    },
                 },
             },
         },
     }, async (request, reply) => {
         const { postId } = request.params as { postId: number }
-        const { hint, userId } = (request.body ?? {}) as { hint?: string; userId?: number }
+        const { hint, userId, candidates } = (request.body ?? {}) as {
+            hint?: string
+            userId?: number
+            candidates?: { japanese_name: string; scientific_name: string }[]
+        }
 
         // Fetch the post with its event (for location data + credit ownership)
         const post = await fastify.prisma.post.findUnique({
@@ -138,6 +152,7 @@ export default async function (fastify: FastifyInstance) {
         if (event?.latitude != null)  body.latitude  = event.latitude
         if (event?.longitude != null) body.longitude = event.longitude
         if (hint)                     body.hint       = hint
+        if (Array.isArray(candidates) && candidates.length) body.candidates = candidates
 
         const response = await fetch(`${AI_SERVICE_URL}/api/identification/evaluate`, {
             method: 'POST',
