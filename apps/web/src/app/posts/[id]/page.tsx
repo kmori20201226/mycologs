@@ -164,6 +164,14 @@ function PostPageInner() {
     toastTimer.current = setTimeout(() => setToast(''), 3500)
   }
 
+  // Re-fetch the post so server-derived fields (e.g. mentionedSpecies, which is
+  // extracted from the caption on GET) reflect an edit. Falls back silently.
+  async function refreshPost() {
+    try {
+      setPost(await apiClient.request<Post>(`/posts/${postId}`))
+    } catch { /* keep current state */ }
+  }
+
   async function handleAccept(id: number) {
     await apiClient.acceptIdentification(id)
     setIdentifications((prev) => prev.map((i) => i.id === id ? { ...i, accepted: !i.accepted } : i))
@@ -479,7 +487,7 @@ function PostPageInner() {
                                   return
                                 }
                               }
-                              setPost((prev) => prev ? { ...prev, contents: pendingCaption } : prev)
+                              await refreshPost()
                               setEditingCaption(false)
                             } catch {
                               showToast('キャプションの保存に失敗しました')
@@ -1322,7 +1330,7 @@ function PostPageInner() {
                   setCaptionSaving(true)
                   try {
                     await apiClient.updatePost(post.id, { userId: user.id, contents: pendingCaption, confirmedModeration: w })
-                    setPost((prev) => prev ? { ...prev, contents: pendingCaption } : prev)
+                    await refreshPost()
                     setEditingCaption(false)
                   } catch {
                     showToast('キャプションの保存に失敗しました')
