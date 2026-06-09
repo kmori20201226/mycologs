@@ -17,7 +17,7 @@ export default async function (fastify: FastifyInstance) {
             }
         }
     }, async (request, reply) => {
-        const { name, description, clubId, userId, place, longitude, latitude, startAt, endAt } = request.body as any
+        const { name, description, clubId, userId, place, publicPlace, longitude, latitude, startAt, endAt } = request.body as any
 
         const event = await fastify.prisma.event.create({
             data: {
@@ -26,6 +26,7 @@ export default async function (fastify: FastifyInstance) {
                 clubId: clubId ?? null,
                 userId: userId ?? null,
                 place: place ?? null,
+                publicPlace: publicPlace ?? null,
                 longitude: longitude ?? null,
                 latitude: latitude ?? null,
                 startAt: startAt ? new Date(startAt) : null,

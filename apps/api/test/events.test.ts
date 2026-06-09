@@ -28,6 +28,8 @@ test('POST, GET, LIST, PATCH and DELETE /events', async (t) => {
         payload: {
             name: 'Mushroom Foraging Trip',
             description: 'A day trip to collect mushrooms in the forest',
+            place: '新宿御苑の奥の秘密の場所',
+            publicPlace: '新宿区周辺',
             startAt: '2026-03-26T09:00:00.000Z',
             endAt: '2026-03-26T17:00:00.000Z'
         }
@@ -37,6 +39,7 @@ test('POST, GET, LIST, PATCH and DELETE /events', async (t) => {
     const createdEvent = createRes.json() as any
     assert.equal(createdEvent.name, 'Mushroom Foraging Trip')
     assert.equal(createdEvent.description, 'A day trip to collect mushrooms in the forest')
+    assert.equal(createdEvent.publicPlace, '新宿区周辺')
     assert.ok(createdEvent.id)
 
     // CREATE user-owned event
@@ -91,12 +94,14 @@ test('POST, GET, LIST, PATCH and DELETE /events', async (t) => {
         headers: authHeaders,
         payload: {
             name: 'Updated Mushroom Foraging Trip',
-            description: 'Updated description'
+            description: 'Updated description',
+            publicPlace: '渋谷区周辺'
         }
     })
 
     assert.equal(updateRes.statusCode, 200)
     assert.equal(updateRes.json().name, 'Updated Mushroom Foraging Trip')
+    assert.equal(updateRes.json().publicPlace, '渋谷区周辺')
 
     // DELETE user-owned event
     await app.inject({ method: 'DELETE', url: `/events/${userEvent.id}`, headers: authHeaders })

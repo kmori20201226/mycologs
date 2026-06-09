@@ -25,6 +25,7 @@ export default function UserEventEditPage() {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [place, setPlace] = useState('')
+  const [publicPlace, setPublicPlace] = useState('')
   const [longitude, setLongitude] = useState('')
   const [latitude, setLatitude] = useState('')
   const [startAt, setStartAt] = useState('')
@@ -94,6 +95,7 @@ export default function UserEventEditPage() {
         setName(ev.name)
         setDescription(ev.description ?? '')
         setPlace(ev.place ?? '')
+        setPublicPlace(ev.publicPlace ?? '')
         setLongitude(ev.longitude != null ? String(ev.longitude) : '')
         setLatitude(ev.latitude != null ? String(ev.latitude) : '')
         setStartAt(toInputValue(ev.startAt))
@@ -111,6 +113,7 @@ export default function UserEventEditPage() {
     name !== original.name ||
     description !== (original.description ?? '') ||
     place !== (original.place ?? '') ||
+    publicPlace !== (original.publicPlace ?? '') ||
     longitude !== (original.longitude != null ? String(original.longitude) : '') ||
     latitude !== (original.latitude != null ? String(original.latitude) : '') ||
     startAt !== toInputValue(original.startAt) ||
@@ -193,6 +196,7 @@ export default function UserEventEditPage() {
         name,
         description: description || undefined,
         place: place || null,
+        publicPlace: publicPlace || null,
         longitude: longitude !== '' ? Number(longitude) : null,
         latitude: latitude !== '' ? Number(latitude) : null,
         startAt: startAt ? new Date(startAt).toISOString() : null,
@@ -204,6 +208,7 @@ export default function UserEventEditPage() {
         name,
         description: description || null,
         place: place || null,
+        publicPlace: publicPlace || null,
         longitude: longitude !== '' ? Number(longitude) : null,
         latitude: latitude !== '' ? Number(latitude) : null,
         startAt: startAt ? new Date(startAt).toISOString() : null,
@@ -297,6 +302,18 @@ export default function UserEventEditPage() {
                   </button>
                 )}
               </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">公開用の場所名</label>
+              <input
+                type="text"
+                value={publicPlace}
+                onChange={(e) => setPublicPlace(e.target.value)}
+                placeholder="例: 高尾山周辺"
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+              <p className="text-xs text-gray-400 mt-1">設定すると、このイベントに紐づく投稿に公開表示されます。正確な場所（上）は公開されません。</p>
             </div>
 
             {candidates.length > 1 && (

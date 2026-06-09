@@ -3,8 +3,9 @@
 import { Suspense, useEffect, useRef, useState } from 'react'
 import { useParams, useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { apiClient, type MediaItem, type AiIdentification, type CandidateEvaluation } from '@/lib/api'
+import { apiClient, type MediaItem, type AiIdentification, type CandidateEvaluation, type Event } from '@/lib/api'
 import { getStoredUser } from '@/lib/auth'
+import EventCombobox from '@/components/EventCombobox'
 
 type PostVisibility = 'PUBLIC' | 'CLUBMEMBERONLY' | 'PRIVATE'
 
@@ -17,7 +18,7 @@ interface Post {
   expectedMediaCount?: number
   mentionedSpecies?: { id: number; scientificName: string; japaneseName: string }[]
   user: { id: number; name: string; handleName: string | null }
-  event: { id: number; name: string; startAt: string | null } | null
+  event: { id: number; name: string; startAt: string | null; publicPlace: string | null } | null
 }
 
 interface Identification {
@@ -67,6 +68,11 @@ function PostPageInner() {
   const [pendingCaption, setPendingCaption] = useState('')
   const [captionSaving, setCaptionSaving] = useState(false)
   const [captionWarning, setCaptionWarning] = useState<{ category: string; comment: string } | null>(null)
+
+  // Event options for the caption editor's combobox (the owner's club + private events).
+  const [eventOptions, setEventOptions] = useState<Event[]>([])
+  const [clubEventIds, setClubEventIds] = useState<Set<number>>(new Set())
+  const [pendingEventId, setPendingEventId] = useState<number | ''>('')
 
   const [editingVisibility, setEditingVisibility] = useState(false)
   const [pendingVisibility, setPendingVisibility] = useState<PostVisibility>('PUBLIC')
@@ -136,6 +142,49 @@ function PostPageInner() {
       .then((f) => setFollowups(f as Followup[]))
       .catch(() => {})
   }, [postId])
+
+  // Load the owner's club + private events for the caption editor's event
+  // combobox. Only the post owner can re-link, so skip the fetch otherwise.
+  useEffect(() => {
+    const user = getStoredUser()
+    if (!post || !user || user.id !== post.user.id) return
+    let cancelled = false
+    ;(async () => {
+      const memberClubs = await apiClient.request<{ id: number; name: string }[]>('/me/clubs').catch(() => [] as { id: number; name: string }[])
+      const clubFetches = memberClubs.map((c) => apiClient.getEvents({ clubId: c.id }).catch(() => [] as Event[]))
+      const myFetch = apiClient.getEvents({ userId: user.id }).catch(() => [] as Event[])
+      const [clubResults, myEvs] = await Promise.all([Promise.all(clubFetches), myFetch])
+      if (cancelled) return
+
+      const clubEvs = clubResults.flat()
+      const clubIds = new Set(clubEvs.map((e) => e.id))
+      const seen = new Set<number>()
+      const merged: Event[] = []
+      for (const ev of [...clubEvs, ...myEvs]) {
+        if (!seen.has(ev.id)) { seen.add(ev.id); merged.push(ev) }
+      }
+      // Keep the currently-linked event selectable even if it isn't in the
+      // owner's club/private lists (e.g. an event from a club they since left).
+      if (post.event && !seen.has(post.event.id)) {
+        merged.push({
+          id: post.event.id, name: post.event.name, startAt: post.event.startAt,
+          clubId: null, userId: null, description: null, place: null,
+          publicPlace: post.event.publicPlace,
+          longitude: null, latitude: null, endAt: null, bannerImage: null,
+          retrospective: null, createdAt: '',
+        })
+      }
+      merged.sort((a, b) => {
+        const ta = a.startAt ? new Date(a.startAt).getTime() : 0
+        const tb = b.startAt ? new Date(b.startAt).getTime() : 0
+        return tb - ta
+      })
+
+      setEventOptions(merged)
+      setClubEventIds(clubIds)
+    })()
+    return () => { cancelled = true }
+  }, [post?.user.id, post?.event?.id])
 
   // While this post's images are still uploading (in this or another session),
   // poll so they appear and the Identify button unlocks once complete. Also
@@ -451,6 +500,16 @@ function PostPageInner() {
                 </div>
               )}
 
+              {post.event?.publicPlace && (
+                <div className="mb-4 ml-2 inline-flex items-center gap-1 bg-gray-100 text-gray-600 text-xs font-medium px-3 py-1 rounded-full">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  {post.event.publicPlace}
+                </div>
+              )}
+
               {(() => {
                 const isOwner = currentUser && currentUser.id === post.user.id
                 if (editingCaption) {
@@ -465,6 +524,18 @@ function PostPageInner() {
                         disabled={captionSaving}
                       />
                       <p className="text-xs text-gray-400">本文に書いたきのこの名前は、AI同定の候補として使われます。</p>
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                          イベント <span className="text-gray-400 font-normal normal-case">（任意）</span>
+                        </label>
+                        <EventCombobox
+                          events={eventOptions}
+                          value={pendingEventId}
+                          onChange={setPendingEventId}
+                          clubEventIds={clubEventIds}
+                          disabled={captionSaving}
+                        />
+                      </div>
                       <div className="flex gap-2">
                         <button
                           onClick={async () => {
@@ -472,7 +543,7 @@ function PostPageInner() {
                             if (!user || !post) return
                             setCaptionSaving(true)
                             try {
-                              const result = await apiClient.updatePost(post.id, { userId: user.id, contents: pendingCaption })
+                              const result = await apiClient.updatePost(post.id, { userId: user.id, contents: pendingCaption, eventId: pendingEventId === '' ? null : pendingEventId })
                               if (!result.ok) {
                                 if (result.status === 'rejected') {
                                   showToast(`この内容は保存できません。${result.comment ? result.comment : ''}`)
@@ -518,7 +589,7 @@ function PostPageInner() {
                         <p className="flex-1 whitespace-pre-wrap text-gray-800">{post.contents}</p>
                         {isOwner && (
                           <button
-                            onClick={() => { setPendingCaption(post.contents ?? ''); setEditingCaption(true) }}
+                            onClick={() => { setPendingCaption(post.contents ?? ''); setPendingEventId(post.event?.id ?? ''); setEditingCaption(true) }}
                             className="shrink-0 text-gray-400 hover:text-gray-600 transition-colors mt-0.5"
                             aria-label="キャプションを編集"
                           >
@@ -535,7 +606,7 @@ function PostPageInner() {
                         </p>
                         {isOwner && (
                           <button
-                            onClick={() => { setPendingCaption(''); setEditingCaption(true) }}
+                            onClick={() => { setPendingCaption(''); setPendingEventId(post.event?.id ?? ''); setEditingCaption(true) }}
                             className="mt-1 text-sm text-emerald-600 hover:text-emerald-700 hover:underline transition-colors"
                           >
                             キャプションを追加
@@ -1329,7 +1400,7 @@ function PostPageInner() {
                   if (!user || !post) return
                   setCaptionSaving(true)
                   try {
-                    await apiClient.updatePost(post.id, { userId: user.id, contents: pendingCaption, confirmedModeration: w })
+                    await apiClient.updatePost(post.id, { userId: user.id, contents: pendingCaption, eventId: pendingEventId === '' ? null : pendingEventId, confirmedModeration: w })
                     await refreshPost()
                     setEditingCaption(false)
                   } catch {

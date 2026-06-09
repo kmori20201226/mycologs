@@ -303,6 +303,10 @@ model Event {
   name              String
   description       String?
   place             String?
+  // A coarse, deliberately public-safe location label (e.g. "高尾山周辺"). Unlike
+  // `place` (precise, used for geocoding), this is meant to be shown publicly on
+  // posts linked to the event. Null = nothing shown.
+  publicPlace       String?    @map("public_place")
   longitude         Float?
   latitude          Float?
   startAt           DateTime?  @map("start_at")
@@ -325,6 +329,12 @@ model Post {
   parentPostId       Int?          @map("parent_post_id")
   contents           String
   visibility         PublicityType @default(PUBLIC) @map("visibility")
+  // Where the photo was taken (from the first uploaded image's EXIF GPS, or the
+  // device's geolocation as a fallback). takenAt is the photo's EXIF capture time,
+  // used to match the post to an overlapping Event. All null when no location is known.
+  longitude          Float?        @map("longitude")
+  latitude           Float?        @map("latitude")
+  takenAt            DateTime?     @map("taken_at")
   // Number of images the author is uploading (set at create time). The post is
   // "media-complete" once its IMAGE media count reaches this. 0 = nothing
   // pending (backward compatible with posts created before background uploads).

@@ -6,6 +6,8 @@ import Link from 'next/link'
 import { apiClient, type Event } from '@/lib/api'
 import { getStoredUser } from '@/lib/auth'
 import { enqueueUploads } from '@/lib/uploadManager'
+import { readExif } from '@/lib/exif'
+import EventCombobox from '@/components/EventCombobox'
 
 interface FileEntry {
   id: string        // local key
@@ -44,6 +46,46 @@ function formatBytes(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
+interface CapturedLocation {
+  latitude: number
+  longitude: number
+  takenAt: string // ISO; the photo's capture time (or now, for the device fallback)
+}
+
+const MATCH_RADIUS_KM = 2
+
+function haversineKm(aLat: number, aLng: number, bLat: number, bLng: number): number {
+  const R = 6371
+  const toRad = (d: number) => (d * Math.PI) / 180
+  const dLat = toRad(bLat - aLat)
+  const dLng = toRad(bLng - aLng)
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLng / 2) ** 2
+  return 2 * R * Math.asin(Math.sqrt(h))
+}
+
+// Pick the event whose location is within MATCH_RADIUS_KM of the photo and
+// whose [startAt, endAt] window contains the photo's capture time. When several
+// events qualify, prefer the one with the narrowest time window.
+function pickEventForLocation(events: Event[], loc: CapturedLocation): Event | null {
+  const takenMs = new Date(loc.takenAt).getTime()
+  const windowMs = (ev: Event) =>
+    new Date(ev.endAt as string).getTime() - new Date(ev.startAt as string).getTime()
+
+  const candidates = events.filter((ev) => {
+    if (ev.latitude == null || ev.longitude == null) return false
+    if (!ev.startAt || !ev.endAt) return false
+    if (haversineKm(loc.latitude, loc.longitude, ev.latitude, ev.longitude) > MATCH_RADIUS_KM) return false
+    const start = new Date(ev.startAt).getTime()
+    const end = new Date(ev.endAt).getTime()
+    return start <= takenMs && takenMs <= end
+  })
+
+  if (candidates.length === 0) return null
+  return candidates.reduce((best, ev) => (windowMs(ev) < windowMs(best) ? ev : best))
+}
+
 function NewPostPageInner() {
   const searchParams = useSearchParams()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -52,9 +94,12 @@ function NewPostPageInner() {
 
   const [contents, setContents] = useState('')
   const [eventId, setEventId] = useState<number | ''>('')
+  const [eventTouched, setEventTouched] = useState(false)
+  const [autoEventId, setAutoEventId] = useState<number | null>(null)
+  const [capturedLoc, setCapturedLoc] = useState<CapturedLocation | null>(null)
+  const [locSource, setLocSource] = useState<'exif' | 'device' | null>(null)
   const [events, setEvents] = useState<Event[]>([])
   const [clubEventIds, setClubEventIds] = useState<Set<number>>(new Set())
-  const [myEventIds, setMyEventIds] = useState<Set<number>>(new Set())
   const [files, setFiles] = useState<FileEntry[]>([])
   const [phase, setPhase] = useState<SubmitPhase>('idle')
   const [error, setError] = useState('')
@@ -105,7 +150,6 @@ function NewPostPageInner() {
       Promise.all([Promise.all(clubFetches), myFetch]).then(([clubResults, myEvs]) => {
         const clubEvs = clubResults.flat()
         const clubIds = new Set(clubEvs.map((e) => e.id))
-        const myIds = new Set(myEvs.map((e) => e.id))
 
         const seen = new Set<number>()
         const merged: Event[] = []
@@ -122,11 +166,10 @@ function NewPostPageInner() {
           })
 
         setClubEventIds(clubIds)
-        setMyEventIds(myIds)
         setEvents(past)
         if (presetEventId) {
           const id = Number(presetEventId)
-          if (past.some((e) => e.id === id)) setEventId(id)
+          if (past.some((e) => e.id === id)) { setEventId(id); setEventTouched(true) }
         }
       })
     })()
@@ -136,6 +179,53 @@ function NewPostPageInner() {
   useEffect(() => {
     return () => { files.forEach((f) => { if (f.preview) URL.revokeObjectURL(f.preview) }) }
   }, [files])
+
+  // Capture "where the photo was taken": scan images in order for the first that
+  // carries both GPS and a capture time in its EXIF; if none does, fall back to
+  // the device's current location. All client-side — no network call.
+  useEffect(() => {
+    let cancelled = false
+    const imageFiles = files.filter((f) => f.file.type.startsWith('image/'))
+    if (imageFiles.length === 0) { setCapturedLoc(null); setLocSource(null); return }
+
+    ;(async () => {
+      for (const entry of imageFiles) {
+        const info = await readExif(entry.file)
+        if (cancelled) return
+        if (info.latitude != null && info.longitude != null && info.takenAt != null) {
+          setCapturedLoc({ latitude: info.latitude, longitude: info.longitude, takenAt: info.takenAt })
+          setLocSource('exif')
+          return
+        }
+      }
+      // No image had GPS + time — fall back to the device's geolocation.
+      if (typeof navigator === 'undefined' || !navigator.geolocation) {
+        setCapturedLoc(null); setLocSource(null); return
+      }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          if (cancelled) return
+          setCapturedLoc({ latitude: pos.coords.latitude, longitude: pos.coords.longitude, takenAt: new Date().toISOString() })
+          setLocSource('device')
+        },
+        () => { if (!cancelled) { setCapturedLoc(null); setLocSource(null) } },
+        { enableHighAccuracy: true, timeout: 8000 },
+      )
+    })()
+
+    return () => { cancelled = true }
+  }, [files])
+
+  // Auto-select the matching event from the captured location, unless the user
+  // has already chosen one manually. Runs client-side against the events already
+  // loaded into the form.
+  useEffect(() => {
+    if (eventTouched) return
+    if (!capturedLoc) { setAutoEventId(null); return }
+    const match = pickEventForLocation(events, capturedLoc)
+    setEventId(match ? match.id : '')
+    setAutoEventId(match ? match.id : null)
+  }, [capturedLoc, events, eventTouched])
 
   function addFiles(incoming: FileList | File[]) {
     const entries: FileEntry[] = Array.from(incoming).map((file) => ({
@@ -179,6 +269,7 @@ function NewPostPageInner() {
       clubIds: visibility === 'CLUBMEMBERONLY' ? selectedClubIds : undefined,
       expectedMediaCount: files.length,
       ...(eventId !== '' ? { eventId: eventId as number } : {}),
+      ...(capturedLoc ? { longitude: capturedLoc.longitude, latitude: capturedLoc.latitude, takenAt: capturedLoc.takenAt } : {}),
       ...(confirmedModeration ? { confirmedModeration } : {}),
     })
 
@@ -326,21 +417,18 @@ function NewPostPageInner() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   イベント <span className="text-gray-400 font-normal">（任意）</span>
                 </label>
-                <select
+                <EventCombobox
+                  events={events}
                   value={eventId}
-                  onChange={(e) => setEventId(e.target.value === '' ? '' : Number(e.target.value))}
-                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
+                  onChange={(id) => { setEventTouched(true); setEventId(id) }}
+                  clubEventIds={clubEventIds}
                   disabled={submitting}
-                >
-                  <option value="">イベントなし</option>
-                  {events.map((ev) => {
-                    const isClub = clubEventIds.has(ev.id)
-                    const isMine = myEventIds.has(ev.id)
-                    const prefix = isClub ? '👨‍👩‍👧‍👧 ' : '😊 '
-                    const date = ev.startAt ? `${new Date(ev.startAt).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })} ` : ''
-                    return <option key={ev.id} value={ev.id}>{prefix}{date}{ev.name}</option>
-                  })}
-                </select>
+                />
+                {!eventTouched && autoEventId !== null && eventId === autoEventId && (
+                  <p className="mt-1 text-xs text-emerald-600">
+                    📍 写真の位置情報から自動で選択しました（変更できます）
+                  </p>
+                )}
               </div>
             )}
 

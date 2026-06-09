@@ -42,7 +42,7 @@ const CATEGORY_POINTS: Record<string, number> = {
 
 const POST_INCLUDE = {
     user: { select: { id: true, name: true, handleName: true, email: true } },
-    event: { select: { id: true, name: true, startAt: true } },
+    event: { select: { id: true, name: true, startAt: true, publicPlace: true } },
     postClubs: { select: { clubId: true } },
     media: { where: { deletedAt: null }, select: { url: true }, orderBy: { createdAt: 'asc' as const }, take: 1 },
 } as const
@@ -210,7 +210,7 @@ export default async function (fastify: FastifyInstance) {
             }
         }
     }, async (request, reply) => {
-        const { eventId, userId, contents: rawContents, confirmedModeration, visibility: reqVisibility, clubIds: reqClubIds, expectedMediaCount } = request.body as any
+        const { eventId, userId, contents: rawContents, confirmedModeration, visibility: reqVisibility, clubIds: reqClubIds, expectedMediaCount, longitude, latitude, takenAt } = request.body as any
         const contents: string = rawContents ?? ''
 
         if (!confirmedModeration && contents) {
@@ -269,6 +269,9 @@ export default async function (fastify: FastifyInstance) {
                 contents,
                 visibility: resolved.visibility,
                 expectedMediaCount: Number(expectedMediaCount ?? 0),
+                longitude: longitude ?? null,
+                latitude: latitude ?? null,
+                takenAt: takenAt ?? null,
                 postClubs: { create: resolved.clubIds.map(clubId => ({ clubId })) },
             },
             include: POST_INCLUDE,

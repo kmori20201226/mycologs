@@ -51,6 +51,7 @@ function EventCard({ ev, canManage, onEdited, onDeleted }: EventCardProps) {
     name: ev.name,
     description: ev.description ?? '',
     place: ev.place ?? '',
+    publicPlace: ev.publicPlace ?? '',
     startAt: toDatetimeLocal(ev.startAt),
     endAt: toDatetimeLocal(ev.endAt),
   })
@@ -62,6 +63,7 @@ function EventCard({ ev, canManage, onEdited, onDeleted }: EventCardProps) {
       name: ev.name,
       description: ev.description ?? '',
       place: ev.place ?? '',
+      publicPlace: ev.publicPlace ?? '',
       startAt: toDatetimeLocal(ev.startAt),
       endAt: toDatetimeLocal(ev.endAt),
     })
@@ -74,6 +76,7 @@ function EventCard({ ev, canManage, onEdited, onDeleted }: EventCardProps) {
         name: form.name.trim(),
         description: form.description.trim() || undefined,
         place: form.place.trim() || null,
+        publicPlace: form.publicPlace.trim() || null,
         startAt: form.startAt || null,
         endAt: form.endAt || null,
       })
@@ -119,6 +122,15 @@ function EventCard({ ev, canManage, onEdited, onDeleted }: EventCardProps) {
           onChange={(e) => setForm({ ...form, place: e.target.value })}
           placeholder="場所"
         />
+        <div>
+          <input
+            className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+            value={form.publicPlace}
+            onChange={(e) => setForm({ ...form, publicPlace: e.target.value })}
+            placeholder="公開用の場所名（例: 高尾山周辺）"
+          />
+          <p className="text-xs text-gray-400 mt-0.5">紐づく投稿に公開表示されます。「場所」は公開されません。</p>
+        </div>
         <div className="flex gap-2">
           <div className="flex-1">
             <label className="text-xs text-gray-400 mb-0.5 block">開始</label>

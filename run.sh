@@ -176,11 +176,23 @@ do_logs() {
     esac
 }
 
+# ── Buy credit ─────────────────────────────────────────────────────────────────
+
+do_buy_credit() {
+    shift
+    if [[ -z "${1:-}" ]]; then
+        echo "Usage: $0 buy-credit <email|user-id|club:ID> [amount]"
+        exit 1
+    fi
+    cd "$SCRIPT_DIR"
+    npx ts-node scripts/buy-credit.ts "$@"
+}
+
 # ── Help ───────────────────────────────────────────────────────────────────────
 
 do_help() {
     cat <<EOF
-Usage: $0 {start|stop|restart|status|logs [api|web|ai|all]}
+Usage: $0 {start|stop|restart|status|logs [api|web|ai|all]|buy-credit}
 
   start    Start API, web, and AI service (logs to $LOG_DIR/)
   stop     Stop all servers
@@ -191,6 +203,8 @@ Usage: $0 {start|stop|restart|status|logs [api|web|ai|all]}
              $0 logs web
              $0 logs ai
              $0 logs all
+  buy-credit <email|user-id|club:ID> [amount]
+           Add credit (default 1000) and keep a fake subscription active for 1 month
 EOF
 }
 
@@ -202,6 +216,7 @@ case "${1:-help}" in
     restart) do_stop; echo; do_start ;;
     status)  do_status ;;
     logs)    do_logs "$@" ;;
+    buy-credit) do_buy_credit "$@" ;;
     help|--help|-h) do_help ;;
     *)
         echo "Unknown command: $1"

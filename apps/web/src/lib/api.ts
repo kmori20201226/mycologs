@@ -95,6 +95,7 @@ export interface Event {
   name: string
   description: string | null
   place: string | null
+  publicPlace: string | null
   longitude: number | null
   latitude: number | null
   startAt: string | null
@@ -278,6 +279,9 @@ class ApiClient {
     visibility?: 'PUBLIC' | 'CLUBMEMBERONLY' | 'PRIVATE'
     clubIds?: number[]
     expectedMediaCount?: number
+    longitude?: number | null
+    latitude?: number | null
+    takenAt?: string | null
     confirmedModeration?: { category: string; comment: string }
   }): Promise<
     | { ok: true; id: number }
@@ -314,7 +318,7 @@ class ApiClient {
   async updatePost(id: number, data: {
     userId: number
     contents?: string
-    eventId?: number
+    eventId?: number | null
     visibility?: 'PUBLIC' | 'CLUBMEMBERONLY' | 'PRIVATE'
     clubIds?: number[]
     expectedMediaCount?: number
@@ -367,7 +371,7 @@ class ApiClient {
     return this.request('/events', { method: 'POST', body: JSON.stringify(data) })
   }
 
-  async updateEvent(id: number, data: { name?: string; description?: string; place?: string | null; longitude?: number | null; latitude?: number | null; startAt?: string | null; endAt?: string | null; retrospective?: string | null }): Promise<Event> {
+  async updateEvent(id: number, data: { name?: string; description?: string; place?: string | null; publicPlace?: string | null; longitude?: number | null; latitude?: number | null; startAt?: string | null; endAt?: string | null; retrospective?: string | null }): Promise<Event> {
     return this.request(`/events/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
   }
 

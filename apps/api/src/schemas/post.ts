@@ -10,6 +10,9 @@ export const postSchema = {
         contents: { type: 'string' },
         visibility: visibilityEnum,
         expectedMediaCount: { type: 'number' },
+        longitude: { type: 'number', nullable: true },
+        latitude: { type: 'number', nullable: true },
+        takenAt: { type: 'string', format: 'date-time', nullable: true },
         clubIds: { type: 'array', items: { type: 'number' } },
         mentionedSpecies: {
             type: 'array',
@@ -38,7 +41,8 @@ export const postSchema = {
             nullable: true,
             properties: {
                 id: { type: 'number' },
-                name: { type: 'string' }
+                name: { type: 'string' },
+                publicPlace: { type: 'string', nullable: true }
             }
         },
         thumbnail: { type: 'string', nullable: true },
@@ -54,6 +58,9 @@ export const createPostSchema = {
         contents: { type: 'string' },
         visibility: visibilityEnum,
         expectedMediaCount: { type: 'number' },
+        longitude: { type: 'number', nullable: true },
+        latitude: { type: 'number', nullable: true },
+        takenAt: { type: 'string', format: 'date-time', nullable: true },
         clubIds: { type: 'array', items: { type: 'number' } },
         confirmedModeration: {
             type: 'object',
@@ -68,11 +75,14 @@ export const createPostSchema = {
 export const updatePostSchema = {
     type: 'object',
     properties: {
-        eventId: { type: 'number' },
+        eventId: { type: 'number', nullable: true },
         contents: { type: 'string' },
         userId: { type: 'number' },
         visibility: visibilityEnum,
         expectedMediaCount: { type: 'number' },
+        longitude: { type: 'number', nullable: true },
+        latitude: { type: 'number', nullable: true },
+        takenAt: { type: 'string', format: 'date-time', nullable: true },
         clubIds: { type: 'array', items: { type: 'number' } },
         confirmedModeration: {
             type: 'object',

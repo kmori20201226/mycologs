@@ -84,3 +84,55 @@ test('POST, GET, LIST, PATCH and DELETE /posts', async (t) => {
     assert.equal(verifyRes.statusCode, 404)
     await app.close()
 })
+
+test('POST /posts persists photo location (longitude, latitude, takenAt)', async (t) => {
+    const app = await buildApp()
+    t.after(() => app.close())
+
+    const timestamp = Date.now()
+    const userRes = await app.inject({
+        method: 'POST',
+        url: '/users',
+        payload: {
+            name: `Geo Tester ${timestamp}`,
+            email: `geo-posts-test-${timestamp}@example.com`,
+        },
+    })
+    const user = userRes.json() as any
+
+    const takenAt = '2026-06-09T01:23:45.000Z'
+    const createRes = await app.inject({
+        method: 'POST',
+        url: '/posts',
+        payload: {
+            userId: user.id,
+            contents: `Geotagged mushroom find ${timestamp}.`,
+            longitude: 139.7671,
+            latitude: 35.6812,
+            takenAt,
+        },
+    })
+
+    assert.equal(createRes.statusCode, 201)
+    const created = createRes.json() as any
+    assert.equal(created.longitude, 139.7671)
+    assert.equal(created.latitude, 35.6812)
+    assert.equal(new Date(created.takenAt).toISOString(), takenAt)
+
+    // Round-trips on read.
+    const getRes = await app.inject({ method: 'GET', url: `/posts/${created.id}` })
+    assert.equal(getRes.statusCode, 200)
+    const fetched = getRes.json() as any
+    assert.equal(fetched.longitude, 139.7671)
+    assert.equal(fetched.latitude, 35.6812)
+    assert.equal(new Date(fetched.takenAt).toISOString(), takenAt)
+
+    // Clearing the event link via PATCH (eventId: null) is accepted.
+    const clearRes = await app.inject({
+        method: 'PATCH',
+        url: `/posts/${created.id}`,
+        payload: { userId: user.id, eventId: null },
+    })
+    assert.equal(clearRes.statusCode, 200)
+    assert.equal(clearRes.json().eventId, null)
+})
