@@ -42,6 +42,20 @@ test('POST, GET, LIST, PATCH and DELETE /events', async (t) => {
     assert.equal(createdEvent.publicPlace, '新宿区周辺')
     assert.ok(createdEvent.id)
 
+    // Personal events (no club) are a subscriber-only feature, so the owner
+    // needs active access before one can be created.
+    const subRes = await app.inject({
+        method: 'POST',
+        url: '/subscriptions',
+        payload: {
+            userId: createdUser.id,
+            status: 'active',
+            planId: 'personal',
+            accessUntil: new Date(Date.now() + 86_400_000).toISOString()
+        }
+    })
+    assert.equal(subRes.statusCode, 201)
+
     // CREATE user-owned event
     const userEventRes = await app.inject({
         method: 'POST',

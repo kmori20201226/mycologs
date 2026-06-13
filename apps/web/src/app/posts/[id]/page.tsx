@@ -81,6 +81,15 @@ function PostPageInner() {
   const [hasSubscription, setHasSubscription] = useState(false)
   const [visibilityUpdating, setVisibilityUpdating] = useState(false)
 
+  // A post that uses a paid feature — PRIVATE visibility or a personal (non-club)
+  // event — is read-only for its owner once their subscription access lapses. The
+  // server enforces this (PATCH returns 403); here we hide every edit affordance so
+  // it's clear up front rather than failing on save. Deletion stays allowed.
+  const editFrozen = !!(
+    currentUser && post && currentUser.id === post.user.id && !hasSubscription &&
+    (post.visibility === 'PRIVATE' || (post.event != null && !clubEventIds.has(post.event.id)))
+  )
+
   // Identification hint (local only — stored on Identification when accepted)
   const [hint, setHint] = useState('')
   const [committedHint, setCommittedHint] = useState<string | null>(null)
@@ -115,11 +124,11 @@ function PostPageInner() {
           apiClient.request<{ id: number; name: string }[]>('/me/clubs')
             .then((clubs) => setMyClubs(clubs ?? []))
             .catch(() => {})
-          apiClient.request<{ status: string; planId: string }[]>(`/users/${user.id}/subscriptions`)
-            .then((subs) => {
-              const active = (subs ?? []).some((s) => ['active', 'trialing'].includes(s.status) && s.planId !== 'free')
-              setHasSubscription(active)
-            })
+          // Honors access_until, so a lapsed subscription (status still "active"
+          // but access expired) correctly reads as inactive — PRIVATE visibility
+          // and personal events are subscriber-only.
+          apiClient.request<{ active: boolean }>(`/users/${user.id}/subscription/active`)
+            .then((res) => setHasSubscription(res.active))
             .catch(() => {})
         }
       })
@@ -456,12 +465,16 @@ function PostPageInner() {
                 <VisibilityBadge visibility={post.visibility} />
                 {(() => { const user = getStoredUser(); return user && user.id === post.user.id ? (
                   <>
+                  {editFrozen ? (
+                    <span className="text-xs text-gray-400" title="サブスクリプションが必要なため、この投稿は編集できません">読み取り専用</span>
+                  ) : (
                   <button
                     onClick={startEditingVisibility}
                     className="text-xs font-medium text-gray-500 bg-gray-100 hover:bg-gray-200 px-2.5 py-1 rounded-lg transition-colors"
                   >
                     公開設定
                   </button>
+                  )}
                   <button
                     onClick={() => setConfirmDeletePost(true)}
                     className="text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 px-2.5 py-1 rounded-lg transition-colors"
@@ -500,7 +513,7 @@ function PostPageInner() {
                 </div>
               )}
 
-              {post.event?.publicPlace && (
+              {currentUser && post.event?.publicPlace && (
                 <div className="mb-4 ml-2 inline-flex items-center gap-1 bg-gray-100 text-gray-600 text-xs font-medium px-3 py-1 rounded-full">
                   <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
@@ -529,7 +542,7 @@ function PostPageInner() {
                           イベント <span className="text-gray-400 font-normal normal-case">（任意）</span>
                         </label>
                         <EventCombobox
-                          events={eventOptions}
+                          events={hasSubscription ? eventOptions : eventOptions.filter((e) => e.clubId !== null || e.id === pendingEventId)}
                           value={pendingEventId}
                           onChange={setPendingEventId}
                           clubEventIds={clubEventIds}
@@ -587,7 +600,7 @@ function PostPageInner() {
                     {post.contents ? (
                       <div className="flex items-start gap-2">
                         <p className="flex-1 whitespace-pre-wrap text-gray-800">{post.contents}</p>
-                        {isOwner && (
+                        {isOwner && !editFrozen && (
                           <button
                             onClick={() => { setPendingCaption(post.contents ?? ''); setPendingEventId(post.event?.id ?? ''); setEditingCaption(true) }}
                             className="shrink-0 text-gray-400 hover:text-gray-600 transition-colors mt-0.5"
@@ -604,7 +617,7 @@ function PostPageInner() {
                         <p className="text-gray-400 italic">
                           {new Date(post.createdAt).toLocaleString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                         </p>
-                        {isOwner && (
+                        {isOwner && !editFrozen && (
                           <button
                             onClick={() => { setPendingCaption(''); setPendingEventId(post.event?.id ?? ''); setEditingCaption(true) }}
                             className="mt-1 text-sm text-emerald-600 hover:text-emerald-700 hover:underline transition-colors"
@@ -619,19 +632,21 @@ function PostPageInner() {
               })()}
 
               {/* Identification hint */}
-              <div className="mt-4 pt-4 border-t border-gray-100">
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-                  同定ヒント
-                </label>
-                <textarea
-                  value={hint}
-                  onChange={(e) => setHint(e.target.value)}
-                  rows={3}
-                  placeholder="色、臭い、採取場所の環境、季節など、同定に役立つ情報を自由に記入してください…"
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-emerald-400"
-                />
-                <p className="text-xs text-gray-400 mt-1">同定を依頼するときにAIへ送信されます</p>
-              </div>
+              {currentUser && (
+                <div className="mt-4 pt-4 border-t border-gray-100">
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                    同定ヒント
+                  </label>
+                  <textarea
+                    value={hint}
+                    onChange={(e) => setHint(e.target.value)}
+                    rows={3}
+                    placeholder="色、臭い、採取場所の環境、季節など、同定に役立つ情報を自由に記入してください…"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">同定を依頼するときにAIへ送信されます</p>
+                </div>
+              )}
 
               {/* Mushrooms mentioned in the post text (deterministic match against
                   known species names) — quick iNaturalist reference links. */}

@@ -3,6 +3,7 @@ import { PublicityType } from '../../../../generated/prisma/client'
 import { createPostSchema, postSchema, updatePostSchema } from '../schemas/post'
 import { notifyAiCreditExhausted } from '../lib/mail'
 import { recordAiUsage } from '../lib/ai-usage'
+import { hasActiveAccess } from '../lib/subscription'
 
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL ?? 'http://localhost:3002'
 
@@ -107,16 +108,18 @@ async function extractMentionedSpecies(fastify: FastifyInstance, contents: strin
     return result
 }
 
-async function hasActiveSubscription(fastify: FastifyInstance, userId: number): Promise<boolean> {
-    const sub = await fastify.prisma.subscription.findFirst({
-        where: {
-            userId,
-            planId: { not: 'free' },
-            status: { in: ['active', 'trialing'] },
-        },
-        select: { id: true },
+// True when `eventId` refers to a personal event (no club) whose owner no longer
+// has active subscription access. Personal events are a paid feature, so posting
+// into — or attaching — such an event must be refused. Uses hasActiveAccess
+// (honors access_until), the same definition the events route enforces.
+async function personalEventLocked(fastify: FastifyInstance, eventId: number | null | undefined): Promise<boolean> {
+    if (eventId == null) return false
+    const event = await fastify.prisma.event.findUnique({
+        where: { id: Number(eventId) },
+        select: { clubId: true, userId: true },
     })
-    return sub !== null
+    if (!event || event.clubId != null || event.userId == null) return false
+    return !(await hasActiveAccess(fastify.prisma, { userId: event.userId }))
 }
 
 async function resolveVisibilityAndClubs(
@@ -126,7 +129,8 @@ async function resolveVisibilityAndClubs(
     requestedClubIds: number[] | undefined,
 ): Promise<{ visibility: PublicityType; clubIds: number[] }> {
     if (requestedVisibility === 'PRIVATE') {
-        if (!await hasActiveSubscription(fastify, userId)) {
+        // PRIVATE posts are subscriber-only; honor access_until, not just status.
+        if (!await hasActiveAccess(fastify.prisma, { userId })) {
             throw { statusCode: 403, message: 'サブスクリプションが必要です' }
         }
         return { visibility: 'PRIVATE', clubIds: [] }
@@ -255,6 +259,12 @@ export default async function (fastify: FastifyInstance) {
             }
         }
 
+        // Personal events are a paid feature — refuse posting into one whose owner
+        // has lapsed (mirrors the events route's creation gate).
+        if (await personalEventLocked(fastify, eventId)) {
+            return reply.code(403).send({ message: 'サブスクリプションが必要です' })
+        }
+
         let resolved: { visibility: PublicityType; clubIds: number[] }
         try {
             resolved = await resolveVisibilityAndClubs(fastify, Number(userId), reqVisibility, reqClubIds)
@@ -376,12 +386,28 @@ export default async function (fastify: FastifyInstance) {
 
         const existing = await fastify.prisma.post.findUnique({
             where: { id: Number(id) },
-            select: { userId: true },
+            select: { userId: true, visibility: true, event: { select: { clubId: true, userId: true } } },
         })
         if (!existing) return reply.code(404).send({ message: 'Post not found' })
 
         if (userId && Number(userId) !== existing.userId) {
             return reply.code(403).send({ message: 'この投稿を編集する権限がありません' })
+        }
+
+        // A post that uses a paid feature — attached to a personal event, or PRIVATE
+        // visibility — becomes read-only once the owner's access lapses. Any edit
+        // (including detaching the event) is refused, though the post stays visible.
+        // Deletion is a separate handler and remains allowed.
+        const usesPersonalEvent = existing.event != null && existing.event.clubId == null && existing.event.userId != null
+        if ((usesPersonalEvent || existing.visibility === 'PRIVATE')
+            && !(await hasActiveAccess(fastify.prisma, { userId: existing.userId }))) {
+            return reply.code(403).send({ message: 'サブスクリプションが必要です' })
+        }
+
+        // Likewise, a lapsed user must not *attach* a personal event to a post that
+        // doesn't already have one (the freeze above only covers existing events).
+        if ('eventId' in updateData && await personalEventLocked(fastify, updateData.eventId)) {
+            return reply.code(403).send({ message: 'サブスクリプションが必要です' })
         }
 
         if (updateData.contents && !confirmedModeration) {

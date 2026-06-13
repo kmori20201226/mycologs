@@ -109,6 +109,7 @@ function NewPostPageInner() {
   const [warning, setWarning] = useState<ModerationWarning | null>(null)
   const [noMediaWarning, setNoMediaWarning] = useState(false)
   const [visibility, setVisibility] = useState<'PUBLIC' | 'CLUBMEMBERONLY' | 'PRIVATE'>('PUBLIC')
+  const [visibilityTouched, setVisibilityTouched] = useState(false)
   const [selectedClubIds, setSelectedClubIds] = useState<number[]>([])
   const [myClubs, setMyClubs] = useState<{ id: number; name: string }[]>([])
   const [hasSubscription, setHasSubscription] = useState(false)
@@ -131,18 +132,19 @@ function NewPostPageInner() {
         setVisibility('PUBLIC')
       }
 
-      // Check subscription for PRIVATE option
-      apiClient.request<{ hasSubscription: boolean }>(`/users/${user.id}/subscription-status`)
-        .then((res) => setHasSubscription(res.hasSubscription))
-        .catch(() => {
-          // Fallback: check subscriptions list
-          apiClient.request<{ status: string; planId: string }[]>(`/users/${user.id}/subscriptions`)
-            .then((subs) => {
-              const active = (subs ?? []).some((s) => ['active', 'trialing'].includes(s.status) && s.planId !== 'free')
-              setHasSubscription(active)
-            })
-            .catch(() => {})
-        })
+      // Check active subscription access for the PRIVATE option and personal-event
+      // picker. This endpoint honors access_until, so a lapsed subscription (status
+      // still "active" but access expired) correctly reads as inactive — personal
+      // events are subscriber-only. Awaited so the preset-event guard can rely on it.
+      const active = await (async () => {
+        try {
+          const res = await apiClient.request<{ active: boolean }>(`/users/${user.id}/subscription/active`)
+          return res.active
+        } catch {
+          return false
+        }
+      })()
+      setHasSubscription(active)
 
       const clubFetches = memberClubs.map((c) => apiClient.getEvents({ clubId: c.id }).catch(() => [] as Event[]))
       const myFetch = apiClient.getEvents({ userId: user.id }).catch(() => [] as Event[])
@@ -169,7 +171,10 @@ function NewPostPageInner() {
         setEvents(past)
         if (presetEventId) {
           const id = Number(presetEventId)
-          if (past.some((e) => e.id === id)) { setEventId(id); setEventTouched(true) }
+          const ev = past.find((e) => e.id === id)
+          // Don't preset a personal event (no club) for a user without an active
+          // subscription — personal events are a paid, subscriber-only feature.
+          if (ev && (ev.clubId !== null || active)) { setEventId(id); setEventTouched(true) }
         }
       })
     })()
@@ -222,10 +227,20 @@ function NewPostPageInner() {
   useEffect(() => {
     if (eventTouched) return
     if (!capturedLoc) { setAutoEventId(null); return }
-    const match = pickEventForLocation(events, capturedLoc)
+    // Personal events are a paid feature — without a subscription they aren't
+    // selectable, so exclude them from the location auto-match too.
+    const pool = hasSubscription ? events : events.filter((e) => e.clubId !== null)
+    const match = pickEventForLocation(pool, capturedLoc)
     setEventId(match ? match.id : '')
     setAutoEventId(match ? match.id : null)
-  }, [capturedLoc, events, eventTouched])
+    // A personal event (no club) auto-matched by location is likely a private
+    // foraging spot — default such posts to "self only". Only when the user can
+    // actually pick PRIVATE (has a subscription) and hasn't chosen a range yet;
+    // the API rejects PRIVATE without a subscription anyway.
+    if (match && match.clubId === null && hasSubscription && !visibilityTouched) {
+      setVisibility('PRIVATE')
+    }
+  }, [capturedLoc, events, eventTouched, hasSubscription, visibilityTouched])
 
   function addFiles(incoming: FileList | File[]) {
     const entries: FileEntry[] = Array.from(incoming).map((file) => ({
@@ -367,6 +382,10 @@ function NewPostPageInner() {
 
   const imageFiles = files.filter((f) => f.file.type.startsWith('image/'))
   const otherFiles = files.filter((f) => !f.file.type.startsWith('image/'))
+  // Personal events (no club) are a paid feature — hide them from the selector
+  // once the subscription has lapsed. Existing posts already bound to such an
+  // event are unaffected; this only gates new selections.
+  const selectableEvents = hasSubscription ? events : events.filter((e) => e.clubId !== null)
 
   return (
     <>
@@ -412,13 +431,13 @@ function NewPostPageInner() {
             </div>
 
             {/* Event selector */}
-            {events.length > 0 && (
+            {selectableEvents.length > 0 && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   イベント <span className="text-gray-400 font-normal">（任意）</span>
                 </label>
                 <EventCombobox
-                  events={events}
+                  events={selectableEvents}
                   value={eventId}
                   onChange={(id) => { setEventTouched(true); setEventId(id) }}
                   clubEventIds={clubEventIds}
@@ -437,12 +456,12 @@ function NewPostPageInner() {
               <label className="block text-sm font-medium text-gray-700 mb-1">公開範囲</label>
               <div className="flex flex-col gap-2">
                 <label className="flex items-center gap-3 cursor-pointer">
-                  <input type="radio" name="visibility" value="PUBLIC" checked={visibility === 'PUBLIC'} onChange={() => setVisibility('PUBLIC')} disabled={submitting} className="accent-emerald-600" />
+                  <input type="radio" name="visibility" value="PUBLIC" checked={visibility === 'PUBLIC'} onChange={() => { setVisibilityTouched(true); setVisibility('PUBLIC') }} disabled={submitting} className="accent-emerald-600" />
                   <span className="text-sm text-gray-700">公開 — 誰でも見られる</span>
                 </label>
                 {myClubs.length > 0 && (
                   <label className="flex items-start gap-3 cursor-pointer">
-                    <input type="radio" name="visibility" value="CLUBMEMBERONLY" checked={visibility === 'CLUBMEMBERONLY'} onChange={() => setVisibility('CLUBMEMBERONLY')} disabled={submitting} className="accent-emerald-600 mt-0.5" />
+                    <input type="radio" name="visibility" value="CLUBMEMBERONLY" checked={visibility === 'CLUBMEMBERONLY'} onChange={() => { setVisibilityTouched(true); setVisibility('CLUBMEMBERONLY') }} disabled={submitting} className="accent-emerald-600 mt-0.5" />
                     <div className="flex-1">
                       <span className="text-sm text-gray-700">クラブメンバーのみ</span>
                       {visibility === 'CLUBMEMBERONLY' && (
@@ -468,7 +487,7 @@ function NewPostPageInner() {
                   </label>
                 )}
                 <label className={`flex items-center gap-3 ${hasSubscription ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}>
-                  <input type="radio" name="visibility" value="PRIVATE" checked={visibility === 'PRIVATE'} onChange={() => hasSubscription && setVisibility('PRIVATE')} disabled={submitting || !hasSubscription} className="accent-emerald-600" />
+                  <input type="radio" name="visibility" value="PRIVATE" checked={visibility === 'PRIVATE'} onChange={() => { if (hasSubscription) { setVisibilityTouched(true); setVisibility('PRIVATE') } }} disabled={submitting || !hasSubscription} className="accent-emerald-600" />
                   <span className="text-sm text-gray-700">
                     自分のみ
                     {!hasSubscription && <span className="ml-1 text-xs text-gray-400">（サブスクリプション必要）</span>}

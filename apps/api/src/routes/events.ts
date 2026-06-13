@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify'
 import path from 'path'
 import fs from 'fs'
 import { createEventSchema, eventSchema, updateEventSchema } from '../schemas/event'
+import { hasActiveAccess } from '../lib/subscription'
 
 const UPLOADS_DIR = path.resolve(__dirname, '../../../../data/uploads')
 
@@ -13,11 +14,19 @@ export default async function (fastify: FastifyInstance) {
         schema: {
             body: createEventSchema,
             response: {
-                201: eventSchema
+                201: eventSchema,
+                403: { type: 'object', properties: { message: { type: 'string' } } }
             }
         }
     }, async (request, reply) => {
         const { name, description, clubId, userId, place, publicPlace, longitude, latitude, startAt, endAt } = request.body as any
+
+        // Personal events (no club, owned by a user) are a paid feature: block
+        // creating new ones once the subscription has lapsed. Existing personal
+        // events are left untouched — only forward creation is gated.
+        if (clubId == null && userId != null && !(await hasActiveAccess(fastify.prisma, { userId }))) {
+            return reply.code(403).send({ message: 'サブスクリプションが必要です' })
+        }
 
         const event = await fastify.prisma.event.create({
             data: {
