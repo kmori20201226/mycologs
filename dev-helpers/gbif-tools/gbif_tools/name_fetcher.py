@@ -95,27 +95,36 @@ def _fetch_from_inat(scientific_name: str) -> str | None:
 # ── Source 3: GBIF vernacularNames ──────────────────────────
 
 def _fetch_from_gbif(species_key: int) -> str | None:
-    url = f"https://api.gbif.org/v1/species/{species_key}/vernacularNames?limit=20"
+    names = fetch_all_gbif_names(species_key)
+    return names[0] if names else None
+
+
+def fetch_all_gbif_names(species_key: int) -> list[str]:
+    """Return all distinct Japanese vernacular names from the GBIF API."""
+    url = f"https://api.gbif.org/v1/species/{species_key}/vernacularNames?limit=100"
     for attempt in range(1, _MAX_RETRIES + 1):
         try:
             with urllib.request.urlopen(url, timeout=10) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
+            seen: set[str] = set()
+            names: list[str] = []
             for item in data.get("results", []):
                 if item.get("language", "").lower() in ("ja", "jpn", "japanese"):
-                    name = item.get("vernacularName", "")
-                    if name and _is_japanese(name):
-                        return name
-            return None
+                    name = item.get("vernacularName", "").strip()
+                    if name and _is_japanese(name) and name not in seen:
+                        seen.add(name)
+                        names.append(name)
+            return names
         except urllib.error.HTTPError as e:
             if e.code == 429:
                 wait = 2 ** attempt
                 tqdm.write(f"  GBIF 429 — waiting {wait}s ...")
                 time.sleep(wait)
             else:
-                return None
+                return []
         except Exception:
-            return None
-    return None
+            return []
+    return []
 
 
 # ── Waterfall ────────────────────────────────────────────────

@@ -42,6 +42,15 @@ def _cmd_import_supplement(args: argparse.Namespace) -> None:
         overwrite=args.overwrite,
     )
 
+def _cmd_extract_synonyms(args: argparse.Namespace) -> None:
+    from pathlib import Path
+    from .synonym_extractor import extract_synonyms
+    extract_synonyms(
+        output_path=Path(args.output),
+        limit=args.limit,
+    )
+
+
 def _cmd_identify(args: argparse.Namespace) -> None:
     import json
     from .vision import identify_mushroom
@@ -150,6 +159,31 @@ def main() -> None:
     sup_parser.add_argument("--overwrite", action="store_true",
         help="Overwrite existing names (default: only fill NULL rows).")
     sup_parser.set_defaults(func=_cmd_import_supplement)
+
+    # ── gbif extract-synonyms ────────────────────────────────
+    syn_parser = subparsers.add_parser(
+        "extract-synonyms",
+        help="Extract all Japanese name synonyms for each taxon to a CSV file.",
+        description=(
+            "Queries Wikipedia, iNaturalist, and GBIF vernacularNames for every\n"
+            "taxon in gbif.taxon and writes all found Japanese names to a CSV.\n"
+            "Output columns: taxon_key, scientific_name, source, name\n"
+            "Sources: db (current stored value), wikipedia, inat, gbif"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    syn_parser.add_argument(
+        "--output", metavar="<file.csv>",
+        default="synonyms.csv",
+        help="Path to the output CSV file (default: synonyms.csv).",
+    )
+    syn_parser.add_argument(
+        "--limit", metavar="N",
+        type=int,
+        default=None,
+        help="Process at most N taxa (useful for testing).",
+    )
+    syn_parser.set_defaults(func=_cmd_extract_synonyms)
 
     #
     identify_parser = subparsers.add_parser(
