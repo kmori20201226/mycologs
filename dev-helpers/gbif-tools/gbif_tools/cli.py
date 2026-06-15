@@ -48,6 +48,7 @@ def _cmd_extract_synonyms(args: argparse.Namespace) -> None:
     extract_synonyms(
         output_path=Path(args.output),
         limit=args.limit,
+        resume=args.resume,
     )
 
 
@@ -167,8 +168,12 @@ def main() -> None:
         description=(
             "Queries Wikipedia, iNaturalist, and GBIF vernacularNames for every\n"
             "taxon in gbif.taxon and writes all found Japanese names to a CSV.\n"
-            "Output columns: taxon_key, scientific_name, source, name\n"
-            "Sources: db (current stored value), wikipedia, inat, gbif"
+            "Output columns: taxon_key, species_key, scientific_name, source, name\n"
+            "Sources: db (current stored value), wikipedia, inat, gbif\n"
+            "\n"
+            "Progress is logged periodically (count, %, ETA). Use --resume to\n"
+            "continue an interrupted run; a sidecar '<output>.progress' file\n"
+            "tracks completed taxa so they are not re-queried."
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -182,6 +187,10 @@ def main() -> None:
         type=int,
         default=None,
         help="Process at most N taxa (useful for testing).",
+    )
+    syn_parser.add_argument(
+        "--resume", action="store_true",
+        help="Skip taxa already recorded in <output>.progress and append.",
     )
     syn_parser.set_defaults(func=_cmd_extract_synonyms)
 

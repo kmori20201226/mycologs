@@ -418,8 +418,28 @@ model Species {
 
   genus             Genus      @relation(fields: [genusId], references: [id], onDelete: Cascade)
   identifications   Identification[]
+  aliases           SpeciesAlias[]
 
   @@map("species")
+}
+
+// Japanese name synonyms for a species, used to resolve a vernacular name
+// mentioned in a post back to its canonical species (extractMentionedSpecies).
+// Populated from the gbif extract-synonyms CSV (sources: db, wikipedia, inat).
+// `name` is globally unique: ambiguity (one name -> many species) is resolved
+// at import time by source priority + occurrence_score, so a match maps to a
+// single canonical species.
+model SpeciesAlias {
+  id          Int      @id @default(autoincrement())
+  speciesId   Int      @map("species_id")
+  name        String   @unique
+  source      String
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  species     Species  @relation(fields: [speciesId], references: [id], onDelete: Cascade)
+
+  @@index([speciesId])
+  @@map("species_aliases")
 }
 
 model Genus {

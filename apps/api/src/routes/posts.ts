@@ -63,12 +63,17 @@ type MentionedSpecies = { id: number; scientificName: string; japaneseName: stri
 // Deterministically find the mushrooms mentioned in a post's text by matching
 // known species Japanese names against the contents — no AI call. Used to seed
 // identification candidates (with iNaturalist links) in the UI.
+//
+// Two name sources are matched and unified: the canonical japanese_name on
+// `species`, plus vernacular synonyms in `species_aliases` (so マツタケ resolves
+// to the same species as the stored 松茸). Each candidate carries the literal
+// text to search for; matches always resolve to the canonical species.
 async function extractMentionedSpecies(fastify: FastifyInstance, contents: string): Promise<MentionedSpecies[]> {
     if (!contents || !contents.trim()) return []
 
-    // Species whose Japanese name appears verbatim in the post text. ≥2 chars
-    // keeps famous short names (松茸, ナメコ) while excluding 1-char noise.
-    const rows = await fastify.prisma.$queryRaw<MentionedSpecies[]>`
+    // Canonical Japanese names stored directly on species. ≥2 chars keeps famous
+    // short names (松茸, ナメコ) while excluding 1-char noise.
+    const speciesRows = await fastify.prisma.$queryRaw<MentionedSpecies[]>`
         SELECT id, scientific_name AS "scientificName", japanese_name AS "japaneseName"
         FROM species
         WHERE deleted_at IS NULL
@@ -77,16 +82,40 @@ async function extractMentionedSpecies(fastify: FastifyInstance, contents: strin
           AND strpos(${contents}, japanese_name) > 0
     `
 
+    // Synonym aliases, each resolving to its canonical species. The canonical
+    // japanese_name may be null, so fall back to the matched alias for display.
+    const aliasRows = await fastify.prisma.$queryRaw<{
+        matchText: string; id: number; scientificName: string; japaneseName: string | null
+    }[]>`
+        SELECT a.name AS "matchText",
+               s.id, s.scientific_name AS "scientificName", s.japanese_name AS "japaneseName"
+        FROM species_aliases a
+        JOIN species s ON s.id = a.species_id
+        WHERE s.deleted_at IS NULL
+          AND char_length(a.name) >= 2
+          AND strpos(${contents}, a.name) > 0
+    `
+
+    // Unify both sources into (matchText → canonical species) candidates.
+    type Candidate = { matchText: string; sp: MentionedSpecies }
+    const candidates: Candidate[] = [
+        ...speciesRows.map((sp) => ({ matchText: sp.japaneseName, sp })),
+        ...aliasRows.map((r) => ({
+            matchText: r.matchText,
+            sp: { id: r.id, scientificName: r.scientificName, japaneseName: r.japaneseName ?? r.matchText },
+        })),
+    ]
+
     // Containment dedup over text spans: drop a match whose occurrence sits fully
     // inside a longer match (テングタケ inside ベニテングタケ), but keep a shorter
     // name that also appears standalone elsewhere.
     type Span = { start: number; end: number; sp: MentionedSpecies }
     const spans: Span[] = []
-    for (const sp of rows) {
-        let i = contents.indexOf(sp.japaneseName)
+    for (const { matchText, sp } of candidates) {
+        let i = contents.indexOf(matchText)
         while (i !== -1) {
-            spans.push({ start: i, end: i + sp.japaneseName.length, sp })
-            i = contents.indexOf(sp.japaneseName, i + 1)
+            spans.push({ start: i, end: i + matchText.length, sp })
+            i = contents.indexOf(matchText, i + 1)
         }
     }
     spans.sort((a, b) => (b.end - b.start) - (a.end - a.start)) // longest first
