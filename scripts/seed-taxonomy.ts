@@ -4,6 +4,7 @@
  * Seeds:
  *   1. roles  — fixed set of RoleType values
  *   2. shapes, families, genera, species — taxonomy from prisma/seed/csv/
+ *   3. species aliases — Japanese name synonyms from prisma/seed/synonyms.csv
  *
  * Usage:
  *   npm run seed
@@ -135,12 +136,68 @@ async function seedSpecies() {
   console.log(`  ${rows.length} species done`)
 }
 
+// Japanese-name synonyms (マツタケ vs the stored 松茸) used to resolve a
+// vernacular name in a post back to its canonical species. Reads only the
+// committed CSV + the species table — never the temporary dev-only gbif schema.
+async function seedSpeciesAliases() {
+  console.log('Seeding species aliases...')
+  const ALLOWED_SOURCES = new Set(['inat', 'db', 'wikipedia', 'gbif'])
+  // iNaturalist common names preferred; gbif vernacularNames last (noisiest).
+  const SOURCE_PRIORITY: Record<string, number> = { inat: 4, db: 3, wikipedia: 2, gbif: 1 }
+  const MIN_NAME_LEN = 2
+
+  // species_key -> species.id (the import joins on gbif_taxon_key = species_key)
+  const species = await prisma.species.findMany({
+    where: { gbifTaxonKey: { not: null }, deletedAt: null },
+    select: { id: true, gbifTaxonKey: true },
+  })
+  const speciesByKey = new Map<number, number>()
+  for (const s of species) if (s.gbifTaxonKey != null) speciesByKey.set(s.gbifTaxonKey, s.id)
+
+  // Resolve a single winner per name: source priority, then occurrence_score,
+  // then lowest species id (deterministic).
+  type Winner = { speciesId: number; source: string; priority: number; score: number }
+  const winners = new Map<string, Winner>()
+  const rows = await parseCsv('../synonyms.csv')
+  for (const r of rows) {
+    const source = (r.source ?? '').trim()
+    if (!ALLOWED_SOURCES.has(source)) continue
+    const name = (r.name ?? '').trim()
+    if (name.length < MIN_NAME_LEN) continue
+    const speciesId = speciesByKey.get(Number(r.species_key))
+    if (speciesId === undefined) continue
+
+    const cand: Winner = {
+      speciesId, source,
+      priority: SOURCE_PRIORITY[source] ?? 0,
+      score: Number(r.occurrence_score) || 0,
+    }
+    const cur = winners.get(name)
+    if (!cur ||
+        cand.priority > cur.priority ||
+        (cand.priority === cur.priority && cand.score > cur.score) ||
+        (cand.priority === cur.priority && cand.score === cur.score && cand.speciesId < cur.speciesId)) {
+      winners.set(name, cand)
+    }
+  }
+
+  // Rebuild from the CSV (derived data): wipe then bulk-insert.
+  await prisma.speciesAlias.deleteMany({})
+  const data = [...winners.entries()].map(([name, w]) => ({ name, speciesId: w.speciesId, source: w.source }))
+  const BATCH = 1000
+  for (let i = 0; i < data.length; i += BATCH) {
+    await prisma.speciesAlias.createMany({ data: data.slice(i, i + BATCH), skipDuplicates: true })
+  }
+  console.log(`  ${data.length} aliases done`)
+}
+
 async function main() {
   await seedRoles()
   await seedShapes()
   await seedFamilies()
   await seedGenera()
   await seedSpecies()
+  await seedSpeciesAliases()
   console.log('Seed complete.')
 }
 

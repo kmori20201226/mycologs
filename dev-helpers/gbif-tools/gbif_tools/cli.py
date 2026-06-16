@@ -166,10 +166,10 @@ def main() -> None:
         "extract-synonyms",
         help="Extract all Japanese name synonyms for each taxon to a CSV file.",
         description=(
-            "Queries Wikipedia, iNaturalist, and GBIF vernacularNames for every\n"
-            "taxon in gbif.taxon and writes all found Japanese names to a CSV.\n"
-            "Output columns: taxon_key, species_key, scientific_name, source, name\n"
-            "Sources: db (current stored value), wikipedia, inat, gbif\n"
+            "Queries iNaturalist and GBIF vernacularNames for every taxon in\n"
+            "gbif.taxon and writes all found Japanese names to a CSV.\n"
+            "Output columns: taxon_key, species_key, occurrence_score, scientific_name, source, name\n"
+            "Sources: db (current stored value), inat, gbif\n"
             "\n"
             "Progress is logged periodically (count, %, ETA). Use --resume to\n"
             "continue an interrupted run; a sidecar '<output>.progress' file\n"

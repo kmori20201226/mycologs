@@ -5,16 +5,21 @@ Extract all available Japanese name synonyms for each taxon and write
 them to a CSV file (one row per taxon × source).
 
 Output columns:
-    taxon_key       — gbif.taxon primary key (this name usage)
-    species_key     — gbif accepted-species key; joins to mycologs
-                      species.gbif_taxon_key (collapses synonyms onto the
-                      accepted species)
-    scientific_name — canonical scientific name
-    source          — "db" | "wikipedia" | "inat" | "gbif"
-    name            — Japanese name from that source
+    taxon_key        — gbif.taxon primary key (this name usage)
+    species_key      — gbif accepted-species key; joins to mycologs
+                       species.gbif_taxon_key (collapses synonyms onto the
+                       accepted species)
+    occurrence_score — the accepted species' occurrence_score, embedded so the
+                       downstream import/seed can break ambiguity ties without
+                       reading the (temporary, dev-only) gbif schema
+    scientific_name  — canonical scientific name
+    source           — "db" | "inat" | "gbif"
+    name             — Japanese name from that source
 
 Rows where a source yields no Japanese name are omitted.
 The "db" row reflects the current japanese_name already stored in the DB.
+(Japanese Wikipedia is not queried: ja.wikipedia has no pages/redirects under
+scientific binomials, so it contributed nothing across a full run.)
 
 Resuming
 --------
@@ -32,7 +37,6 @@ from tqdm import tqdm
 
 from .db import transaction
 from .name_fetcher import (
-    _fetch_from_wikipedia,
     _fetch_from_inat,
     fetch_all_gbif_names,
     _SLEEP_SEC,
@@ -90,10 +94,12 @@ def extract_synonyms(
     with transaction() as cur:
         cur.execute(
             """
-            SELECT taxon_key, species_key, scientific_name, japanese_name
-            FROM   gbif.taxon
-            WHERE  species IS NOT NULL
-            ORDER  BY taxon_key
+            SELECT t.taxon_key, t.species_key, t.scientific_name, t.japanese_name,
+                   COALESCE(sp.occurrence_score, t.occurrence_score, 0) AS species_occurrence_score
+            FROM   gbif.taxon t
+            LEFT   JOIN gbif.taxon sp ON sp.taxon_key = t.species_key
+            WHERE  t.species IS NOT NULL
+            ORDER  BY t.taxon_key
             """
             + (f" LIMIT {limit}" if limit else "")
         )
@@ -135,14 +141,16 @@ def extract_synonyms(
          _progress_path(output_path).open(prog_mode, encoding="utf-8") as prog:
         writer = csv.writer(f)
         if write_header:
-            writer.writerow(["taxon_key", "species_key", "scientific_name", "source", "name"])
+            writer.writerow(["taxon_key", "species_key", "occurrence_score",
+                             "scientific_name", "source", "name"])
             f.flush()
 
         with tqdm(total=remaining, unit="taxon", dynamic_ncols=True,
                   colour="green", disable=None) as bar:
-            for processed, (taxon_key, species_key, scientific_name, db_name) in enumerate(rows, start=1):
+            for processed, (taxon_key, species_key, scientific_name, db_name, occ_score) in enumerate(rows, start=1):
                 sname = scientific_name or ""
                 skey  = species_key or taxon_key
+                score = occ_score or 0
 
                 # Collect this taxon's rows, then write them together so a crash
                 # mid-taxon can't leave a half-written taxon marked as done.
@@ -150,23 +158,17 @@ def extract_synonyms(
 
                 # Current DB value
                 if db_name:
-                    taxon_rows.append([taxon_key, skey, sname, "db", db_name])
-
-                # Wikipedia
-                wiki = _fetch_from_wikipedia(sname)
-                time.sleep(_SLEEP_SEC)
-                if wiki:
-                    taxon_rows.append([taxon_key, skey, sname, "wikipedia", wiki])
+                    taxon_rows.append([taxon_key, skey, score, sname, "db", db_name])
 
                 # iNaturalist
                 inat = _fetch_from_inat(sname)
                 time.sleep(_SLEEP_SEC)
                 if inat:
-                    taxon_rows.append([taxon_key, skey, sname, "inat", inat])
+                    taxon_rows.append([taxon_key, skey, score, sname, "inat", inat])
 
                 # GBIF vernacularNames (all Japanese entries)
                 for name in fetch_all_gbif_names(skey):
-                    taxon_rows.append([taxon_key, skey, sname, "gbif", name])
+                    taxon_rows.append([taxon_key, skey, score, sname, "gbif", name])
                 time.sleep(_SLEEP_SEC)
 
                 writer.writerows(taxon_rows)

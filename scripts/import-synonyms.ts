@@ -10,11 +10,12 @@
  *   npx ts-node scripts/import-synonyms.ts prisma/seed/synonyms.csv
  *
  * CSV columns (from synonym_extractor.py):
- *   taxon_key, species_key, scientific_name, source, name
+ *   taxon_key, species_key, occurrence_score, scientific_name, source, name
+ *   (occurrence_score is optional — older CSVs without it score every row 0.)
  *
  * Behaviour:
- *   - Only sources db, wikipedia, inat are ingested (gbif is too noisy; katumoto
- *     is already represented by the `db` row).
+ *   - Sources inat, db, wikipedia, gbif are ingested (katumoto is already
+ *     represented by the `db` row). iNaturalist is preferred, gbif last.
  *   - Each CSV row is joined to a mycologs species via
  *       species_key = species.gbif_taxon_key
  *     which collapses synonym usages onto the accepted species.
@@ -41,8 +42,11 @@ const { Client } = require('pg') as typeof import('pg')
 
 // ── Config ──────────────────────────────────────────────────────────────────
 
-const ALLOWED_SOURCES = new Set(['db', 'wikipedia', 'inat'])
-const SOURCE_PRIORITY: Record<string, number> = { db: 3, wikipedia: 2, inat: 1 }
+const ALLOWED_SOURCES = new Set(['inat', 'db', 'wikipedia', 'gbif'])
+// iNaturalist common names are the highest-quality vernacular source; db is the
+// curated stored name; gbif vernacularNames are broadest but noisiest, so they
+// only win a name no better source claims.
+const SOURCE_PRIORITY: Record<string, number> = { inat: 4, db: 3, wikipedia: 2, gbif: 1 }
 const MIN_NAME_LEN = 2
 const INSERT_BATCH = 1000
 
@@ -129,14 +133,9 @@ async function main() {
         for (const r of speciesRes.rows) speciesByKey.set(r.gbif_taxon_key, r.id)
         console.log(`  species with gbif_taxon_key: ${speciesByKey.size.toLocaleString()}`)
 
-        // ── 2. taxon_key -> occurrence_score (for tie-breaking) ──────────────
-        const scoreRes = await client.query<{ taxon_key: number; occurrence_score: number | null }>(`
-            SELECT taxon_key, occurrence_score FROM gbif.taxon
-        `)
-        const scoreByKey = new Map<number, number>()
-        for (const r of scoreRes.rows) scoreByKey.set(r.taxon_key, r.occurrence_score ?? 0)
-
-        // ── 3. Parse CSV and resolve a single winner per name ────────────────
+        // ── 2. Parse CSV and resolve a single winner per name ────────────────
+        // The occurrence_score tie-breaker is read from the CSV itself, so this
+        // importer never touches the (temporary, dev-only) gbif schema.
         const text = fs.readFileSync(INPUT_PATH, 'utf-8')
         const records = parseCsv(text)
         if (records.length === 0) { console.log('  empty CSV — nothing to do'); return }
@@ -151,6 +150,7 @@ async function main() {
         const cSpeciesKey = col('species_key')
         const cSource = col('source')
         const cName = col('name')
+        const cScore = header.indexOf('occurrence_score')  // optional
 
         const winners = new Map<string, Winner>()
         let total = 0, skippedSource = 0, skippedShort = 0, skippedNoSpecies = 0
@@ -175,7 +175,7 @@ async function main() {
                 speciesId,
                 source,
                 priority: SOURCE_PRIORITY[source] ?? 0,
-                score: scoreByKey.get(speciesKey) ?? 0,
+                score: cScore >= 0 ? (Number(rec[cScore]) || 0) : 0,
             }
 
             const cur = winners.get(name)

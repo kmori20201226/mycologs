@@ -10,6 +10,11 @@ _SLEEP_SEC   = 0.3
 _MAX_RETRIES = 3
 _COMMIT_EVERY = 100   # commit to DB every N rows
 
+# Wikimedia rejects requests without a descriptive User-Agent (HTTP 403), and
+# iNaturalist/GBIF ask for one too. Identify the tool and a contact per their
+# API policies.
+_USER_AGENT = "mycologs-gbif-tools/1.0 (https://mycologs.club; contact@mycologs.club)"
+
 
 def _is_japanese(text: str) -> bool:
     return any(
@@ -19,12 +24,30 @@ def _is_japanese(text: str) -> bool:
     )
 
 
-def _get_json(url: str, timeout: int = 10) -> dict | None:
-    try:
-        with urllib.request.urlopen(url, timeout=timeout) as resp:
-            return json.loads(resp.read().decode("utf-8"))
-    except Exception:
-        return None
+def _get_json(url: str, timeout: int = 10, retries: int = _MAX_RETRIES) -> dict | None:
+    """GET + parse JSON with a proper User-Agent and 429/transient backoff.
+
+    Returns None on a definitive failure (non-429 HTTP error, or retries
+    exhausted). Used by the Wikipedia and iNaturalist fetchers.
+    """
+    for attempt in range(1, retries + 1):
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": _USER_AGENT})
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            if e.code == 429 and attempt < retries:
+                wait = 2 ** attempt
+                tqdm.write(f"  429 from {urllib.parse.urlsplit(url).netloc} — waiting {wait}s ...")
+                time.sleep(wait)
+                continue
+            return None
+        except Exception:
+            if attempt < retries:
+                time.sleep(1)
+                continue
+            return None
+    return None
 
 
 # ── Source 1: Japanese Wikipedia ────────────────────────────
@@ -102,9 +125,10 @@ def _fetch_from_gbif(species_key: int) -> str | None:
 def fetch_all_gbif_names(species_key: int) -> list[str]:
     """Return all distinct Japanese vernacular names from the GBIF API."""
     url = f"https://api.gbif.org/v1/species/{species_key}/vernacularNames?limit=100"
+    req = urllib.request.Request(url, headers={"User-Agent": _USER_AGENT})
     for attempt in range(1, _MAX_RETRIES + 1):
         try:
-            with urllib.request.urlopen(url, timeout=10) as resp:
+            with urllib.request.urlopen(req, timeout=10) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
             seen: set[str] = set()
             names: list[str] = []
