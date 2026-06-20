@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify'
 import { adminThreadSchema } from '../schemas/admin-thread'
-import { sendMail, escapeHtml, isRealEmail } from '../lib/mail'
+import { escapeHtml } from '../lib/mail'
+import { notifyUser } from '../lib/notify'
 
 const includeThread = {
     user:     { select: { id: true, name: true } },
@@ -139,20 +140,17 @@ export default async function (fastify: FastifyInstance) {
             include: includeThread
         })
 
-        // Notify the thread owner by email when an admin replies (fire-and-forget).
-        // The owner's email is looked up separately so it never leaks into the API
-        // response, whose `user` select is limited to id/name.
+        // Notify the thread owner when an admin replies (fire-and-forget): email
+        // if they have one, otherwise a LINE push for LINE-only users. notifyUser
+        // looks the contact details up itself, so nothing leaks into the response.
         if (admin && thread.userId !== userId) {
             const base = (process.env.APP_URL ?? (process.env.CORS_ORIGINS ?? '').split(',')[0]!.trim()).replace(/\/$/, '')
-            const link = `${base}/about`
-            fastify.prisma.user.findUnique({
-                where: { id: thread.userId },
-                select: { email: true, name: true }
-            }).then(owner => {
-                if (!isRealEmail(owner?.email)) return
-                return sendMail([owner.email], '【Mycologs】お問い合わせに返信がありました',
-                    `<p>${escapeHtml(owner.name ?? '')} さん</p><p>お問い合わせ「${escapeHtml(thread.subject)}」に管理者からの返信が届きました。</p><p><a href="${escapeHtml(link)}">サイトで確認する</a></p>`)
-            }).catch(err => request.log.error({ err }, 'Failed to send admin-reply notification email'))
+            const url  = `${base}/about`
+            notifyUser(fastify.prisma, thread.userId, {
+                subject: '【Mycologs】お問い合わせに返信がありました',
+                html: `<p>お問い合わせ「${escapeHtml(thread.subject)}」に管理者からの返信が届きました。</p><p><a href="${escapeHtml(url)}">サイトで確認する</a></p>`,
+                text: `お問い合わせ「${thread.subject}」に管理者からの返信が届きました。\n${url}`,
+            }, request.log).catch(err => request.log.error({ err }, 'Failed to notify thread owner of admin reply'))
         }
 
         return reply.code(201).send(updated)

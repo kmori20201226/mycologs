@@ -25,6 +25,7 @@
     "seed-admin-user": "npx ts-node scripts/seed-admin-user.ts",
     "seed-plans": "npx ts-node scripts/seed-plans.ts",
     "make-test-user": "npx ts-node scripts/make-test-user.ts",
+    "test-line-push": "npx ts-node scripts/test-line-push.ts",
     "import-gbif-taxonomy": "npx ts-node scripts/import-gbif-taxonomy.ts",
     "backup-posts": "npx ts-node scripts/backup-posts.ts",
     "restore-posts": "npx ts-node scripts/restore-posts.ts",

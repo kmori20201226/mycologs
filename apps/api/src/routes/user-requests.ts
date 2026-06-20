@@ -1,6 +1,8 @@
 import { FastifyInstance } from 'fastify'
 import { createUserRequestSchema, replyUserRequestSchema, userRequestSchema } from '../schemas/user-request'
-import { sendMail, getAdminEmails, getClubManagerEmails, escapeHtml, isRealEmail } from '../lib/mail'
+import { sendMail, getAdminEmails, getClubManagerEmails, escapeHtml } from '../lib/mail'
+import { notifyUser } from '../lib/notify'
+import { PrismaClient } from '../../../../generated/prisma/client'
 
 const include = {
     requester: { select: { id: true, name: true, email: true } },
@@ -8,22 +10,25 @@ const include = {
     replier: { select: { id: true, name: true } }
 }
 
-// Notify the requester by email when an admin accepts or declines their request
-// (fire-and-forget). `updated` is a UserRequest with the `include` above. Skipped
-// when the requester has no email (e.g. an anonymised withdrawal account).
-function notifyRequestResolved(updated: any) {
-    const email = updated.requester?.email
-    if (!isRealEmail(email)) return
+// Notify the requester when an admin accepts or declines their request
+// (fire-and-forget): email if they have one, otherwise a LINE push. `updated` is
+// a UserRequest with the `include` above. notifyUser no-ops for anonymised
+// withdrawal accounts (placeholder email, no LINE) — the in-app status covers them.
+function notifyRequestResolved(prisma: PrismaClient, updated: any) {
     const base = (process.env.APP_URL ?? (process.env.CORS_ORIGINS ?? '').split(',')[0]!.trim()).replace(/\/$/, '')
-    const link = escapeHtml(`${base}/club-request`)
+    const url  = `${base}/club-request`
+    const link = escapeHtml(url)
     const status = updated.accepted ? '承認されました' : '否認されました'
     const replyMsg = (updated.reply as any)?.message
     const replyHtml = replyMsg
         ? `<p>管理者からのメッセージ：</p><p>${escapeHtml(String(replyMsg))}</p>`
         : ''
-    sendMail([email], '【Mycologs】申請への回答が届きました',
-        `<p>${escapeHtml(updated.requester.name)} さん</p><p>お送りいただいた申請は${status}。</p>${replyHtml}<p><a href="${link}">マイページで確認する</a></p>`)
-        .catch(() => {})
+    const replyText = replyMsg ? `\n管理者からのメッセージ：\n${String(replyMsg)}` : ''
+    notifyUser(prisma, updated.requesterId, {
+        subject: '【Mycologs】申請への回答が届きました',
+        html: `<p>お送りいただいた申請は${status}。</p>${replyHtml}<p><a href="${link}">マイページで確認する</a></p>`,
+        text: `お送りいただいた申請は${status}。${replyText}\n${url}`,
+    }).catch(() => {})
 }
 
 export default async function (fastify: FastifyInstance) {
@@ -206,7 +211,7 @@ export default async function (fastify: FastifyInstance) {
             data: { accepted: true, replierId, reply: replyBody ?? null, repliedAt: new Date() },
             include
         })
-        notifyRequestResolved(updated)
+        notifyRequestResolved(fastify.prisma, updated)
         return updated
     })
 
@@ -244,7 +249,7 @@ export default async function (fastify: FastifyInstance) {
             data: { accepted: false, replierId, reply: replyBody ?? null, repliedAt: new Date() },
             include
         })
-        notifyRequestResolved(updated)
+        notifyRequestResolved(fastify.prisma, updated)
         return updated
     })
 

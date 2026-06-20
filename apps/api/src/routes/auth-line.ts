@@ -63,6 +63,10 @@ export default async function (fastify: FastifyInstance) {
             state,
             nonce,
             scope:         'profile openid email',
+            // Prompt the user to add the linked "mycologs" Official Account as a
+            // friend so we can push notifications to them (works because the Login
+            // and Messaging channels share a provider). Users may still decline.
+            bot_prompt:    'aggressive',
         })
 
         return reply.redirect(`${LINE_AUTH_BASE}/oauth2/v2.1/authorize?${params}`)
