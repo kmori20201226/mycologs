@@ -35,6 +35,7 @@ export default function Navigation() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [pendingRequestCount, setPendingRequestCount] = useState(0)
   const [unreadThreadCount, setUnreadThreadCount] = useState(0)
+  const [myUnreadThreadCount, setMyUnreadThreadCount] = useState(0)
 
   useEffect(() => {
     const u = getStoredUser()
@@ -51,6 +52,14 @@ export default function Navigation() {
 
     const token = getToken()
     if (!token) return
+
+    // Unread admin replies in the user's own inquiry threads (all users)
+    apiClient.getMyUnreadThreadCount().then(setMyUnreadThreadCount).catch(() => {})
+
+    function onThreadsRead() {
+      apiClient.getMyUnreadThreadCount().then(setMyUnreadThreadCount).catch(() => {})
+    }
+    window.addEventListener('myThreadsRead', onThreadsRead)
 
     function onResolved() {
       setPendingRequestCount((n) => Math.max(0, n - 1))
@@ -94,6 +103,7 @@ export default function Navigation() {
     }).catch((err) => { console.error('Failed to fetch clubs:', err) })
 
     return () => {
+      window.removeEventListener('myThreadsRead', onThreadsRead)
       window.removeEventListener('pendingRequestResolved', onResolved)
       window.removeEventListener('pendingRequestCreated', onCreated)
       window.removeEventListener('clubChanged', onClubChanged)
@@ -161,10 +171,11 @@ export default function Navigation() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
               </svg>
               {(() => {
-                const total = pendingRequestCount + unreadThreadCount
+                const total = pendingRequestCount + unreadThreadCount + myUnreadThreadCount
                 return total > 0 && (
                   clubs.some((c) => c.role === 'CLUBMANAGER') ||
-                  ['ADMIN', 'DEVELOPER', 'MODERATOR'].includes(user?.role ?? '')
+                  ['ADMIN', 'DEVELOPER', 'MODERATOR'].includes(user?.role ?? '') ||
+                  myUnreadThreadCount > 0
                 ) ? (
                   <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
                     {total > 9 ? '9+' : total}
@@ -240,6 +251,11 @@ export default function Navigation() {
                   className="flex items-center justify-between px-4 py-2.5 text-gray-700 hover:bg-emerald-50 hover:text-emerald-600 font-medium transition-colors"
                 >
                   {entry.label}
+                  {entry.href === '/about' && myUnreadThreadCount > 0 && (
+                    <span className="ml-2 inline-flex items-center justify-center w-5 h-5 rounded-full bg-red-500 text-white text-xs font-bold">
+                      {myUnreadThreadCount > 99 ? '99+' : myUnreadThreadCount}
+                    </span>
+                  )}
                 </Link>
               )
             }

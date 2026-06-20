@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify'
 import { adminThreadSchema } from '../schemas/admin-thread'
+import { sendMail, escapeHtml, isRealEmail } from '../lib/mail'
 
 const includeThread = {
     user:     { select: { id: true, name: true } },
@@ -138,6 +139,22 @@ export default async function (fastify: FastifyInstance) {
             include: includeThread
         })
 
+        // Notify the thread owner by email when an admin replies (fire-and-forget).
+        // The owner's email is looked up separately so it never leaks into the API
+        // response, whose `user` select is limited to id/name.
+        if (admin && thread.userId !== userId) {
+            const base = (process.env.APP_URL ?? (process.env.CORS_ORIGINS ?? '').split(',')[0]!.trim()).replace(/\/$/, '')
+            const link = `${base}/about`
+            fastify.prisma.user.findUnique({
+                where: { id: thread.userId },
+                select: { email: true, name: true }
+            }).then(owner => {
+                if (!isRealEmail(owner?.email)) return
+                return sendMail([owner.email], '【Mycologs】お問い合わせに返信がありました',
+                    `<p>${escapeHtml(owner.name ?? '')} さん</p><p>お問い合わせ「${escapeHtml(thread.subject)}」に管理者からの返信が届きました。</p><p><a href="${escapeHtml(link)}">サイトで確認する</a></p>`)
+            }).catch(err => request.log.error({ err }, 'Failed to send admin-reply notification email'))
+        }
+
         return reply.code(201).send(updated)
     })
 
@@ -155,6 +172,24 @@ export default async function (fastify: FastifyInstance) {
             where: {
                 readAt: null,
                 sender: { role: null }
+            }
+        })
+
+        return { count }
+    })
+
+    // GET unread count for the current user — admin replies in the user's own
+    // threads that they have not opened yet. Available to every authenticated user.
+    fastify.get('/admin-threads/my-unread-count', {
+        preHandler: [fastify.authenticate]
+    }, async (request, reply) => {
+        const { id: userId } = request.user as { id: number }
+
+        const count = await fastify.prisma.adminMessage.count({
+            where: {
+                readAt: null,
+                thread: { userId },
+                sender: { role: { in: ADMIN_ROLES as any } }
             }
         })
 

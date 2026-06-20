@@ -7,8 +7,31 @@ function getResend() {
 
 const FROM = process.env.MAIL_FROM ?? 'Mycologs <noreply@mycologs.club>'
 
+// LINE accounts without a verified email are given a placeholder address in this
+// domain (see auth-line.ts: `line-<id>@line.user`). It is not a real mailbox, so
+// it must never be used as a delivery target.
+export const PLACEHOLDER_EMAIL_DOMAIN = '@line.user'
+
+// True only for an address we can actually deliver to. Use this before composing
+// a notification so LINE-only users fall back to the in-app indicator instead.
+export function isRealEmail(email: string | null | undefined): email is string {
+    return !!email && email.includes('@') && !email.endsWith(PLACEHOLDER_EMAIL_DOMAIN)
+}
+
+// Escape user-controlled values before interpolating them into HTML email bodies.
+export function escapeHtml(s: string): string {
+    return s
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+}
+
 export async function sendMail(to: string[], subject: string, html: string) {
-    const valid = to.map(s => s.trim()).filter(Boolean)
+    // Drop blanks and undeliverable placeholder addresses (e.g. LINE-only users)
+    // here so every caller is protected without repeating the check.
+    const valid = to.map(s => s.trim()).filter(isRealEmail)
     if (valid.length === 0) return
     await getResend().emails.send({ from: FROM, to: valid, subject, html })
 }

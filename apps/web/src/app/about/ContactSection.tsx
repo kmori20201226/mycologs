@@ -69,11 +69,25 @@ export default function ContactSection() {
   }
 
   async function openThread(thread: AdminThread) {
+    if (!user) return
     try {
       const full = await apiClient.getAdminThread(thread.id)
-      setSelected(full)
-      setThreads(prev => prev.map(t => t.id === full.id ? full : t))
+      // The GET endpoint marks the admin's replies read server-side but returns
+      // the pre-update snapshot, so reflect the read state locally to clear the
+      // per-thread unread badge without a refetch.
+      const read: AdminThread = {
+        ...full,
+        messages: full.messages.map(m =>
+          m.readAt === null && m.senderId !== user.id
+            ? { ...m, readAt: new Date().toISOString() }
+            : m
+        ),
+      }
+      setSelected(read)
+      setThreads(prev => prev.map(t => t.id === read.id ? read : t))
       setView('thread')
+      // Refresh the nav badge so the global unread indicator clears too.
+      window.dispatchEvent(new CustomEvent('myThreadsRead'))
     } catch {
       setError('スレッドの取得に失敗しました。')
     }
@@ -183,14 +197,23 @@ export default function ContactSection() {
         threads.length === 0
           ? <p className="text-sm text-gray-400">お問い合わせ履歴はありません。</p>
           : <ul className="space-y-2">
-              {threads.map(t => (
+              {threads.map(t => {
+                const unread = t.messages.filter(m => m.readAt === null && m.senderId !== user.id).length
+                return (
                 <li key={t.id}>
                   <button
                     onClick={() => openThread(t)}
                     className="w-full text-left border rounded-lg px-3 py-2.5 hover:bg-gray-50 transition-colors"
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-sm font-medium text-gray-800 truncate">{t.subject}</span>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-sm font-medium text-gray-800 truncate">{t.subject}</span>
+                        {unread > 0 && (
+                          <span className="shrink-0 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
+                            {unread}
+                          </span>
+                        )}
+                      </div>
                       <span className={`shrink-0 text-xs px-2 py-0.5 rounded-full font-medium ${t.status === 'OPEN' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
                         {t.status === 'OPEN' ? '対応中' : 'クローズ'}
                       </span>
@@ -200,7 +223,8 @@ export default function ContactSection() {
                     </p>
                   </button>
                 </li>
-              ))}
+                )
+              })}
             </ul>
       )}
     </div>

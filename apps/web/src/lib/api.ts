@@ -677,6 +677,11 @@ class ApiClient {
     return res.count
   }
 
+  async getMyUnreadThreadCount(): Promise<number> {
+    const res = await this.request<{ count: number }>('/admin-threads/my-unread-count')
+    return res.count
+  }
+
   async getAnnouncements(params?: { site?: boolean; clubId?: number }): Promise<Announcement[]> {
     const q = new URLSearchParams()
     if (params?.site)             q.set('site', 'true')

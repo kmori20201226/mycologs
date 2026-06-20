@@ -1,11 +1,29 @@
 import { FastifyInstance } from 'fastify'
 import { createUserRequestSchema, replyUserRequestSchema, userRequestSchema } from '../schemas/user-request'
-import { sendMail, getAdminEmails, getClubManagerEmails } from '../lib/mail'
+import { sendMail, getAdminEmails, getClubManagerEmails, escapeHtml, isRealEmail } from '../lib/mail'
 
 const include = {
     requester: { select: { id: true, name: true, email: true } },
     club: { select: { id: true, name: true, introduction: true, policy: true } },
     replier: { select: { id: true, name: true } }
+}
+
+// Notify the requester by email when an admin accepts or declines their request
+// (fire-and-forget). `updated` is a UserRequest with the `include` above. Skipped
+// when the requester has no email (e.g. an anonymised withdrawal account).
+function notifyRequestResolved(updated: any) {
+    const email = updated.requester?.email
+    if (!isRealEmail(email)) return
+    const base = (process.env.APP_URL ?? (process.env.CORS_ORIGINS ?? '').split(',')[0]!.trim()).replace(/\/$/, '')
+    const link = escapeHtml(`${base}/club-request`)
+    const status = updated.accepted ? '承認されました' : '否認されました'
+    const replyMsg = (updated.reply as any)?.message
+    const replyHtml = replyMsg
+        ? `<p>管理者からのメッセージ：</p><p>${escapeHtml(String(replyMsg))}</p>`
+        : ''
+    sendMail([email], '【Mycologs】申請への回答が届きました',
+        `<p>${escapeHtml(updated.requester.name)} さん</p><p>お送りいただいた申請は${status}。</p>${replyHtml}<p><a href="${link}">マイページで確認する</a></p>`)
+        .catch(() => {})
 }
 
 export default async function (fastify: FastifyInstance) {
@@ -40,22 +58,22 @@ export default async function (fastify: FastifyInstance) {
 
         // Send notification emails (fire-and-forget)
         const requestType = requestBody?.requestType as string | undefined
-        const requesterName = userRequest.requester.name
+        const requesterName = escapeHtml(userRequest.requester.name)
         const base = (process.env.APP_URL ?? (process.env.CORS_ORIGINS ?? '').split(',')[0]!.trim()).replace(/\/$/, '')
         if (requestType === 'Withdraw') {
-            const link = `${base}/admin/requests`
+            const link = escapeHtml(`${base}/admin/requests`)
             getAdminEmails(fastify.prisma).then(emails =>
                 sendMail(emails, '【Mycologs】退会申請が届きました',
                     `<p>${requesterName} さんから退会申請が届きました。</p><p><a href="${link}">管理画面で確認する</a></p>`)
             ).catch(() => {})
         } else if (requestType === 'JoinToMember' && clubId) {
-            const link = `${base}/club-manage?tab=requests`
+            const link = escapeHtml(`${base}/club-manage?tab=requests`)
             getClubManagerEmails(fastify.prisma, clubId).then(emails =>
                 sendMail(emails, '【Mycologs】クラブへの参加申請が届きました',
                     `<p>${requesterName} さんからクラブへの参加申請が届きました。</p><p><a href="${link}">クラブ管理画面で確認する</a></p>`)
             ).catch(() => {})
         } else if (requestType === 'LeaveFromMember' && clubId) {
-            const link = `${base}/club-manage?tab=requests`
+            const link = escapeHtml(`${base}/club-manage?tab=requests`)
             getClubManagerEmails(fastify.prisma, clubId).then(emails =>
                 sendMail(emails, '【Mycologs】クラブからの脱退申請が届きました',
                     `<p>${requesterName} さんからクラブからの脱退申請が届きました。</p><p><a href="${link}">クラブ管理画面で確認する</a></p>`)
@@ -188,6 +206,7 @@ export default async function (fastify: FastifyInstance) {
             data: { accepted: true, replierId, reply: replyBody ?? null, repliedAt: new Date() },
             include
         })
+        notifyRequestResolved(updated)
         return updated
     })
 
@@ -225,6 +244,7 @@ export default async function (fastify: FastifyInstance) {
             data: { accepted: false, replierId, reply: replyBody ?? null, repliedAt: new Date() },
             include
         })
+        notifyRequestResolved(updated)
         return updated
     })
 

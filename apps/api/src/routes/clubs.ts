@@ -1,7 +1,7 @@
 import { FastifyInstance } from 'fastify'
 import { createClubSchema, clubSchema, updateClubSchema } from '../schemas/club'
 import { userRequestSchema } from '../schemas/user-request'
-import { sendMail, getAdminEmails } from '../lib/mail'
+import { sendMail, getAdminEmails, escapeHtml } from '../lib/mail'
 
 const requestInclude = {
     requester: { select: { id: true, name: true, email: true } },
@@ -60,10 +60,10 @@ export default async function (fastify: FastifyInstance) {
 
         // Notify admins (fire-and-forget)
         const base = (process.env.APP_URL ?? (process.env.CORS_ORIGINS ?? '').split(',')[0]!.trim()).replace(/\/$/, '')
-        const link = `${base}/admin/requests`
+        const link = escapeHtml(`${base}/admin/requests`)
         getAdminEmails(fastify.prisma).then(emails =>
             sendMail(emails, '【Mycologs】クラブ立ち上げ申請が届きました',
-                `<p>${result.requester.name} さんからクラブ「${name}」の立ち上げ申請が届きました。</p><p><a href="${link}">管理画面で確認する</a></p>`)
+                `<p>${escapeHtml(result.requester.name)} さんからクラブ「${escapeHtml(name)}」の立ち上げ申請が届きました。</p><p><a href="${link}">管理画面で確認する</a></p>`)
         ).catch(() => {})
 
         return reply.code(201).send(result)

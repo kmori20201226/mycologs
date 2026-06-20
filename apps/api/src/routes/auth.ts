@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify'
 import bcrypt from 'bcrypt'
 import { Resend } from 'resend'
+import { escapeHtml } from '../lib/mail'
 
 const BCRYPT_ROUNDS = 12
 const CODE_EXPIRY_MINUTES = 15
@@ -64,7 +65,7 @@ async function sendPasswordResetEmail(email: string, name: string, code: string)
         to: email,
         subject: '【Mycologs】パスワードリセットの確認',
         html: `
-            <p>${name} 様</p>
+            <p>${escapeHtml(name)} 様</p>
             <p>パスワードリセットのリクエストを受け付けました。</p>
             <p>以下の確認コードを入力して新しいパスワードを設定してください。</p>
             <p style="font-size:32px;font-weight:bold;letter-spacing:8px;margin:24px 0">${code}</p>
@@ -81,7 +82,7 @@ async function sendVerificationEmail(email: string, name: string, code: string):
         to: email,
         subject: '【Mycologs】メールアドレスの確認',
         html: `
-            <p>${name} 様</p>
+            <p>${escapeHtml(name)} 様</p>
             <p>Mycologsにご登録いただきありがとうございます。</p>
             <p>以下の確認コードを入力してアカウントを有効化してください。</p>
             <p style="font-size:32px;font-weight:bold;letter-spacing:8px;margin:24px 0">${code}</p>
