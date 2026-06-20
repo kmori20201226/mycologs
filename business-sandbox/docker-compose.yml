@@ -5,6 +5,7 @@ services:
   postgres:
     image: postgres:18
     container_name: mycologs-business-postgres
+    restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
@@ -24,6 +25,7 @@ services:
       context: ..
       dockerfile: docker/ai-service/Dockerfile
     container_name: mycologs-business-ai-service
+    restart: unless-stopped
     environment:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
     healthcheck:
@@ -37,6 +39,7 @@ services:
       context: ..
       dockerfile: docker/api/Dockerfile
     container_name: mycologs-business-api
+    restart: unless-stopped
     ports:
       - "3000:3000"
     environment:
@@ -80,6 +83,7 @@ services:
         NEXT_PUBLIC_STRIPE_PRICE_CLUB: ${NEXT_PUBLIC_STRIPE_PRICE_CLUB:-}
         GIT_HASH: ${GIT_HASH:-unknown}
         GIT_BRANCH: ${GIT_BRANCH:-unknown}
+    restart: unless-stopped
     container_name: mycologs-business-web
     environment:
       INTERNAL_API_URL: http://api:3000
