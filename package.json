@@ -21,6 +21,8 @@
     "set-user-role": "npx ts-node scripts/set-user-role.ts",
     "add-user": "npx ts-node scripts/add-user.ts",
     "list-user": "npx ts-node scripts/list-user.ts",
+    "list-clubs": "npx ts-node scripts/list-clubs.ts",
+    "set-club-role": "npx ts-node scripts/set-club-role.ts",
     "seed-taxonomy": "npx ts-node scripts/seed-taxonomy.ts",
     "seed-admin-user": "npx ts-node scripts/seed-admin-user.ts",
     "seed-plans": "npx ts-node scripts/seed-plans.ts",
