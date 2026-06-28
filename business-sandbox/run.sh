@@ -7,7 +7,7 @@ cd "$SCRIPT_DIR"
 COMPOSE="docker compose"
 
 usage() {
-  echo "Usage: $0 {start|stop|restart|status|logs|migrate|seed-plans|seed-taxonomy|seed-admin|build|psql|maintenance|list-user|buy-credit|backup-posts|restore-posts}"
+  echo "Usage: $0 {start|stop|restart|status|logs|migrate|seed-plans|seed-taxonomy|seed-admin|build|build-export|deploy|load|psql|maintenance|list-user|buy-credit|backup-posts|restore-posts}"
   echo ""
   echo "  start            Start all containers and apply any pending migrations"
   echo "  stop             Stop all containers"
@@ -16,6 +16,9 @@ usage() {
   echo "  logs             Tail logs (all services, or pass a service name)"
   echo "  migrate          Apply pending Prisma migrations inside the running api container"
   echo "  build            Rebuild all images and apply migrations (use after schema changes)"
+  echo "  build-export     (dev machine) Build images + save a versioned tarball to ./dist/ for transfer"
+  echo "  deploy           (dev machine) build-export + scp to the business server + remote load & start"
+  echo "  load <file>      (business machine) Load images from a ./dist tarball, then run 'start' (no rebuild)"
   echo "  seed-plans       Upsert default subscription plans"
   echo "  seed-taxonomy    Run the taxonomy seed inside the api container"
   echo "  seed-admin       Create the admin user inside the api container"
@@ -96,6 +99,71 @@ cmd_build() {
   $COMPOSE exec api npx prisma migrate deploy
 }
 
+# Built image names: compose has no `image:` keys, so it names them
+# <project>-<service>, and the project is `mycologs-business` (see compose `name:`).
+BUILT_IMAGES="mycologs-business-api mycologs-business-web mycologs-business-ai-service"
+
+# Business server, reachable over key-based ssh. Override via env if it changes.
+REMOTE_HOST="${MYCOLOGS_HOST:-mycologs}"
+REMOTE_DIR="${MYCOLOGS_DIR:-mycologs/business-sandbox}"  # relative to the remote home dir
+
+# Public app version drives the tarball name — single source of truth is the web package.
+pkg_version()  { grep -m1 '"version"' ../apps/web/package.json | sed -E 's/.*"version" *: *"([^"]+)".*/\1/'; }
+git_hash()     { git -C .. rev-parse --short HEAD 2>/dev/null || echo "unknown"; }
+# e.g. dist/mycologs-images-v1.4.5-e01dd42.tar.gz  (version for humans, hash for uniqueness)
+tarball_path() { echo "dist/mycologs-images-v$(pkg_version)-$(git_hash).tar.gz"; }
+
+# (dev machine) Build the images here, then save them to a versioned tarball so a
+# memory-starved business server can just `load` + `start` instead of building.
+# Build args (notably NEXT_PUBLIC_API_URL) come from .env, same as `build`.
+cmd_build_export() {
+  if ! grep -q '^NEXT_PUBLIC_API_URL=' .env 2>/dev/null; then
+    echo "WARNING: NEXT_PUBLIC_API_URL not found in .env — the web bundle will default to /api."
+    echo "         The image bakes this at build time; set it before exporting for production."
+  fi
+  mkdir -p dist
+  export GIT_HASH=$(git_hash)
+  export GIT_BRANCH=$(git -C .. rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+  local out base; out="$(tarball_path)"; base="$(basename "$out")"
+  echo "Building images for transfer... (v$(pkg_version) $GIT_BRANCH@$GIT_HASH, $(uname -m))"
+  $COMPOSE build api web ai-service
+  echo "Saving images to $out ..."
+  docker save $BUILT_IMAGES | gzip > "$out"
+  echo ""
+  echo "  Done: $out ($(du -h "$out" | cut -f1), built on $(uname -m); server must also be x86_64)"
+  echo "  Ship it in one step:  ./run.sh deploy"
+  echo "  Or manually:  scp $out $REMOTE_HOST:$REMOTE_DIR/dist/ && ssh $REMOTE_HOST \"cd $REMOTE_DIR && ./run.sh load dist/$base && ./run.sh start\""
+}
+
+# (dev machine) One-command release: build + save, copy to the business server,
+# then load + start there over ssh. Requires the server's run.sh to already have
+# the `load` command (git pull on the server) and a matching x86_64 arch.
+cmd_deploy() {
+  cmd_build_export
+  local out base; out="$(tarball_path)"; base="$(basename "$out")"
+  echo ""
+  echo "Transferring $base -> $REMOTE_HOST:$REMOTE_DIR/dist/ ..."
+  ssh "$REMOTE_HOST" "mkdir -p '$REMOTE_DIR/dist'"
+  scp "$out" "$REMOTE_HOST:$REMOTE_DIR/dist/"
+  echo "Loading + starting on $REMOTE_HOST ..."
+  ssh "$REMOTE_HOST" "cd '$REMOTE_DIR' && ./run.sh load 'dist/$base' && ./run.sh start"
+  echo ""
+  echo "Deployed v$(pkg_version) ($(git_hash)) to $REMOTE_HOST."
+}
+
+# (business machine) Load images produced by build-export. Afterwards `start`
+# uses them as-is — compose only builds when an image is missing.
+cmd_load() {
+  local file="${2:-}"
+  if [ -z "$file" ]; then echo "Usage: $0 load <image-tarball.tar.gz>"; exit 1; fi
+  if [ ! -f "$file" ]; then echo "File not found: $file"; exit 1; fi
+  echo "Loading images from $file ..."
+  gunzip -c "$file" | docker load
+  echo ""
+  echo "Loaded. Start with the loaded images (no rebuild):"
+  echo "  ./run.sh start"
+}
+
 cmd_psql() {
   $COMPOSE exec postgres psql -U postgres mycologs
 }
@@ -131,6 +199,9 @@ case "${1:-}" in
   seed-taxonomy) cmd_seed_taxonomy ;;
   seed-admin)    cmd_seed_admin ;;
   build)         cmd_build ;;
+  build-export)  cmd_build_export ;;
+  deploy)        cmd_deploy ;;
+  load)          cmd_load "$@" ;;
   psql)          cmd_psql ;;
   maintenance)   cmd_maintenance "$@" ;;
   list-user)     $COMPOSE exec api npx ts-node scripts/list-user.ts ;;
