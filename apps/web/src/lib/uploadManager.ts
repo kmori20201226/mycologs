@@ -41,6 +41,7 @@ export interface UploadSnapshot {
     jobs: PublicUploadJob[]
     pendingCount: number // pending + uploading, across all jobs
     offline: boolean
+    authExpired: boolean // session cookie expired (got a 401); uploads paused until re-login
 }
 
 interface InternalItem {
@@ -134,8 +135,13 @@ function unpersist(id: string) { void idbDelete(id) }
 let jobs: InternalJob[] = []
 let active = 0
 let online = typeof navigator !== 'undefined' ? navigator.onLine : true
+// Set when an upload gets a 401 (the 7-day session cookie expired). Retrying is
+// pointless until the user logs in again, so the pump pauses and the widget
+// prompts for re-login. A successful login does a full reload, which resets this
+// and lets the rehydrated queue resume.
+let authExpired = false
 
-const EMPTY_SNAPSHOT: UploadSnapshot = { jobs: [], pendingCount: 0, offline: false }
+const EMPTY_SNAPSHOT: UploadSnapshot = { jobs: [], pendingCount: 0, offline: false, authExpired: false }
 let snapshot: UploadSnapshot = EMPTY_SNAPSHOT
 const listeners = new Set<() => void>()
 
@@ -152,7 +158,7 @@ function publish() {
         (n, j) => n + j.items.filter((i) => i.status === 'pending' || i.status === 'uploading').length,
         0,
     )
-    snapshot = pubJobs.length === 0 ? EMPTY_SNAPSHOT : { jobs: pubJobs, pendingCount, offline: !online }
+    snapshot = pubJobs.length === 0 ? EMPTY_SNAPSHOT : { jobs: pubJobs, pendingCount, offline: !online, authExpired }
     listeners.forEach((l) => l())
 }
 
@@ -190,7 +196,7 @@ function nextPending(): { job: InternalJob; item: InternalItem } | null {
 }
 
 function pump() {
-    if (!online) return
+    if (!online || authExpired) return
     while (active < CONCURRENCY) {
         const next = nextPending()
         if (!next) break
@@ -211,8 +217,18 @@ async function runItem(job: InternalJob, item: InternalItem) {
         publish()
         scheduleCleanup(job.postId)
         pump()
-    } catch {
+    } catch (err) {
         active--
+        if ((err as { status?: number })?.status === 401) {
+            // Session expired. Don't burn a retry or mark the item failed — keep it
+            // pending and persisted so it resumes automatically after the user logs
+            // back in (login does a full reload that rehydrates this queue).
+            authExpired = true
+            item.status = 'pending'
+            persist(job, item)
+            publish()
+            return
+        }
         if (typeof navigator !== 'undefined' && !navigator.onLine) {
             // Offline: requeue without spending a retry; the 'online' handler resumes.
             item.status = 'pending'

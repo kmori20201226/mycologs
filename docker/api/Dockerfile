@@ -17,4 +17,8 @@ RUN npx prisma generate
 
 EXPOSE 3000
 
+# Cap the V8 heap so a memory spike produces a clean OOM exit (and an
+# `unless-stopped` restart) instead of a runaway process the host OOM-kills.
+ENV NODE_OPTIONS="--max-old-space-size=512"
+
 CMD ["npx", "ts-node", "apps/api/src/server.ts"]

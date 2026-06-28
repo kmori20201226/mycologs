@@ -112,6 +112,7 @@ function PostPageInner() {
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState('')
   const [toast, setToast] = useState('')
+  const [sessionExpired, setSessionExpired] = useState(false)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const identSectionRef = useRef<HTMLDivElement>(null)
 
@@ -346,7 +347,14 @@ function PostPageInner() {
       try {
         const uploaded = await apiClient.uploadPostMedia(postId, file)
         setMedia((prev) => [...prev, uploaded])
-      } catch {
+      } catch (err) {
+        if ((err as { status?: number })?.status === 401) {
+          // Session cookie expired (7-day lifetime). A generic "failed" toast
+          // leaves the user stuck; show a persistent re-login prompt instead and
+          // stop trying the remaining files.
+          setSessionExpired(true)
+          break
+        }
         showToast(`${file.name} のアップロードに失敗しました`)
       }
     }
@@ -433,6 +441,21 @@ function PostPageInner() {
             <span className="text-gray-800 font-medium">投稿 #{postId}</span>
           </div>
         </div>
+
+        {sessionExpired && (
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm">
+            <p className="font-medium text-red-800">セッションの有効期限が切れました</p>
+            <p className="mt-1 text-xs text-red-700">
+              写真をアップロードするには、もう一度ログインしてください。
+            </p>
+            <Link
+              href="/login"
+              className="mt-2 inline-block rounded bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700"
+            >
+              ログインする
+            </Link>
+          </div>
+        )}
 
         {uploadErrors > 0 && !errorDismissed && (
           <div className="mb-4 flex items-center justify-between gap-3 bg-yellow-50 border border-yellow-200 text-yellow-800 text-sm px-4 py-3 rounded-lg">

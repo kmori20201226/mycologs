@@ -94,12 +94,22 @@ const uploadRoutes: FastifyPluginAsync = async (fastify) => {
             let height: number | undefined
 
             if (type === 'IMAGE') {
+                // Read only the file header for dimension detection rather than
+                // slurping the whole image into memory. readFileSync on large
+                // (up to 50 MB) files under concurrent uploads spiked the heap
+                // and OOM-crashed the API. Dimension markers live in the first
+                // few KB for every format we accept; 512 KB is a generous cap.
+                let fd: number | undefined
                 try {
-                    const buf = fs.readFileSync(filePath)
-                    const dims = imageSize(buf)
+                    fd = fs.openSync(filePath, 'r')
+                    const toRead = Math.min(stat.size, 512 * 1024)
+                    const buf = Buffer.allocUnsafe(toRead)
+                    const bytesRead = fs.readSync(fd, buf, 0, toRead, 0)
+                    const dims = imageSize(bytesRead === buf.length ? buf : buf.subarray(0, bytesRead))
                     width = dims.width
                     height = dims.height
                 } catch { /* skip if dimensions can't be determined */ }
+                finally { if (fd !== undefined) fs.closeSync(fd) }
             }
 
             const apiBase = process.env.API_URL ?? 'http://localhost:3000'
