@@ -112,6 +112,8 @@ pkg_version()  { grep -m1 '"version"' ../apps/web/package.json | sed -E 's/.*"ve
 git_hash()     { git -C .. rev-parse --short HEAD 2>/dev/null || echo "unknown"; }
 # e.g. dist/mycologs-images-v1.4.5-e01dd42.tar.gz  (version for humans, hash for uniqueness)
 tarball_path() { echo "dist/mycologs-images-v$(pkg_version)-$(git_hash).tar.gz"; }
+# Format a duration in seconds as e.g. "3m07s".
+fmt_dur() { local s=$1; printf '%dm%02ds' $((s / 60)) $((s % 60)); }
 
 # (dev machine) Build the images here, then save them to a versioned tarball so a
 # memory-starved business server can just `load` + `start` instead of building.
@@ -126,11 +128,15 @@ cmd_build_export() {
   export GIT_BRANCH=$(git -C .. rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
   local out base; out="$(tarball_path)"; base="$(basename "$out")"
   echo "Building images for transfer... (v$(pkg_version) $GIT_BRANCH@$GIT_HASH, $(uname -m))"
+  local t0=$SECONDS
   $COMPOSE build api web ai-service
+  local build_secs=$((SECONDS - t0))
   echo "Saving images to $out ..."
   docker save $BUILT_IMAGES | gzip > "$out"
+  local total_secs=$((SECONDS - t0))
   echo ""
   echo "  Done: $out ($(du -h "$out" | cut -f1), built on $(uname -m); server must also be x86_64)"
+  echo "  Time: build $(fmt_dur $build_secs), save $(fmt_dur $((total_secs - build_secs))), total $(fmt_dur $total_secs)"
   echo "  Ship it in one step:  ./run.sh deploy"
   echo "  Or manually:  scp $out $REMOTE_HOST:$REMOTE_DIR/dist/ && ssh $REMOTE_HOST \"cd $REMOTE_DIR && ./run.sh load dist/$base && ./run.sh start\""
 }
@@ -139,16 +145,18 @@ cmd_build_export() {
 # then load + start there over ssh. Requires the server's run.sh to already have
 # the `load` command (git pull on the server) and a matching x86_64 arch.
 cmd_deploy() {
+  local d0=$SECONDS
   cmd_build_export
   local out base; out="$(tarball_path)"; base="$(basename "$out")"
   echo ""
   echo "Transferring $base -> $REMOTE_HOST:$REMOTE_DIR/dist/ ..."
+  local x0=$SECONDS
   ssh "$REMOTE_HOST" "mkdir -p '$REMOTE_DIR/dist'"
   scp "$out" "$REMOTE_HOST:$REMOTE_DIR/dist/"
   echo "Loading + starting on $REMOTE_HOST ..."
   ssh "$REMOTE_HOST" "cd '$REMOTE_DIR' && ./run.sh load 'dist/$base' && ./run.sh start"
   echo ""
-  echo "Deployed v$(pkg_version) ($(git_hash)) to $REMOTE_HOST."
+  echo "Deployed v$(pkg_version) ($(git_hash)) to $REMOTE_HOST in $(fmt_dur $((SECONDS - d0))) (transfer+remote $(fmt_dur $((SECONDS - x0))))."
 }
 
 # (business machine) Load images produced by build-export. Afterwards `start`
