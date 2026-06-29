@@ -21,6 +21,7 @@
 
 import path from 'path'
 import fs from 'fs'
+import { PassThrough } from 'stream'
 import { createGzip } from 'zlib'
 import { pipeline } from 'stream/promises'
 import dotenv from 'dotenv'
@@ -57,23 +58,31 @@ function tarHeader(filePath: string, size: number, isDir = false): Buffer {
     return buf
 }
 
-class TarWriter {
-    private chunks: Buffer[] = []
+class TarStream {
+    readonly stream = new PassThrough()
 
-    addFile(archivePath: string, content: Buffer): void {
-        this.chunks.push(tarHeader(archivePath, content.length))
-        this.chunks.push(content)
+    writeFile(archivePath: string, content: Buffer): void {
+        this.stream.write(tarHeader(archivePath, content.length))
+        this.stream.write(content)
         const pad = (512 - (content.length % 512)) % 512
-        if (pad > 0) this.chunks.push(Buffer.alloc(pad))
+        if (pad > 0) this.stream.write(Buffer.alloc(pad))
     }
 
-    addDir(archivePath: string): void {
-        this.chunks.push(tarHeader(archivePath.replace(/\/?$/, '/'), 0, true))
+    writeDir(archivePath: string): void {
+        this.stream.write(tarHeader(archivePath.replace(/\/?$/, '/'), 0, true))
     }
 
-    toBuffer(): Buffer {
-        this.chunks.push(Buffer.alloc(1024)) // end-of-archive
-        return Buffer.concat(this.chunks)
+    async writeFileFromDisk(archivePath: string, srcPath: string): Promise<void> {
+        const size = fs.statSync(srcPath).size
+        this.stream.write(tarHeader(archivePath, size))
+        await pipeline(fs.createReadStream(srcPath), this.stream, { end: false })
+        const pad = (512 - (size % 512)) % 512
+        if (pad > 0) this.stream.write(Buffer.alloc(pad))
+    }
+
+    end(): void {
+        this.stream.write(Buffer.alloc(1024)) // end-of-archive
+        this.stream.end()
     }
 }
 
@@ -206,10 +215,17 @@ async function main() {
             `${data.identifications.length} identifications`
         )
 
-        // Build tar archive
-        const tar = new TarWriter()
-        tar.addFile('data.json', Buffer.from(JSON.stringify(data, null, 2), 'utf8'))
-        tar.addDir('uploads')
+        if (!fs.existsSync(BACKUPS_DIR)) fs.mkdirSync(BACKUPS_DIR, { recursive: true })
+
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+        const outPath = path.join(BACKUPS_DIR, `posts-backup-${timestamp}.tar.gz`)
+
+        const tar = new TarStream()
+        const dest = fs.createWriteStream(outPath)
+        const pipelinePromise = pipeline(tar.stream, createGzip(), dest)
+
+        tar.writeFile('data.json', Buffer.from(JSON.stringify(data, null, 2), 'utf8'))
+        tar.writeDir('uploads')
 
         let missingFiles = 0
         for (const m of data.media) {
@@ -219,18 +235,11 @@ async function main() {
                 missingFiles++
                 continue
             }
-            tar.addFile(`uploads/${m.filename}`, fs.readFileSync(srcPath))
+            await tar.writeFileFromDisk(`uploads/${m.filename}`, srcPath)
         }
 
-        if (!fs.existsSync(BACKUPS_DIR)) fs.mkdirSync(BACKUPS_DIR, { recursive: true })
-
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
-        const outPath = path.join(BACKUPS_DIR, `posts-backup-${timestamp}.tar.gz`)
-
-        const gzip = createGzip()
-        const src = require('stream').Readable.from([tar.toBuffer()])
-        const dest = fs.createWriteStream(outPath)
-        await pipeline(src, gzip, dest)
+        tar.end()
+        await pipelinePromise
 
         const sizeMb = (fs.statSync(outPath).size / 1024 / 1024).toFixed(2)
         console.log(`\nBackup written to: ${outPath} (${sizeMb} MB)`)
