@@ -19,7 +19,7 @@ test('POST, GET, LIST, PATCH and DELETE /species', async (t) => {
         method: 'POST',
         url: '/families',
         payload: {
-            name: `Amanitaceae Species Test ${timestamp}`,
+            scientificName: `Amanitaceae Species Test ${timestamp}`,
             shapeId: shape.id
         }
     })
@@ -29,7 +29,7 @@ test('POST, GET, LIST, PATCH and DELETE /species', async (t) => {
         method: 'POST',
         url: '/genera',
         payload: {
-            name: `Amanita Species Test ${timestamp}`,
+            scientificName: `Amanita Species Test ${timestamp}`,
             familyId: family.id
         }
     })
@@ -40,14 +40,14 @@ test('POST, GET, LIST, PATCH and DELETE /species', async (t) => {
         method: 'POST',
         url: '/species',
         payload: {
-            name: `Amanita muscaria Species Test ${timestamp}`,
+            scientificName: `Amanita muscaria Species Test ${timestamp}`,
             genusId: genus.id
         }
     })
 
     assert.equal(createRes.statusCode, 201)
     const createdSpecies = createRes.json() as any
-    assert.equal(createdSpecies.name, `Amanita muscaria Species Test ${timestamp}`)
+    assert.equal(createdSpecies.scientificName, `Amanita muscaria Species Test ${timestamp}`)
     assert.equal(createdSpecies.genusId, genus.id)
     assert.ok(createdSpecies.id)
 
@@ -58,7 +58,7 @@ test('POST, GET, LIST, PATCH and DELETE /species', async (t) => {
     })
 
     assert.equal(getRes.statusCode, 200)
-    assert.equal(getRes.json().name, `Amanita muscaria Species Test ${timestamp}`)
+    assert.equal(getRes.json().scientificName, `Amanita muscaria Species Test ${timestamp}`)
 
     // LIST ALL
     const listRes = await app.inject({
@@ -76,12 +76,12 @@ test('POST, GET, LIST, PATCH and DELETE /species', async (t) => {
         method: 'PATCH',
         url: `/species/${createdSpecies.id}`,
         payload: {
-            name: `Updated Amanita muscaria Species Test ${timestamp}`
+            scientificName: `Updated Amanita muscaria Species Test ${timestamp}`
         }
     })
 
     assert.equal(updateRes.statusCode, 200)
-    assert.equal(updateRes.json().name, `Updated Amanita muscaria Species Test ${timestamp}`)
+    assert.equal(updateRes.json().scientificName, `Updated Amanita muscaria Species Test ${timestamp}`)
 
     // DELETE
     const deleteRes = await app.inject({
@@ -92,12 +92,11 @@ test('POST, GET, LIST, PATCH and DELETE /species', async (t) => {
     assert.equal(deleteRes.statusCode, 200)
     assert.equal(deleteRes.json().message, 'Species deleted')
 
-    // VERIFY DELETED
-    const verifyRes = await app.inject({
-        method: 'GET',
-        url: `/species/${createdSpecies.id}`
-    })
-
-    assert.equal(verifyRes.statusCode, 404)
+    // VERIFY SOFT DELETED: species use a soft delete (deletedAt), so the row is
+    // excluded from the list even though a direct GET-by-id can still resolve it.
+    const afterListRes = await app.inject({ method: 'GET', url: '/species' })
+    assert.equal(afterListRes.statusCode, 200)
+    const afterList = afterListRes.json() as any[]
+    assert.ok(!afterList.some((s) => s.id === createdSpecies.id), 'deleted species must not appear in the list')
     await app.close()
 })

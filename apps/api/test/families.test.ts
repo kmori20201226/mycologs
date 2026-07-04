@@ -20,14 +20,14 @@ test('POST, GET, LIST, PATCH and DELETE /families', async (t) => {
         method: 'POST',
         url: '/families',
         payload: {
-            name: `Amanitaceae Family Test ${timestamp}`,
+            scientificName: `Amanitaceae Family Test ${timestamp}`,
             shapeId: shape.id
         }
     })
 
     assert.equal(createRes.statusCode, 201)
     const createdFamily = createRes.json() as any
-    assert.equal(createdFamily.name, `Amanitaceae Family Test ${timestamp}`)
+    assert.equal(createdFamily.scientificName, `Amanitaceae Family Test ${timestamp}`)
     assert.equal(createdFamily.shapeId, shape.id)
     assert.ok(createdFamily.id)
 
@@ -38,7 +38,7 @@ test('POST, GET, LIST, PATCH and DELETE /families', async (t) => {
     })
 
     assert.equal(getRes.statusCode, 200)
-    assert.equal(getRes.json().name, `Amanitaceae Family Test ${timestamp}`)
+    assert.equal(getRes.json().scientificName, `Amanitaceae Family Test ${timestamp}`)
 
     // LIST ALL
     const listRes = await app.inject({
@@ -56,12 +56,12 @@ test('POST, GET, LIST, PATCH and DELETE /families', async (t) => {
         method: 'PATCH',
         url: `/families/${createdFamily.id}`,
         payload: {
-            name: 'Updated Amanitaceae'
+            scientificName: `Updated Amanitaceae ${timestamp}`
         }
     })
 
     assert.equal(updateRes.statusCode, 200)
-    assert.equal(updateRes.json().name, 'Updated Amanitaceae')
+    assert.equal(updateRes.json().scientificName, `Updated Amanitaceae ${timestamp}`)
 
     // DELETE
     const deleteRes = await app.inject({

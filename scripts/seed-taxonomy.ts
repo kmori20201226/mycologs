@@ -191,6 +191,19 @@ async function seedSpeciesAliases() {
   console.log(`  ${data.length} aliases done`)
 }
 
+// The taxonomy rows above are inserted with explicit ids (from the CSVs), which
+// does NOT advance Postgres' identity sequences. Left unaligned, the next
+// autoincrement insert (creating a species via the API, or in the test suite)
+// collides on a duplicate id. Realign each sequence to the current MAX(id).
+async function resyncSequences() {
+  for (const table of ['shapes', 'families', 'genera', 'species']) {
+    await prisma.$executeRawUnsafe(
+      `SELECT setval(pg_get_serial_sequence('${table}', 'id'), COALESCE((SELECT MAX(id) FROM "${table}"), 1))`
+    )
+  }
+  console.log('  sequences realigned')
+}
+
 async function main() {
   await seedRoles()
   await seedShapes()
@@ -198,6 +211,7 @@ async function main() {
   await seedGenera()
   await seedSpecies()
   await seedSpeciesAliases()
+  await resyncSequences()
   console.log('Seed complete.')
 }
 

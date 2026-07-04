@@ -19,7 +19,7 @@ test('POST, GET, LIST, PATCH and DELETE /genera', async (t) => {
         method: 'POST',
         url: '/families',
         payload: {
-            name: `Amanitaceae Genus Test ${timestamp}`,
+            scientificName: `Amanitaceae Genus Test ${timestamp}`,
             shapeId: shape.id
         }
     })
@@ -30,14 +30,14 @@ test('POST, GET, LIST, PATCH and DELETE /genera', async (t) => {
         method: 'POST',
         url: '/genera',
         payload: {
-            name: `Amanita Genus Test ${timestamp}`,
+            scientificName: `Amanita Genus Test ${timestamp}`,
             familyId: family.id
         }
     })
 
     assert.equal(createRes.statusCode, 201)
     const createdGenus = createRes.json() as any
-    assert.equal(createdGenus.name, `Amanita Genus Test ${timestamp}`)
+    assert.equal(createdGenus.scientificName, `Amanita Genus Test ${timestamp}`)
     assert.equal(createdGenus.familyId, family.id)
     assert.ok(createdGenus.id)
 
@@ -48,7 +48,7 @@ test('POST, GET, LIST, PATCH and DELETE /genera', async (t) => {
     })
 
     assert.equal(getRes.statusCode, 200)
-    assert.equal(getRes.json().name, `Amanita Genus Test ${timestamp}`)
+    assert.equal(getRes.json().scientificName, `Amanita Genus Test ${timestamp}`)
 
     // LIST ALL
     const listRes = await app.inject({
@@ -66,12 +66,12 @@ test('POST, GET, LIST, PATCH and DELETE /genera', async (t) => {
         method: 'PATCH',
         url: `/genera/${createdGenus.id}`,
         payload: {
-            name: 'Updated Amanita'
+            scientificName: `Updated Amanita ${timestamp}`
         }
     })
 
     assert.equal(updateRes.statusCode, 200)
-    assert.equal(updateRes.json().name, 'Updated Amanita')
+    assert.equal(updateRes.json().scientificName, `Updated Amanita ${timestamp}`)
 
     // DELETE
     const deleteRes = await app.inject({

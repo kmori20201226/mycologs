@@ -40,7 +40,7 @@ test('POST, GET, LIST, PATCH and DELETE /identifications', async (t) => {
         method: 'POST',
         url: '/families',
         payload: {
-            name: `Amanitaceae Identification Test ${timestamp}`,
+            scientificName: `Amanitaceae Identification Test ${timestamp}`,
             shapeId: shape.id
         }
     })
@@ -50,7 +50,7 @@ test('POST, GET, LIST, PATCH and DELETE /identifications', async (t) => {
         method: 'POST',
         url: '/genera',
         payload: {
-            name: `Amanita Identification Test ${timestamp}`,
+            scientificName: `Amanita Identification Test ${timestamp}`,
             familyId: family.id
         }
     })
@@ -60,7 +60,7 @@ test('POST, GET, LIST, PATCH and DELETE /identifications', async (t) => {
         method: 'POST',
         url: '/species',
         payload: {
-            name: `Amanita muscaria Identification Test ${timestamp}`,
+            scientificName: `Amanita muscaria Identification Test ${timestamp}`,
             genusId: genus.id
         }
     })
