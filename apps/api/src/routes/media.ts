@@ -167,7 +167,9 @@ export default async function (fastify: FastifyInstance) {
         const { postId } = request.params as any
 
         const media = await fastify.prisma.media.findMany({
-            where: { postId: Number(postId) },
+            // Exclude soft-deleted rows: without this the client's media poll
+            // re-fetches a just-deleted picture and it reappears (revives).
+            where: { postId: Number(postId), deletedAt: null },
             include: {
                 post: { select: { id: true, contents: true } }
             },
@@ -246,10 +248,28 @@ export default async function (fastify: FastifyInstance) {
         const { id } = request.params as any
 
         try {
+            const media = await fastify.prisma.media.findUnique({
+                where: { id },
+                select: { type: true, postId: true, deletedAt: true, post: { select: { expectedMediaCount: true } } },
+            })
+            if (!media || media.deletedAt) {
+                return reply.code(404).send({ message: 'Media not found' })
+            }
+
             await fastify.prisma.media.update({
                 where: { id },
-                data: { deletedAt: new Date() }
+                data: { deletedAt: new Date() },
             })
+
+            // Keep the post's expected image count in sync so it doesn't fall
+            // back to "incomplete" (which restarts the client's upload poll and
+            // disables Identify). Only images count toward expectedMediaCount.
+            if (media.type === 'IMAGE' && media.post.expectedMediaCount > 0) {
+                await fastify.prisma.post.update({
+                    where: { id: media.postId },
+                    data: { expectedMediaCount: media.post.expectedMediaCount - 1 },
+                })
+            }
 
             return { message: 'Media soft deleted' }
         } catch (error) {
@@ -377,7 +397,7 @@ export default async function (fastify: FastifyInstance) {
 
         const media = await fastify.prisma.media.findUnique({
             where: { id },
-            include: { post: { select: { id: true, userId: true, takenAt: true } } },
+            include: { post: { select: { id: true, userId: true, takenAt: true, expectedMediaCount: true } } },
         })
         if (!media || media.deletedAt) return reply.code(404).send({ message: 'Media not found' })
         if (media.post.userId !== userId) return reply.code(403).send({ message: '権限がありません' })
@@ -391,7 +411,24 @@ export default async function (fastify: FastifyInstance) {
             })
         }
 
-        await fastify.prisma.media.update({ where: { id }, data: { postId: neighbor.id } })
+        // Reassign the picture, and keep both posts' expected image counts in
+        // sync so neither is left looking "incomplete" (see the delete handler).
+        const ops: any[] = [
+            fastify.prisma.media.update({ where: { id }, data: { postId: neighbor.id } }),
+        ]
+        if (media.type === 'IMAGE') {
+            if (media.post.expectedMediaCount > 0) {
+                ops.push(fastify.prisma.post.update({
+                    where: { id: media.post.id },
+                    data: { expectedMediaCount: media.post.expectedMediaCount - 1 },
+                }))
+            }
+            ops.push(fastify.prisma.post.update({
+                where: { id: neighbor.id },
+                data: { expectedMediaCount: { increment: 1 } },
+            }))
+        }
+        await fastify.prisma.$transaction(ops)
         return { postId: neighbor.id }
     })
 }

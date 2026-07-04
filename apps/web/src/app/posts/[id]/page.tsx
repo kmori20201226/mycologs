@@ -395,6 +395,10 @@ function PostPageInner() {
     try {
       await apiClient.moveMedia(img.id, direction)
       setMedia((prev) => prev.filter((m) => m.id !== img.id))
+      // The picture left this post; keep expectedMediaCount in step so the post
+      // isn't shown as an incomplete upload (mirrors the server-side sync).
+      setPost((prev) => (prev && (prev.expectedMediaCount ?? 0) > 0
+        ? { ...prev, expectedMediaCount: (prev.expectedMediaCount ?? 0) - 1 } : prev))
       showToast(direction === 'prev' ? '前の投稿に移動しました' : '次の投稿に移動しました')
     } catch (err) {
       showToast((err as { apiMessage?: string })?.apiMessage ?? '写真の移動に失敗しました')
@@ -807,6 +811,11 @@ function PostPageInner() {
                                 try {
                                   await apiClient.deleteMedia(img.id)
                                   setMedia((prev) => prev.filter((m) => m.id !== img.id))
+                                  // Drop expectedMediaCount too, else the post falls
+                                  // back to "uploading" and the poll revives nothing
+                                  // but keeps re-fetching.
+                                  setPost((prev) => (prev && (prev.expectedMediaCount ?? 0) > 0
+                                    ? { ...prev, expectedMediaCount: (prev.expectedMediaCount ?? 0) - 1 } : prev))
                                 } catch {
                                   showToast('写真の削除に失敗しました')
                                 }

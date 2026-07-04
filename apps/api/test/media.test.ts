@@ -159,6 +159,41 @@ test('POST, GET, LIST, PATCH and DELETE /media', async (t) => {
     await app.close()
 })
 
+test('deleting a picture removes it for good and keeps expectedMediaCount in sync', async (t) => {
+    const app = await buildApp()
+    const created: string[] = []
+    t.after(() => { for (const f of created) fs.promises.unlink(f).catch(() => {}); return app.close() })
+
+    const { user } = await makeUser(app, 'del-owner')
+    const post = (await app.inject({
+        method: 'POST', url: '/posts',
+        payload: { userId: user.id, contents: `delete test ${Date.now()}`, expectedMediaCount: 2 },
+    })).json() as any
+    assert.equal(post.expectedMediaCount, 2)
+
+    const a = await makeImageMedia(app, post.id, user.id, 50, 30); created.push(a.filePath)
+    const b = await makeImageMedia(app, post.id, user.id, 50, 30); created.push(b.filePath)
+
+    let list = (await app.inject({ method: 'GET', url: `/posts/${post.id}/media` })).json() as any[]
+    assert.equal(list.length, 2)
+
+    const del = await app.inject({ method: 'DELETE', url: `/media/${a.media.id}` })
+    assert.equal(del.statusCode, 200)
+
+    // The soft-deleted picture must NOT reappear (this is the "revive" bug: the
+    // list endpoint used to return deleted rows, so the client's poll brought it
+    // back a few seconds later).
+    list = (await app.inject({ method: 'GET', url: `/posts/${post.id}/media` })).json() as any[]
+    assert.equal(list.length, 1)
+    assert.ok(!list.some((m) => m.id === a.media.id), 'deleted media must not reappear')
+    void b
+
+    // expectedMediaCount drops so the post is not left looking like an
+    // incomplete upload (which re-arms the poll and disables Identify).
+    const after = (await app.inject({ method: 'GET', url: `/posts/${post.id}` })).json() as any
+    assert.equal(after.expectedMediaCount, 1)
+})
+
 test('POST /media/:id/rotate rotates the image and swaps dimensions', async (t) => {
     const app = await buildApp()
     const created: string[] = []
