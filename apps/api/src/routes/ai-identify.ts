@@ -41,6 +41,36 @@ async function encodeImage(filename: string): Promise<{ data: string; mediaType:
 
 const AI_COST = Number(process.env.AI_IDENTIFICATION_COST ?? 10)
 
+// The model reliably names the Japanese vernacular (ドクヤマドリ) but sometimes
+// mis-spells or invents the binomial (e.g. "Sutorellus venenatus" for the real
+// Sutorius venenatus). That bad string then flowed straight into the client's
+// iNaturalist links, which resolve to the wrong taxon. When the vernacular name
+// resolves to a known species, prefer that species' canonical scientific name
+// so the links point at the right taxon; otherwise keep the model's string.
+async function canonicalScientificName(
+    fastify: FastifyInstance,
+    japaneseName: unknown,
+    scientificName: unknown,
+): Promise<unknown> {
+    const ja = typeof japaneseName === 'string' ? japaneseName.trim() : ''
+    if (ja.length >= 2) {
+        // Prefer a canonical species.japanese_name hit over a synonym alias.
+        const rows = await fastify.prisma.$queryRaw<{ scientificName: string }[]>`
+            SELECT scientific_name AS "scientificName", 0 AS pri
+            FROM species
+            WHERE deleted_at IS NULL AND japanese_name = ${ja}
+            UNION ALL
+            SELECT s.scientific_name AS "scientificName", 1 AS pri
+            FROM species_aliases a JOIN species s ON s.id = a.species_id
+            WHERE s.deleted_at IS NULL AND a.name = ${ja}
+            ORDER BY pri
+            LIMIT 1
+        `
+        if (rows[0]?.scientificName) return rows[0].scientificName
+    }
+    return scientificName
+}
+
 export default async function (fastify: FastifyInstance) {
     fastify.post('/posts/:postId/ai-identify', {
         schema: {
@@ -190,6 +220,21 @@ export default async function (fastify: FastifyInstance) {
         })
         // `usage` is internal cost bookkeeping — don't leak it to the client.
         const { usage: _usage, ...clientResult } = result ?? {}
+
+        // Reconcile AI-proposed binomials with the taxonomy DB so iNaturalist
+        // links resolve correctly (see canonicalScientificName). Applies to the
+        // primary result and each similar-species entry, which also link out.
+        clientResult.scientific_name = await canonicalScientificName(
+            fastify, clientResult.japanese_name, clientResult.scientific_name,
+        )
+        if (Array.isArray(clientResult.similar_species)) {
+            await Promise.all(clientResult.similar_species.map(async (s: Record<string, unknown>) => {
+                if (s && typeof s === 'object') {
+                    s.scientific_name = await canonicalScientificName(fastify, s.japanese_name, s.scientific_name)
+                }
+            }))
+        }
+
         return reply.send({ ...clientResult, hint: hint || null })
     })
 }

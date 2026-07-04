@@ -207,6 +207,17 @@ function visibilityFilter(viewerId: number | null) {
     }
 }
 
+// Photo capture times (takenAt) are filtered by calendar day in JST (UTC+9),
+// matching how users think about "when the picture was taken" regardless of the
+// server's timezone. Given a yyyy-mm-dd day, returns the UTC instant at its JST
+// start; addDays yields an exclusive upper bound (start of the day after).
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/
+function jstDayStart(day: string, addDays = 0): Date {
+    const d = new Date(`${day}T00:00:00+09:00`)
+    if (addDays) d.setUTCDate(d.getUTCDate() + addDays)
+    return d
+}
+
 async function getViewerId(request: any): Promise<number | null> {
     try {
         await request.jwtVerify()
@@ -360,22 +371,76 @@ export default async function (fastify: FastifyInstance) {
     })
 
     // LIST ALL
-    fastify.get('/posts', {
+    // Distinct events among the posts the viewer is allowed to see, for the
+    // browse-page event filter. Gated by the same visibility rules as the list
+    // so it never reveals event names the viewer has no visible posts for.
+    // Registered before '/posts/:id' — find-my-way prefers this static route.
+    fastify.get('/posts/filter-events', {
         schema: {
-            querystring: { type: 'object', properties: { eventId: { type: 'integer' } } },
-            response: { 200: { type: 'array', items: postSchema } }
-        }
-    }, async (request, reply) => {
-        const { eventId } = request.query as { eventId?: number }
+            response: {
+                200: {
+                    type: 'array',
+                    items: {
+                        type: 'object',
+                        properties: { id: { type: 'number' }, name: { type: 'string' } },
+                    },
+                },
+            },
+        },
+    }, async (request) => {
         const viewerId = await getViewerId(request)
-
-        const posts = await fastify.prisma.post.findMany({
+        const rows = await fastify.prisma.post.findMany({
             where: {
                 deletedAt: null,
                 parentPostId: null,
-                ...(eventId ? { eventId: Number(eventId) } : {}),
+                eventId: { not: null },
                 ...visibilityFilter(viewerId),
             },
+            select: { event: { select: { id: true, name: true } } },
+        })
+        const byId = new Map<number, { id: number; name: string }>()
+        for (const r of rows) if (r.event) byId.set(r.event.id, r.event)
+        return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name, 'ja'))
+    })
+
+    fastify.get('/posts', {
+        schema: {
+            querystring: {
+                type: 'object',
+                properties: {
+                    eventId:    { type: 'integer' },
+                    visibility: { type: 'string', enum: ['PUBLIC', 'CLUBMEMBERONLY', 'PRIVATE'] },
+                    takenFrom:  { type: 'string' },
+                    takenTo:    { type: 'string' },
+                },
+            },
+            response: { 200: { type: 'array', items: postSchema } }
+        }
+    }, async (request, reply) => {
+        const { eventId, visibility, takenFrom, takenTo } = request.query as {
+            eventId?: number; visibility?: PublicityType; takenFrom?: string; takenTo?: string
+        }
+        const viewerId = await getViewerId(request)
+
+        // The visibility gate must always apply; a requested `visibility` can only
+        // narrow it (AND), never widen it — otherwise an anonymous viewer could
+        // ask for PRIVATE and see others' private posts.
+        const where: any = {
+            deletedAt: null,
+            parentPostId: null,
+            AND: [visibilityFilter(viewerId)],
+        }
+        if (eventId) where.eventId = Number(eventId)
+        if (visibility) where.AND.push({ visibility })
+        if (takenFrom || takenTo) {
+            const takenAt: any = {}
+            if (takenFrom && DAY_RE.test(takenFrom)) takenAt.gte = jstDayStart(takenFrom)
+            if (takenTo && DAY_RE.test(takenTo))     takenAt.lt  = jstDayStart(takenTo, 1)
+            if (Object.keys(takenAt).length) where.takenAt = takenAt
+        }
+
+        const posts = await fastify.prisma.post.findMany({
+            where,
             include: POST_INCLUDE,
             orderBy: { createdAt: 'desc' },
         })

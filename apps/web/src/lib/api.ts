@@ -261,11 +261,24 @@ class ApiClient {
   }
 
   // Posts
-  async getPosts(filter?: { eventId?: number }): Promise<unknown[]> {
+  async getPosts(filter?: {
+    eventId?: number
+    visibility?: string
+    takenFrom?: string
+    takenTo?: string
+  }): Promise<unknown[]> {
     const params = new URLSearchParams()
     if (filter?.eventId) params.set('eventId', String(filter.eventId))
+    if (filter?.visibility) params.set('visibility', filter.visibility)
+    if (filter?.takenFrom) params.set('takenFrom', filter.takenFrom)
+    if (filter?.takenTo) params.set('takenTo', filter.takenTo)
     const qs = params.toString() ? `?${params.toString()}` : ''
     return this.request(`/posts${qs}`)
+  }
+
+  // Events that have posts the viewer can see — populates the browse filter.
+  async getPostFilterEvents(): Promise<{ id: number; name: string }[]> {
+    return this.request('/posts/filter-events') as Promise<{ id: number; name: string }[]>
   }
 
   async getPost(id: number): Promise<unknown> {
@@ -533,6 +546,18 @@ class ApiClient {
 
   async deleteMedia(id: string): Promise<void> {
     await this.request(`/media/${id}`, { method: 'DELETE' })
+  }
+
+  async rotateMedia(id: string, direction: 'cw' | 'ccw'): Promise<MediaItem> {
+    return this.request(`/media/${id}/rotate`, { method: 'POST', body: JSON.stringify({ direction }) })
+  }
+
+  async moveMedia(id: string, direction: 'prev' | 'next'): Promise<{ postId: number }> {
+    return this.request(`/media/${id}/move`, { method: 'POST', body: JSON.stringify({ direction }) })
+  }
+
+  async getPhotoNeighbors(postId: number): Promise<{ prev: number | null; next: number | null }> {
+    return this.request(`/posts/${postId}/photo-neighbors`)
   }
 
   // Identifications

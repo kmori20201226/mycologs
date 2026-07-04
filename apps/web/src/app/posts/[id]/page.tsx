@@ -64,6 +64,10 @@ function PostPageInner() {
   const [currentUser] = useState(() => getStoredUser())
 
   const [mediaLoaded, setMediaLoaded] = useState(false)
+  // Neighbour posts a picture can move into, and the id of a picture currently
+  // being rotated/moved (to disable its controls while the request is in flight).
+  const [photoNeighbors, setPhotoNeighbors] = useState<{ prev: number | null; next: number | null }>({ prev: null, next: null })
+  const [mediaBusy, setMediaBusy] = useState<string | null>(null)
   const [editingCaption, setEditingCaption] = useState(false)
   const [pendingCaption, setPendingCaption] = useState('')
   const [captionSaving, setCaptionSaving] = useState(false)
@@ -217,6 +221,15 @@ function PostPageInner() {
     return () => clearInterval(t)
   }, [postId, post?.expectedMediaCount, mediaLoaded, media])
 
+  // Which neighbouring posts pictures could move into (owner only). Depends on
+  // the post's takenAt, which is fixed once loaded, so fetch once per post.
+  useEffect(() => {
+    if (!post || !currentUser || currentUser.id !== post.user.id) return
+    apiClient.getPhotoNeighbors(postId)
+      .then(setPhotoNeighbors)
+      .catch(() => {})
+  }, [post, currentUser, postId])
+
   function showToast(msg: string) {
     setToast(msg)
     if (toastTimer.current) clearTimeout(toastTimer.current)
@@ -357,6 +370,36 @@ function PostPageInner() {
         }
         showToast(`${file.name} のアップロードに失敗しました`)
       }
+    }
+  }
+
+  // Rotate a picture 90° and swap in the returned (freshly-named) media so the
+  // browser loads the rotated file instead of a cached copy.
+  async function rotatePhoto(img: MediaItem, direction: 'cw' | 'ccw') {
+    setMediaBusy(img.id)
+    try {
+      const updated = await apiClient.rotateMedia(img.id, direction)
+      setMedia((prev) => prev.map((m) => (m.id === img.id ? updated : m)))
+      setSelectedMedia((sel) => (sel && sel.id === img.id ? updated : sel))
+    } catch {
+      showToast('写真の回転に失敗しました')
+    } finally {
+      setMediaBusy(null)
+    }
+  }
+
+  // Move a picture to the previous/next post (by taken time, within 1h). It
+  // leaves the current post, so drop it from the gallery on success.
+  async function movePhoto(img: MediaItem, direction: 'prev' | 'next') {
+    setMediaBusy(img.id)
+    try {
+      await apiClient.moveMedia(img.id, direction)
+      setMedia((prev) => prev.filter((m) => m.id !== img.id))
+      showToast(direction === 'prev' ? '前の投稿に移動しました' : '次の投稿に移動しました')
+    } catch (err) {
+      showToast((err as { apiMessage?: string })?.apiMessage ?? '写真の移動に失敗しました')
+    } finally {
+      setMediaBusy(null)
     }
   }
 
@@ -775,6 +818,54 @@ function PostPageInner() {
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                               </svg>
                             </button>
+                          )}
+                          {isOwner && (
+                            <div className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-0.5 bg-black/50 py-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button
+                                onClick={() => movePhoto(img, 'prev')}
+                                disabled={mediaBusy === img.id || photoNeighbors.prev == null}
+                                className="flex items-center justify-center w-7 h-7 rounded text-white hover:bg-white/20 disabled:opacity-25 disabled:cursor-not-allowed"
+                                title="前の投稿へ移動"
+                                aria-label="前の投稿へ移動"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M11 19l-7-7 7-7M19 12H5" />
+                                </svg>
+                              </button>
+                              <button
+                                onClick={() => rotatePhoto(img, 'ccw')}
+                                disabled={mediaBusy === img.id}
+                                className="flex items-center justify-center w-7 h-7 rounded text-white hover:bg-white/20 disabled:opacity-25 disabled:cursor-not-allowed"
+                                title="左に90°回転"
+                                aria-label="左に90°回転"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 15L3 9m0 0l6-6M3 9h9a9 9 0 019 9" />
+                                </svg>
+                              </button>
+                              <button
+                                onClick={() => rotatePhoto(img, 'cw')}
+                                disabled={mediaBusy === img.id}
+                                className="flex items-center justify-center w-7 h-7 rounded text-white hover:bg-white/20 disabled:opacity-25 disabled:cursor-not-allowed"
+                                title="右に90°回転"
+                                aria-label="右に90°回転"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 15l6-6m0 0l-6-6m6 6h-9a9 9 0 00-9 9" />
+                                </svg>
+                              </button>
+                              <button
+                                onClick={() => movePhoto(img, 'next')}
+                                disabled={mediaBusy === img.id || photoNeighbors.next == null}
+                                className="flex items-center justify-center w-7 h-7 rounded text-white hover:bg-white/20 disabled:opacity-25 disabled:cursor-not-allowed"
+                                title="次の投稿へ移動"
+                                aria-label="次の投稿へ移動"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 5l7 7-7 7M5 12h14" />
+                                </svg>
+                              </button>
+                            </div>
                           )}
                         </div>
                       ))}

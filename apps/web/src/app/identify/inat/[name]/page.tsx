@@ -45,13 +45,20 @@ function InatSamplesPageInner() {
       setLoading(true)
       setError('')
       try {
-        // 1. Resolve taxon by scientific name
+        // 1. Resolve taxon by scientific name.
+        // `q` is a relevance-ranked fuzzy search, so results[0] is often a
+        // *different* popular species (or a genus-level near-match) when the
+        // name is slightly off or absent from iNaturalist. Taking it blindly
+        // produced confidently-wrong links, so require an exact name match and
+        // otherwise report "not found" rather than pointing at the wrong taxon.
         const taxaRes = await fetch(
-          `${INAT_API}/taxa?q=${encodeURIComponent(scientificName)}&rank=species&is_active=true&per_page=1`,
+          `${INAT_API}/taxa?q=${encodeURIComponent(scientificName)}&rank=species&is_active=true&per_page=10`,
           { cache: 'no-store' }
         )
         const taxaData = await taxaRes.json()
-        const found: InatTaxon | undefined = taxaData.results?.[0]
+        const wanted = scientificName.trim().toLowerCase()
+        const found: InatTaxon | undefined = (taxaData.results as InatTaxon[] | undefined)
+          ?.find((t) => t.name?.toLowerCase() === wanted)
         if (!found) {
           setError('iNaturalist でこの種が見つかりませんでした。')
           return

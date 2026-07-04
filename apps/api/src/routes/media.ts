@@ -1,5 +1,39 @@
 import { FastifyInstance } from 'fastify'
+import path from 'path'
+import fs from 'fs'
+import crypto from 'crypto'
+import sharp from 'sharp'
 import { createMediaSchema, mediaSchema, updateMediaSchema } from '../schemas/media'
+
+const UPLOADS_DIR = path.resolve(__dirname, '../../../../data/uploads')
+const NEIGHBOR_WINDOW_MS = 60 * 60 * 1000 // 1 hour
+
+// The post a picture can move into for a given direction: the requester's own
+// post that is immediately before ('prev') or after ('next') `post` by photo
+// taken time, and no more than an hour away. Individual photos don't store
+// their own capture time, so the post's takenAt is used as the reference.
+async function neighborPost(
+    fastify: FastifyInstance,
+    post: { id: number; userId: number; takenAt: Date | null },
+    direction: 'prev' | 'next',
+) {
+    if (!post.takenAt) return null
+    const base = post.takenAt.getTime()
+    const range = direction === 'prev'
+        ? { lt: post.takenAt, gte: new Date(base - NEIGHBOR_WINDOW_MS) }
+        : { gt: post.takenAt, lte: new Date(base + NEIGHBOR_WINDOW_MS) }
+    return fastify.prisma.post.findFirst({
+        where: {
+            userId: post.userId,
+            id: { not: post.id },
+            deletedAt: null,
+            parentPostId: null,
+            takenAt: range,
+        },
+        orderBy: { takenAt: direction === 'prev' ? 'desc' : 'asc' },
+        select: { id: true, takenAt: true },
+    })
+}
 
 export default async function (fastify: FastifyInstance) {
 
@@ -221,5 +255,143 @@ export default async function (fastify: FastifyInstance) {
         } catch (error) {
             return reply.code(404).send({ message: 'Media not found' })
         }
+    })
+
+    // ROTATE (90° clockwise / counter-clockwise). Rotates the stored file in
+    // place, baking any EXIF orientation first, and writes it under a fresh name
+    // so browsers never serve a stale cached copy. Dimensions are swapped.
+    fastify.post('/media/:id/rotate', {
+        preHandler: [fastify.authenticate],
+        schema: {
+            params: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
+            body: {
+                type: 'object',
+                properties: { direction: { type: 'string', enum: ['cw', 'ccw'] } },
+                required: ['direction'],
+            },
+            response: {
+                200: mediaSchema,
+                403: { type: 'object', properties: { message: { type: 'string' } } },
+                404: { type: 'object', properties: { message: { type: 'string' } } },
+                422: { type: 'object', properties: { message: { type: 'string' } } },
+            },
+        },
+    }, async (request, reply) => {
+        const { id } = request.params as { id: string }
+        const { direction } = request.body as { direction: 'cw' | 'ccw' }
+        const { id: userId } = request.user as { id: number }
+
+        const media = await fastify.prisma.media.findUnique({
+            where: { id },
+            include: { post: { select: { userId: true } } },
+        })
+        if (!media || media.deletedAt) return reply.code(404).send({ message: 'Media not found' })
+        if (media.post.userId !== userId) return reply.code(403).send({ message: '権限がありません' })
+        if (media.type !== 'IMAGE') return reply.code(422).send({ message: '画像のみ回転できます' })
+
+        const srcPath = path.join(UPLOADS_DIR, media.filename)
+        if (!fs.existsSync(srcPath)) return reply.code(404).send({ message: 'File not found' })
+
+        const angle = direction === 'cw' ? 90 : -90
+        // First bake in EXIF orientation (so our 90° is relative to what the user
+        // sees), then apply the requested rotation.
+        const oriented = await sharp(srcPath).rotate().toBuffer()
+        const rotated = await sharp(oriented).rotate(angle).toBuffer()
+        const meta = await sharp(rotated).metadata()
+
+        const ext = path.extname(media.filename)
+        const newName = `P-${userId}-${media.postId}-${crypto.randomBytes(4).toString('hex')}${ext}`
+        await fs.promises.writeFile(path.join(UPLOADS_DIR, newName), rotated)
+
+        const apiBase = process.env.API_URL ?? 'http://localhost:3000'
+        const updated = await fastify.prisma.media.update({
+            where: { id },
+            data: {
+                filename: newName,
+                url: `${apiBase}/uploads/${newName}`,
+                width: meta.width ?? media.width,
+                height: meta.height ?? media.height,
+                size: rotated.length,
+            },
+            include: { post: { select: { id: true, contents: true } } },
+        })
+
+        // Best-effort cleanup of the pre-rotation file.
+        fs.promises.unlink(srcPath).catch(() => {})
+
+        return updated
+    })
+
+    // Which neighbouring posts a picture on this post could move into (for
+    // enabling/disabling the move arrows). Only the post owner gets targets.
+    fastify.get('/posts/:postId/photo-neighbors', {
+        preHandler: [fastify.authenticate],
+        schema: {
+            params: { type: 'object', properties: { postId: { type: 'integer' } }, required: ['postId'] },
+            response: {
+                200: {
+                    type: 'object',
+                    properties: {
+                        prev: { type: 'number', nullable: true },
+                        next: { type: 'number', nullable: true },
+                    },
+                },
+            },
+        },
+    }, async (request) => {
+        const { postId } = request.params as { postId: number }
+        const { id: userId } = request.user as { id: number }
+        const post = await fastify.prisma.post.findUnique({
+            where: { id: Number(postId) },
+            select: { id: true, userId: true, takenAt: true },
+        })
+        if (!post || post.userId !== userId) return { prev: null, next: null }
+        const [prev, next] = await Promise.all([
+            neighborPost(fastify, post, 'prev'),
+            neighborPost(fastify, post, 'next'),
+        ])
+        return { prev: prev?.id ?? null, next: next?.id ?? null }
+    })
+
+    // MOVE a picture to the previous/next post (by photo taken time, within 1h).
+    fastify.post('/media/:id/move', {
+        preHandler: [fastify.authenticate],
+        schema: {
+            params: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
+            body: {
+                type: 'object',
+                properties: { direction: { type: 'string', enum: ['prev', 'next'] } },
+                required: ['direction'],
+            },
+            response: {
+                200: { type: 'object', properties: { postId: { type: 'number' } } },
+                403: { type: 'object', properties: { message: { type: 'string' } } },
+                404: { type: 'object', properties: { message: { type: 'string' } } },
+                409: { type: 'object', properties: { message: { type: 'string' } } },
+            },
+        },
+    }, async (request, reply) => {
+        const { id } = request.params as { id: string }
+        const { direction } = request.body as { direction: 'prev' | 'next' }
+        const { id: userId } = request.user as { id: number }
+
+        const media = await fastify.prisma.media.findUnique({
+            where: { id },
+            include: { post: { select: { id: true, userId: true, takenAt: true } } },
+        })
+        if (!media || media.deletedAt) return reply.code(404).send({ message: 'Media not found' })
+        if (media.post.userId !== userId) return reply.code(403).send({ message: '権限がありません' })
+
+        const neighbor = await neighborPost(fastify, media.post, direction)
+        if (!neighbor) {
+            return reply.code(409).send({
+                message: direction === 'prev'
+                    ? '1時間以内の前の投稿がありません'
+                    : '1時間以内の次の投稿がありません',
+            })
+        }
+
+        await fastify.prisma.media.update({ where: { id }, data: { postId: neighbor.id } })
+        return { postId: neighbor.id }
     })
 }
