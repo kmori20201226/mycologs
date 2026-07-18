@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { apiClient, type Event } from '@/lib/api'
 import { getStoredUser } from '@/lib/auth'
 import { enqueueUploads } from '@/lib/uploadManager'
+import { useUnsavedChanges, confirmDiscard } from '@/lib/useUnsavedChanges'
 import { readExif } from '@/lib/exif'
 import EventCombobox from '@/components/EventCombobox'
 
@@ -242,6 +243,12 @@ function NewPostPageInner() {
     }
   }, [capturedLoc, events, eventTouched, hasSubscription, visibilityTouched])
 
+  // Warn before navigating away while there's unsaved work — a typed caption or
+  // attached photos. After a successful submit the form is reset, so this clears
+  // itself and never blocks the post flow.
+  const isDirty = contents.trim() !== '' || files.length > 0
+  useUnsavedChanges(isDirty)
+
   function addFiles(incoming: FileList | File[]) {
     const entries: FileEntry[] = Array.from(incoming).map((file) => ({
       id: crypto.randomUUID(),
@@ -396,6 +403,7 @@ function NewPostPageInner() {
         <div className="mb-6 flex items-center gap-4">
           <Link
             href="/posts"
+            onNavigate={(e) => { if (!confirmDiscard(isDirty)) e.preventDefault() }}
             className="flex items-center gap-1 text-sm text-gray-500 hover:text-emerald-600 transition-colors"
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -404,7 +412,7 @@ function NewPostPageInner() {
             戻る
           </Link>
           <div className="text-sm text-gray-500">
-            <Link href="/posts" className="hover:text-emerald-600 transition-colors">投稿一覧</Link>
+            <Link href="/posts" onNavigate={(e) => { if (!confirmDiscard(isDirty)) e.preventDefault() }} className="hover:text-emerald-600 transition-colors">投稿一覧</Link>
             <span className="mx-2">/</span>
             <span className="text-gray-800 font-medium">新規投稿</span>
           </div>
@@ -626,7 +634,11 @@ function NewPostPageInner() {
                 {submitLabel()}
               </button>
               {!submitting && (
-                <Link href="/posts" className="text-sm text-gray-500 hover:text-gray-700">
+                <Link
+                  href="/posts"
+                  onNavigate={(e) => { if (!confirmDiscard(isDirty)) e.preventDefault() }}
+                  className="text-sm text-gray-500 hover:text-gray-700"
+                >
                   キャンセル
                 </Link>
               )}
