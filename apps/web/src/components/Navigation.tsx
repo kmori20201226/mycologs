@@ -39,8 +39,12 @@ export default function Navigation() {
 
   useEffect(() => {
     const u = getStoredUser()
+    const token = getToken()
+    // A cached user with no token means the session cookie expired — treat it as
+    // logged out so the nav doesn't show a stale name while requests go out
+    // anonymous (SessionExpiryBanner surfaces the prompt to re-login).
+    if (!u || !token) { setUser(null); return }
     setUser(u)
-    if (!u) return
 
     // Load clubs from cache first, then refresh from API
     const cached = getStoredClubs()
@@ -49,9 +53,6 @@ export default function Navigation() {
       const saved = getSelectedClubId()
       _setSelectedClubId(saved ?? cached[0].id)
     }
-
-    const token = getToken()
-    if (!token) return
 
     // Unread admin replies in the user's own inquiry threads (all users)
     apiClient.getMyUnreadThreadCount().then(setMyUnreadThreadCount).catch(() => {})

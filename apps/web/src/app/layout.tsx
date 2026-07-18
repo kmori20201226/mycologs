@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Navigation from "@/components/Navigation";
+import SessionExpiryBanner from "@/components/SessionExpiryBanner";
 import UploadStatus from "@/components/UploadStatus";
 import "./globals.css";
 
@@ -32,6 +33,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <Navigation />
+        <SessionExpiryBanner />
         <main className="flex-1">{children}</main>
         <UploadStatus />
         <footer className="bg-gray-900 text-white py-8">
