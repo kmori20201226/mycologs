@@ -52,6 +52,23 @@ export default function AboutTabs({ versionString, changelog }: Props) {
             </div>
           </div>
 
+          <div className="border-t pt-4 flex flex-col items-center gap-2">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/qr-mycologs.svg"
+              alt="Mycologs（https://mycologs.club）へのQRコード"
+              width={320}
+              height={320}
+              className="rounded-lg border border-gray-100"
+            />
+            <a
+              href="https://mycologs.club"
+              className="text-sm text-emerald-600 hover:underline"
+            >
+              mycologs.club
+            </a>
+          </div>
+
           <ContactSection />
         </div>
       )}

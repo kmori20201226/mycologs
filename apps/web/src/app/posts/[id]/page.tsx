@@ -67,6 +67,9 @@ function PostPageInner() {
   // Neighbour posts a picture can move into, and the id of a picture currently
   // being rotated/moved (to disable its controls while the request is in flight).
   const [photoNeighbors, setPhotoNeighbors] = useState<{ prev: number | null; next: number | null }>({ prev: null, next: null })
+  // Adjacent posts in the viewer's visible feed (prev = older, next = newer), for
+  // the prev/next navigation links at the foot of the post.
+  const [postNeighbors, setPostNeighbors] = useState<{ prev: number | null; next: number | null }>({ prev: null, next: null })
   const [mediaBusy, setMediaBusy] = useState<string | null>(null)
   const [editingCaption, setEditingCaption] = useState(false)
   const [pendingCaption, setPendingCaption] = useState('')
@@ -155,6 +158,18 @@ function PostPageInner() {
     apiClient.getPostFollowups(postId)
       .then((f) => setFollowups(f as Followup[]))
       .catch(() => {})
+  }, [postId])
+
+  // Prev/next neighbours — kept in its own effect so a hiccup here (or a
+  // half-applied hot reload of the API client) can never interfere with loading
+  // and rendering the post itself.
+  useEffect(() => {
+    let cancelled = false
+    Promise.resolve()
+      .then(() => apiClient.getPostNeighbors(postId))
+      .then((n) => { if (!cancelled) setPostNeighbors(n) })
+      .catch(() => { if (!cancelled) setPostNeighbors({ prev: null, next: null }) })
+    return () => { cancelled = true }
   }, [postId])
 
   // Load the owner's club + private events for the caption editor's event
@@ -1353,6 +1368,34 @@ function PostPageInner() {
                 </div>
               )
             })()}
+
+            {/* Previous / next post navigation (prev = older, next = newer) */}
+            {(postNeighbors.prev !== null || postNeighbors.next !== null) && (
+              <nav className="mt-8 flex items-stretch justify-between gap-3">
+                {postNeighbors.prev !== null ? (
+                  <Link
+                    href={`/posts/${postNeighbors.prev}`}
+                    className="flex items-center gap-2 bg-white rounded-xl shadow px-4 py-3 text-gray-600 hover:text-emerald-600 transition-colors"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                    </svg>
+                    <span className="text-sm font-medium">前の投稿</span>
+                  </Link>
+                ) : <span />}
+                {postNeighbors.next !== null ? (
+                  <Link
+                    href={`/posts/${postNeighbors.next}`}
+                    className="flex items-center gap-2 bg-white rounded-xl shadow px-4 py-3 text-gray-600 hover:text-emerald-600 transition-colors"
+                  >
+                    <span className="text-sm font-medium">次の投稿</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                    </svg>
+                  </Link>
+                ) : <span />}
+              </nav>
+            )}
           </>
         ) : (
           !notFound && (

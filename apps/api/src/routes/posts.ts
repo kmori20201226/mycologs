@@ -370,6 +370,71 @@ export default async function (fastify: FastifyInstance) {
         return { ...formatPost(post), mentionedSpecies }
     })
 
+    // NEIGHBOURS — the adjacent posts by the same author, for prev/next navigation
+    // on the post page (flipping through one person's posts). Chronological by
+    // createdAt (id as tiebreaker), matching the prev=older / next=newer convention
+    // used elsewhere. Scoped by the same visibility gate as the list, so it never
+    // links to a post the viewer can't see.
+    fastify.get('/posts/:id/neighbors', {
+        schema: {
+            params: { type: 'object', properties: { id: { type: 'integer' } }, required: ['id'] },
+            response: {
+                200: {
+                    type: 'object',
+                    properties: {
+                        prev: { type: 'number', nullable: true },
+                        next: { type: 'number', nullable: true },
+                    },
+                },
+                404: { type: 'object', properties: { message: { type: 'string' } } },
+            },
+        },
+    }, async (request, reply) => {
+        const { id } = request.params as any
+        const viewerId = await getViewerId(request)
+
+        const current = await fastify.prisma.post.findFirst({
+            where: { id: Number(id), deletedAt: null, ...visibilityFilter(viewerId) },
+            select: { id: true, createdAt: true, userId: true },
+        })
+        if (!current) return reply.code(404).send({ message: 'Post not found' })
+
+        const base = { deletedAt: null, parentPostId: null, userId: current.userId }
+
+        const [older, newer] = await Promise.all([
+            fastify.prisma.post.findFirst({
+                where: {
+                    ...base,
+                    AND: [
+                        visibilityFilter(viewerId),
+                        { OR: [
+                            { createdAt: { lt: current.createdAt } },
+                            { createdAt: current.createdAt, id: { lt: current.id } },
+                        ] },
+                    ],
+                },
+                orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+                select: { id: true },
+            }),
+            fastify.prisma.post.findFirst({
+                where: {
+                    ...base,
+                    AND: [
+                        visibilityFilter(viewerId),
+                        { OR: [
+                            { createdAt: { gt: current.createdAt } },
+                            { createdAt: current.createdAt, id: { gt: current.id } },
+                        ] },
+                    ],
+                },
+                orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+                select: { id: true },
+            }),
+        ])
+
+        return { prev: older?.id ?? null, next: newer?.id ?? null }
+    })
+
     // LIST ALL
     // Distinct events among the posts the viewer is allowed to see, for the
     // browse-page event filter. Gated by the same visibility rules as the list

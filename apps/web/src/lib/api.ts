@@ -560,6 +560,12 @@ class ApiClient {
     return this.request(`/posts/${postId}/photo-neighbors`)
   }
 
+  // Adjacent posts in the viewer's visible feed (prev = older, next = newer),
+  // for prev/next navigation on the post page.
+  async getPostNeighbors(postId: number): Promise<{ prev: number | null; next: number | null }> {
+    return this.request(`/posts/${postId}/neighbors`)
+  }
+
   // Identifications
   async getIdentifications(): Promise<unknown[]> {
     return this.request('/identifications');
