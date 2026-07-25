@@ -55,6 +55,7 @@ function PostPageInner() {
   const [acceptedIds, setAcceptedIds] = useState<number[]>([])
   const [aiAccepted, setAiAccepted] = useState(false)
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null)
+  const [pendingDeletePictureId, setPendingDeletePictureId] = useState<string | null>(null)
   const [confirmDeletePost, setConfirmDeletePost] = useState(false)
   const [pendingDeleteFollowupId, setPendingDeleteFollowupId] = useState<number | null>(null)
   const [followups, setFollowups] = useState<Followup[]>([])
@@ -340,6 +341,19 @@ function PostPageInner() {
   async function handleDeleteFollowup(id: number) {
     await apiClient.deleteFollowup(id)
     setFollowups((prev) => prev.filter((f) => f.id !== id))
+  }
+
+  async function handleDeletePicture(id: string) {
+    try {
+      await apiClient.deleteMedia(id)
+      setMedia((prev) => prev.filter((m) => m.id !== id))
+      // Drop expectedMediaCount too, else the post falls back to "uploading"
+      // and the poll revives nothing but keeps re-fetching.
+      setPost((prev) => (prev && (prev.expectedMediaCount ?? 0) > 0
+        ? { ...prev, expectedMediaCount: (prev.expectedMediaCount ?? 0) - 1 } : prev))
+    } catch {
+      showToast('写真の削除に失敗しました')
+    }
   }
 
   function startEditingVisibility() {
@@ -822,19 +836,7 @@ function PostPageInner() {
                           </button>
                           {isOwner && (
                             <button
-                              onClick={async () => {
-                                try {
-                                  await apiClient.deleteMedia(img.id)
-                                  setMedia((prev) => prev.filter((m) => m.id !== img.id))
-                                  // Drop expectedMediaCount too, else the post falls
-                                  // back to "uploading" and the poll revives nothing
-                                  // but keeps re-fetching.
-                                  setPost((prev) => (prev && (prev.expectedMediaCount ?? 0) > 0
-                                    ? { ...prev, expectedMediaCount: (prev.expectedMediaCount ?? 0) - 1 } : prev))
-                                } catch {
-                                  showToast('写真の削除に失敗しました')
-                                }
-                              }}
+                              onClick={() => setPendingDeletePictureId(img.id)}
                               className="absolute top-1.5 right-1.5 bg-black/60 hover:bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                               aria-label="削除"
                             >
@@ -1428,6 +1430,34 @@ function PostPageInner() {
                   const id = pendingDeleteId
                   setPendingDeleteId(null)
                   await handleDecline(id)
+                }}
+                className="px-4 py-2 text-sm font-semibold text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors"
+              >
+                削除する
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete picture confirmation */}
+      {pendingDeletePictureId !== null && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl p-6 max-w-sm w-full space-y-4">
+            <p className="text-gray-800 font-medium">この写真を削除しますか？</p>
+            <p className="text-sm text-gray-500">削除すると元に戻せません。</p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setPendingDeletePictureId(null)}
+                className="px-4 py-2 text-sm font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+              >
+                キャンセル
+              </button>
+              <button
+                onClick={async () => {
+                  const id = pendingDeletePictureId
+                  setPendingDeletePictureId(null)
+                  await handleDeletePicture(id)
                 }}
                 className="px-4 py-2 text-sm font-semibold text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors"
               >
