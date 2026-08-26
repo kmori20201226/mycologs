@@ -51,14 +51,29 @@ function InatSamplesPageInner() {
         // name is slightly off or absent from iNaturalist. Taking it blindly
         // produced confidently-wrong links, so require an exact name match and
         // otherwise report "not found" rather than pointing at the wrong taxon.
+        const wanted = scientificName.trim().toLowerCase()
+        let found: InatTaxon | undefined
+
+        // First try active taxa only
         const taxaRes = await fetch(
           `${INAT_API}/taxa?q=${encodeURIComponent(scientificName)}&rank=species&is_active=true&per_page=10`,
           { cache: 'no-store' }
         )
         const taxaData = await taxaRes.json()
-        const wanted = scientificName.trim().toLowerCase()
-        const found: InatTaxon | undefined = (taxaData.results as InatTaxon[] | undefined)
+        found = (taxaData.results as InatTaxon[] | undefined)
           ?.find((t) => t.name?.toLowerCase() === wanted)
+
+        // Fall back to including inactive/synonymized taxa
+        if (!found) {
+          const inactiveRes = await fetch(
+            `${INAT_API}/taxa?q=${encodeURIComponent(scientificName)}&rank=species&per_page=10`,
+            { cache: 'no-store' }
+          )
+          const inactiveData = await inactiveRes.json()
+          found = (inactiveData.results as InatTaxon[] | undefined)
+            ?.find((t) => t.name?.toLowerCase() === wanted)
+        }
+
         if (!found) {
           setError('iNaturalist でこの種が見つかりませんでした。')
           return
@@ -173,8 +188,19 @@ function InatSamplesPageInner() {
         )}
 
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-6 text-sm text-center">
-            {error}
+          <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-6 text-sm text-center space-y-3">
+            <p>{error}</p>
+            <a
+              href={`https://www.inaturalist.org/taxa/search?q=${encodeURIComponent(scientificName)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-emerald-700 underline hover:text-emerald-900"
+            >
+              iNaturalist で手動検索する
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+            </a>
           </div>
         )}
 
