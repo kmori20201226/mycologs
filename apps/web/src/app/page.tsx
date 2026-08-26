@@ -25,6 +25,12 @@ export default function Home() {
               投稿を見る
             </Link>
             <IdentifyButton
+              href="/posts/new"
+              className="bg-emerald-500 hover:bg-emerald-600 text-white px-8 py-3 rounded-lg font-semibold transition-colors"
+            >
+              新規投稿
+            </IdentifyButton>
+            <IdentifyButton
               href="/identify"
               className="bg-white hover:bg-gray-50 text-emerald-600 border-2 border-emerald-600 px-8 py-3 rounded-lg font-semibold transition-colors"
             >
