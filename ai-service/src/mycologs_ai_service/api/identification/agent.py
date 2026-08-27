@@ -3,7 +3,7 @@ from mycologs_ai_service.core.anthropic_client import client
 from mycologs_ai_service.core.usage import AiUsage
 from mycologs_ai_service.api.identification.schemas import IdentificationRequest, IdentificationResult
 
-MODEL = "claude-opus-4-7"
+MODEL = "claude-opus-4-8"
 AGENT_VERSION = f"{MODEL}/prompt-v2.2"
 
 SYSTEM_PROMPT = """\
