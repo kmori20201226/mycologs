@@ -147,7 +147,7 @@ export default async function (fastify: FastifyInstance) {
 
         let localUser: { id: number; name: string; email: string; role: string | null }
 
-        if (existingOAuth) {
+        if (existingOAuth && existingOAuth.user) {
             // Already linked — sign in, and upgrade placeholder email if real one is now available
             localUser = existingOAuth.user
             if (email && existingOAuth.user.email.endsWith('@line.user')) {
@@ -163,6 +163,12 @@ export default async function (fastify: FastifyInstance) {
                 }
             }
         } else {
+            // Covers both: no OAuth record, or orphaned OAuth record (user row missing)
+            if (existingOAuth && !existingOAuth.user) {
+                await fastify.prisma.oAuthAccount.delete({
+                    where: { provider_providerAccountId: { provider: 'line', providerAccountId: lineUserId } },
+                })
+            }
             // 2. Try to find an existing user by email and link them
             let user = email
                 ? await fastify.prisma.user.findUnique({
