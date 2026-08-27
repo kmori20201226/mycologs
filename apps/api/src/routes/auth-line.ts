@@ -164,9 +164,10 @@ export default async function (fastify: FastifyInstance) {
             }
         } else {
             let user: { id: number; name: string; email: string; role: string | null } | null = null
+            let oauthLinked = false
 
-            // If the OAuth record exists but its user row is missing (e.g. WAL reset),
-            // search for the user by any known email before touching the OAuth record.
+            // If the OAuth record exists but its user row is missing (e.g. WAL reset after hard
+            // reboot), search for the user by any known email and re-link rather than recreating.
             if (existingOAuth && !existingOAuth.user) {
                 const orClauses: any[] = [{ email: `line-${lineUserId}@line.user` }]
                 if (email) orClauses.push({ email })
@@ -175,12 +176,11 @@ export default async function (fastify: FastifyInstance) {
                     select: { id: true, name: true, email: true, role: true },
                 })
                 if (user) {
-                    // Re-link the orphaned OAuth record to the recovered user
                     await fastify.prisma.oAuthAccount.update({
                         where: { provider_providerAccountId: { provider: 'line', providerAccountId: lineUserId } },
                         data: { userId: user.id },
                     })
-                    localUser = user
+                    oauthLinked = true
                 } else {
                     await fastify.prisma.oAuthAccount.delete({
                         where: { provider_providerAccountId: { provider: 'line', providerAccountId: lineUserId } },
@@ -188,14 +188,15 @@ export default async function (fastify: FastifyInstance) {
                 }
             }
 
-            if (!user) {
             // 2. Try to find an existing user by email and link them
-            user = email
-                ? await fastify.prisma.user.findUnique({
-                    where: { email },
-                    select: { id: true, name: true, email: true, role: true },
-                })
-                : null
+            if (!user) {
+                user = email
+                    ? await fastify.prisma.user.findUnique({
+                        where: { email },
+                        select: { id: true, name: true, email: true, role: true },
+                    })
+                    : null
+            }
 
             // 3. No existing user — create one from LINE profile
             if (!user) {
@@ -211,25 +212,26 @@ export default async function (fastify: FastifyInstance) {
                 })
             }
 
-            // 4. Create the OAuthAccount link
-            await fastify.prisma.oAuthAccount.create({
-                data: {
-                    userId:            user.id,
-                    provider:          'line',
-                    providerAccountId: lineUserId,
-                    accessToken:       lineTokens.access_token,
-                    refreshToken:      lineTokens.refresh_token ?? null,
-                    expiresAt:         lineTokens.expires_in
-                        ? Math.floor(Date.now() / 1000) + Number(lineTokens.expires_in)
-                        : null,
-                    tokenType:         lineTokens.token_type ?? null,
-                    scope:             lineTokens.scope ?? null,
-                    idToken:           lineTokens.id_token ?? null,
-                },
-            })
+            // 4. Create the OAuthAccount link (skip if already re-linked above)
+            if (!oauthLinked) {
+                await fastify.prisma.oAuthAccount.create({
+                    data: {
+                        userId:            user.id,
+                        provider:          'line',
+                        providerAccountId: lineUserId,
+                        accessToken:       lineTokens.access_token,
+                        refreshToken:      lineTokens.refresh_token ?? null,
+                        expiresAt:         lineTokens.expires_in
+                            ? Math.floor(Date.now() / 1000) + Number(lineTokens.expires_in)
+                            : null,
+                        tokenType:         lineTokens.token_type ?? null,
+                        scope:             lineTokens.scope ?? null,
+                        idToken:           lineTokens.id_token ?? null,
+                    },
+                })
+            }
 
             localUser = user
-            } // end if (!user) after orphan check
         }
 
         // ── Block non-admin login during maintenance ─────────────────────────
