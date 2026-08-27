@@ -163,73 +163,60 @@ export default async function (fastify: FastifyInstance) {
                 }
             }
         } else {
-            let user: { id: number; name: string; email: string; role: string | null } | null = null
-            let oauthLinked = false
-
-            // If the OAuth record exists but its user row is missing (e.g. WAL reset after hard
-            // reboot), search for the user by any known email and re-link rather than recreating.
+            // Delete stale OAuth record if it exists but its user row is missing (e.g. WAL reset)
             if (existingOAuth && !existingOAuth.user) {
-                const orClauses: any[] = [{ email: `line-${lineUserId}@line.user` }]
-                if (email) orClauses.push({ email })
-                user = await fastify.prisma.user.findFirst({
-                    where: { OR: orClauses },
-                    select: { id: true, name: true, email: true, role: true },
+                await fastify.prisma.oAuthAccount.delete({
+                    where: { provider_providerAccountId: { provider: 'line', providerAccountId: lineUserId } },
                 })
-                if (user) {
-                    await fastify.prisma.oAuthAccount.update({
-                        where: { provider_providerAccountId: { provider: 'line', providerAccountId: lineUserId } },
-                        data: { userId: user.id },
-                    })
-                    oauthLinked = true
-                } else {
-                    await fastify.prisma.oAuthAccount.delete({
-                        where: { provider_providerAccountId: { provider: 'line', providerAccountId: lineUserId } },
-                    })
-                }
             }
 
-            // 2. Try to find an existing user by email and link them
-            if (!user) {
-                user = email
-                    ? await fastify.prisma.user.findUnique({
-                        where: { email },
-                        select: { id: true, name: true, email: true, role: true },
-                    })
-                    : null
-            }
+            // Find existing user by real email OR placeholder email
+            const emailClauses: { email: string }[] = [{ email: `line-${lineUserId}@line.user` }]
+            if (email) emailClauses.push({ email })
+            let user = await fastify.prisma.user.findFirst({
+                where: { OR: emailClauses },
+                select: { id: true, name: true, email: true, role: true },
+            })
 
-            // 3. No existing user — create one from LINE profile
+            // No match — create a fresh user
             if (!user) {
                 const freePlan = await fastify.prisma.plan.findUnique({ where: { id: 'free' } })
-                const freeTierCredits = freePlan?.creditsPerPeriod ?? 50
                 user = await fastify.prisma.user.create({
                     data: {
                         name:   displayName,
                         email:  email ?? `line-${lineUserId}@line.user`,
-                        credit: freeTierCredits,
+                        credit: freePlan?.creditsPerPeriod ?? 50,
                     },
                     select: { id: true, name: true, email: true, role: true },
                 })
             }
 
-            // 4. Create the OAuthAccount link (skip if already re-linked above)
-            if (!oauthLinked) {
-                await fastify.prisma.oAuthAccount.create({
-                    data: {
-                        userId:            user.id,
-                        provider:          'line',
-                        providerAccountId: lineUserId,
-                        accessToken:       lineTokens.access_token,
-                        refreshToken:      lineTokens.refresh_token ?? null,
-                        expiresAt:         lineTokens.expires_in
-                            ? Math.floor(Date.now() / 1000) + Number(lineTokens.expires_in)
-                            : null,
-                        tokenType:         lineTokens.token_type ?? null,
-                        scope:             lineTokens.scope ?? null,
-                        idToken:           lineTokens.id_token ?? null,
-                    },
-                })
-            }
+            // Link (or re-link) OAuth account
+            await fastify.prisma.oAuthAccount.upsert({
+                where: { provider_providerAccountId: { provider: 'line', providerAccountId: lineUserId } },
+                create: {
+                    userId:            user.id,
+                    provider:          'line',
+                    providerAccountId: lineUserId,
+                    accessToken:       lineTokens.access_token,
+                    refreshToken:      lineTokens.refresh_token ?? null,
+                    expiresAt:         lineTokens.expires_in
+                        ? Math.floor(Date.now() / 1000) + Number(lineTokens.expires_in)
+                        : null,
+                    tokenType:         lineTokens.token_type ?? null,
+                    scope:             lineTokens.scope ?? null,
+                    idToken:           lineTokens.id_token ?? null,
+                },
+                update: {
+                    userId:       user.id,
+                    accessToken:  lineTokens.access_token,
+                    refreshToken: lineTokens.refresh_token ?? null,
+                    expiresAt:    lineTokens.expires_in
+                        ? Math.floor(Date.now() / 1000) + Number(lineTokens.expires_in)
+                        : null,
+                    idToken:      lineTokens.id_token ?? null,
+                },
+            })
 
             localUser = user
         }
