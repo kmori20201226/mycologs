@@ -366,6 +366,23 @@ export default async function (fastify: FastifyInstance) {
         })
 
         if (!post) return reply.code(404).send({ message: 'Post not found' })
+
+        // If expectedMediaCount hasn't been satisfied and the post is more than
+        // 10 minutes old, the upload was abandoned — reconcile so the UI stops
+        // showing the "uploading…" banner indefinitely.
+        if (post.expectedMediaCount > 0 && Date.now() - post.createdAt.getTime() > 10 * 60 * 1000) {
+            const actualCount = await fastify.prisma.media.count({
+                where: { postId: post.id, deletedAt: null, type: 'IMAGE' },
+            })
+            if (actualCount < post.expectedMediaCount) {
+                await fastify.prisma.post.update({
+                    where: { id: post.id },
+                    data: { expectedMediaCount: actualCount },
+                })
+                post.expectedMediaCount = actualCount
+            }
+        }
+
         const mentionedSpecies = await extractMentionedSpecies(fastify, post.contents)
         return { ...formatPost(post), mentionedSpecies }
     })
