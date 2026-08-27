@@ -180,11 +180,12 @@ export default async function (fastify: FastifyInstance) {
 
             // No match — create a fresh user
             if (!user) {
+                const resolvedEmail = email ?? `line-${lineUserId}@line.user`
                 const freePlan = await fastify.prisma.plan.findUnique({ where: { id: 'free' } })
                 user = await fastify.prisma.user.create({
                     data: {
                         name:   displayName,
-                        email:  email ?? `line-${lineUserId}@line.user`,
+                        email:  resolvedEmail,
                         credit: freePlan?.creditsPerPeriod ?? 50,
                     },
                     select: { id: true, name: true, email: true, role: true },
