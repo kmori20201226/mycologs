@@ -181,14 +181,21 @@ export default async function (fastify: FastifyInstance) {
             if (!user) {
                 const freePlan = await fastify.prisma.plan.findUnique({ where: { id: 'free' } })
                 const freeTierCredits = freePlan?.creditsPerPeriod ?? 50
-                user = await fastify.prisma.user.create({
-                    data: {
-                        name:   displayName,
-                        email:  email ?? `line-${lineUserId}@line.user`,
-                        credit: freeTierCredits,
-                    },
-                    select: { id: true, name: true, email: true, role: true },
-                })
+                const resolvedEmail = email ?? `line-${lineUserId}@line.user`
+                try {
+                    user = await fastify.prisma.user.create({
+                        data: { name: displayName, email: resolvedEmail, credit: freeTierCredits },
+                        select: { id: true, name: true, email: true, role: true },
+                    })
+                } catch (err: any) {
+                    if (err?.code !== 'P2002') throw err
+                    // User already exists with this email (e.g. orphaned by WAL reset) — find and reuse them
+                    user = await fastify.prisma.user.findUnique({
+                        where: { email: resolvedEmail },
+                        select: { id: true, name: true, email: true, role: true },
+                    })
+                    if (!user) throw err
+                }
             }
 
             // 4. Create the OAuthAccount link
