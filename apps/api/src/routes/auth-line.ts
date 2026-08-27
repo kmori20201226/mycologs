@@ -163,14 +163,34 @@ export default async function (fastify: FastifyInstance) {
                 }
             }
         } else {
-            // Covers both: no OAuth record, or orphaned OAuth record (user row missing)
+            let user: { id: number; name: string; email: string; role: string | null } | null = null
+
+            // If the OAuth record exists but its user row is missing (e.g. WAL reset),
+            // search for the user by any known email before touching the OAuth record.
             if (existingOAuth && !existingOAuth.user) {
-                await fastify.prisma.oAuthAccount.delete({
-                    where: { provider_providerAccountId: { provider: 'line', providerAccountId: lineUserId } },
+                const orClauses: any[] = [{ email: `line-${lineUserId}@line.user` }]
+                if (email) orClauses.push({ email })
+                user = await fastify.prisma.user.findFirst({
+                    where: { OR: orClauses },
+                    select: { id: true, name: true, email: true, role: true },
                 })
+                if (user) {
+                    // Re-link the orphaned OAuth record to the recovered user
+                    await fastify.prisma.oAuthAccount.update({
+                        where: { provider_providerAccountId: { provider: 'line', providerAccountId: lineUserId } },
+                        data: { userId: user.id },
+                    })
+                    localUser = user
+                } else {
+                    await fastify.prisma.oAuthAccount.delete({
+                        where: { provider_providerAccountId: { provider: 'line', providerAccountId: lineUserId } },
+                    })
+                }
             }
+
+            if (!user) {
             // 2. Try to find an existing user by email and link them
-            let user = email
+            user = email
                 ? await fastify.prisma.user.findUnique({
                     where: { email },
                     select: { id: true, name: true, email: true, role: true },
@@ -181,21 +201,14 @@ export default async function (fastify: FastifyInstance) {
             if (!user) {
                 const freePlan = await fastify.prisma.plan.findUnique({ where: { id: 'free' } })
                 const freeTierCredits = freePlan?.creditsPerPeriod ?? 50
-                const resolvedEmail = email ?? `line-${lineUserId}@line.user`
-                try {
-                    user = await fastify.prisma.user.create({
-                        data: { name: displayName, email: resolvedEmail, credit: freeTierCredits },
-                        select: { id: true, name: true, email: true, role: true },
-                    })
-                } catch (err: any) {
-                    if (err?.code !== 'P2002') throw err
-                    // User already exists with this email (e.g. orphaned by WAL reset) — find and reuse them
-                    user = await fastify.prisma.user.findUnique({
-                        where: { email: resolvedEmail },
-                        select: { id: true, name: true, email: true, role: true },
-                    })
-                    if (!user) throw err
-                }
+                user = await fastify.prisma.user.create({
+                    data: {
+                        name:   displayName,
+                        email:  email ?? `line-${lineUserId}@line.user`,
+                        credit: freeTierCredits,
+                    },
+                    select: { id: true, name: true, email: true, role: true },
+                })
             }
 
             // 4. Create the OAuthAccount link
@@ -216,6 +229,7 @@ export default async function (fastify: FastifyInstance) {
             })
 
             localUser = user
+            } // end if (!user) after orphan check
         }
 
         // ── Block non-admin login during maintenance ─────────────────────────
