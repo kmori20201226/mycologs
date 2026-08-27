@@ -53,9 +53,9 @@ async function canonicalScientificName(
     scientificName: unknown,
 ): Promise<unknown> {
     const ja = typeof japaneseName === 'string' ? japaneseName.trim() : ''
-    if (ja.length >= 2) {
-        // Prefer a canonical species.japanese_name hit over a synonym alias.
-        const rows = await fastify.prisma.$queryRaw<{ scientificName: string }[]>`
+    if (ja.length < 2) return scientificName
+    try {
+        const query = fastify.prisma.$queryRaw<{ scientificName: string }[]>`
             SELECT scientific_name AS "scientificName", 0 AS pri
             FROM species
             WHERE deleted_at IS NULL AND japanese_name = ${ja}
@@ -66,7 +66,13 @@ async function canonicalScientificName(
             ORDER BY pri
             LIMIT 1
         `
-        if (rows[0]?.scientificName) return rows[0].scientificName
+        const timeout = new Promise<null>((_, reject) =>
+            setTimeout(() => reject(new Error('canonicalScientificName timeout')), 5000),
+        )
+        const rows = await Promise.race([query, timeout])
+        if (rows?.[0]?.scientificName) return rows[0].scientificName
+    } catch {
+        // DB connection lost or timed out — fall back to AI-provided name
     }
     return scientificName
 }
