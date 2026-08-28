@@ -13,7 +13,12 @@ services:
       - "5432:5432"
 
     volumes:
-      - pgdata:/var/lib/postgresql/18/main
+      # postgres:18 puts PGDATA at /var/lib/postgresql/18/docker, so mount the
+      # whole /var/lib/postgresql. Mounting .../18/main (the Debian default for a
+      # non-container install) leaves this volume empty and silently parks the
+      # real cluster in an anonymous volume that compose does not track — which
+      # then gets orphaned on recreate. Matches the root docker-compose.yml.
+      - pgdata:/var/lib/postgresql
 
 volumes:
   pgdata:
