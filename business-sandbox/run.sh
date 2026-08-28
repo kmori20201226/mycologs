@@ -7,7 +7,7 @@ cd "$SCRIPT_DIR"
 COMPOSE="docker compose"
 
 usage() {
-  echo "Usage: $0 {start|stop|restart|status|logs|migrate|seed-plans|seed-taxonomy|seed-admin|build|build-export|deploy|load|psql|maintenance|list-user|buy-credit|backup-posts|restore-posts}"
+  echo "Usage: $0 {start|stop|restart|status|logs|migrate|seed-plans|seed-taxonomy|seed-admin|build|build-export|deploy|load|psql|maintenance|list-user|buy-credit|backup-full|restore-full|backup-posts|restore-posts}"
   echo ""
   echo "  start            Start all containers and apply any pending migrations"
   echo "  stop             Stop all containers"
@@ -27,8 +27,11 @@ usage() {
   echo "  maintenance off  Disable maintenance mode"
   echo "  list-user        List all users (id and email)"
   echo "  buy-credit <email|user-id|club:ID> [amount]  Add credit (default 1000) and keep a fake subscription active for 1 month"
-  echo "  backup-posts [filter]  Export posts/media/identifications to ./backups/ (filter: e.g. 1-9,12,18)"
-  echo "  restore-posts <file>   Restore from a backup file in ./backups/"
+  echo "  backup-full            FULL disaster-recovery backup (db + uploads + .env) to ./backups/"
+  echo "  restore-full <file>    Rebuild this server from a backup-full archive (destructive)"
+  echo "  backup-posts [filter]  Export posts/media/identifications only — for moving content"
+  echo "                         between systems, NOT a disaster-recovery backup (filter: 1-9,12,18)"
+  echo "  restore-posts <file>   Restore from a backup-posts file in ./backups/"
   exit 1
 }
 
@@ -176,6 +179,161 @@ cmd_psql() {
   $COMPOSE exec postgres psql -U postgres mycologs
 }
 
+# ---------------------------------------------------------------------------
+# Full disaster-recovery backup / restore
+# ---------------------------------------------------------------------------
+# NOT the same thing as backup-posts. That one is a portability tool: it carries
+# posts, media and identifications only, and drops users, taxonomy, votes, clubs,
+# events, post coordinates and post visibility (restored posts default to PUBLIC).
+# Restoring a crashed server from it would lose most of the site.
+#
+# A real restore needs three things, so all three go in the archive:
+#   db.dump          logical pg_dump — re-read through the server, so unlike a
+#                    copy of pgdata/ it cannot carry WAL corruption forward
+#   uploads.tar.gz   ./uploads — media files live on disk, not in the database
+#   env              ./.env — JWT_SECRET, Stripe/LINE/Resend secrets; without it
+#                    nobody can log in after a rebuild
+#
+# The archive therefore contains live OAuth tokens, password hashes and API keys.
+# It is written 0600. Keep it that way wherever you pull it to.
+BACKUP_KEEP="${MYCOLOGS_BACKUP_KEEP:-7}"
+
+cmd_backup_full() {
+  mkdir -p backups uploads
+  local ts name stage out
+  ts="$(date +%Y%m%dT%H%M%S)"
+  name="mycologs-full-$ts"
+  stage="backups/.stage-$name"
+  out="backups/$name.tar"
+  rm -rf "$stage"; mkdir -p "$stage"
+  # Expand $stage now, not at trap time — it is function-local and would be out
+  # of scope (and fatal under `set -u`) once the EXIT trap actually runs.
+  trap "rm -rf '$stage'" EXIT
+
+  echo "[1/5] Dumping database..."
+  # -T is required: without it compose allocates a TTY and mangles binary stdout.
+  $COMPOSE exec -T postgres pg_dump -U postgres -Fc mycologs > "$stage/db.dump"
+
+  echo "[2/5] Verifying the dump is readable..."
+  # Read it back through pg_restore. A dump that cannot be listed cannot be
+  # restored, and it is far better to find that out now than during an outage.
+  $COMPOSE exec -T postgres pg_restore --list < "$stage/db.dump" > "$stage/db.toc.txt"
+  local entries; entries="$(grep -c '^[0-9]' "$stage/db.toc.txt" || true)"
+  if [ "${entries:-0}" -lt 1 ]; then
+    echo "ERROR: dump verification failed — no restorable entries found." >&2
+    exit 1
+  fi
+  echo "       ok ($entries restorable entries)"
+
+  echo "[3/5] Archiving uploads..."
+  tar -czf "$stage/uploads.tar.gz" uploads
+
+  echo "[4/5] Capturing .env and manifest..."
+  if [ -f .env ]; then
+    cp .env "$stage/env"
+  else
+    echo "       WARNING: no .env found — this backup will NOT be restorable on its own."
+  fi
+  {
+    echo "created:     $(date -Is)"
+    echo "host:        $(hostname)"
+    echo "app_version: $(pkg_version)"
+    echo "git:         $(git -C .. rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)@$(git_hash)"
+    echo "uploads:     $(find uploads -type f | wc -l) files"
+    echo "toc_entries: $entries"
+    echo "row_counts:"
+    $COMPOSE exec -T postgres psql -U postgres -d mycologs -At -c \
+      "SELECT format('  %s = %s', t, n) FROM (
+         SELECT 'users' t, count(*) n FROM users UNION ALL
+         SELECT 'posts', count(*) FROM posts UNION ALL
+         SELECT 'media', count(*) FROM media UNION ALL
+         SELECT 'identifications', count(*) FROM identifications UNION ALL
+         SELECT 'votes', count(*) FROM votes UNION ALL
+         SELECT 'species', count(*) FROM species
+       ) s ORDER BY 1;"
+  } > "$stage/MANIFEST.txt"
+
+  echo "[5/5] Bundling..."
+  # Plain tar, not tar.gz: db.dump (-Fc) and uploads.tar.gz are already compressed.
+  tar -cf "$out" -C "$stage" .
+  chmod 600 "$out"
+  ( cd backups && sha256sum "$name.tar" > "$name.tar.sha256" )
+  ln -sfn "$name.tar" backups/latest.tar
+
+  # Retention: keep the newest $BACKUP_KEEP full backups, drop older ones.
+  local old
+  old="$(ls -1t backups/mycologs-full-*.tar 2>/dev/null | tail -n +$((BACKUP_KEEP + 1)) || true)"
+  if [ -n "$old" ]; then
+    echo ""
+    echo "Pruning to the newest $BACKUP_KEEP backups:"
+    while IFS= read -r f; do
+      [ -n "$f" ] || continue
+      echo "  removing $(basename "$f")"
+      rm -f "$f" "$f.sha256"
+    done <<< "$old"
+  fi
+
+  echo ""
+  cat "$stage/MANIFEST.txt" | sed 's/^/  /'
+  echo ""
+  echo "  Backup: $out ($(du -h "$out" | cut -f1))"
+  echo "  Also:   backups/latest.tar -> $name.tar"
+  echo ""
+  echo "  Pull it from your dev machine with:"
+  echo "    scp $REMOTE_HOST:$REMOTE_DIR/backups/$name.tar ."
+  echo "    sha256sum -c $name.tar.sha256   # after also copying the .sha256"
+}
+
+cmd_restore_full() {
+  local file="${2:-}"
+  if [ -z "$file" ]; then echo "Usage: $0 restore-full <backups/mycologs-full-....tar>"; exit 1; fi
+  if [ ! -f "$file" ]; then echo "File not found: $file"; exit 1; fi
+
+  local stage; stage="backups/.restore-$(date +%s)"
+  mkdir -p "$stage"
+  trap "rm -rf '$stage'" EXIT
+  tar -xf "$file" -C "$stage"
+  if [ ! -f "$stage/db.dump" ]; then
+    echo "ERROR: $file does not look like a full backup (no db.dump inside)." >&2
+    exit 1
+  fi
+
+  echo "About to restore from:"
+  sed 's/^/  /' "$stage/MANIFEST.txt" 2>/dev/null || true
+  echo ""
+  echo "This DROPS the current 'mycologs' database and replaces ./uploads."
+  echo "Enable maintenance mode first (./run.sh maintenance on) so the API is not"
+  echo "writing during the restore. Do NOT 'docker stop' on this host."
+  echo ""
+  read -r -p "Type RESTORE to continue: " confirm
+  [ "$confirm" = "RESTORE" ] || { echo "Aborted."; exit 1; }
+
+  echo "[1/3] Recreating the database..."
+  $COMPOSE exec -T postgres psql -U postgres -d postgres -c \
+    "SELECT pg_terminate_backend(pid) FROM pg_stat_activity
+      WHERE datname = 'mycologs' AND pid <> pg_backend_pid();" > /dev/null
+  $COMPOSE exec -T postgres psql -U postgres -d postgres -c "DROP DATABASE IF EXISTS mycologs;"
+  $COMPOSE exec -T postgres psql -U postgres -d postgres -c "CREATE DATABASE mycologs OWNER postgres;"
+
+  echo "[2/3] Restoring the dump..."
+  $COMPOSE exec -T postgres pg_restore -U postgres -d mycologs --no-owner < "$stage/db.dump"
+
+  echo "[3/3] Restoring uploads..."
+  # Keep whatever is currently there until the new copy is safely in place.
+  if [ -d uploads ]; then mv uploads "uploads.pre-restore-$(date +%s)"; fi
+  tar -xzf "$stage/uploads.tar.gz" -C .
+
+  echo ""
+  echo "Database and uploads restored."
+  if [ -f "$stage/env" ]; then
+    cp "$stage/env" "backups/env.from-backup"
+    chmod 600 backups/env.from-backup
+    echo "The backup's .env was NOT applied automatically — compare it yourself:"
+    echo "    diff .env backups/env.from-backup"
+  fi
+  echo "Then: ./run.sh start && ./run.sh maintenance off"
+}
+
 cmd_maintenance() {
   local mode="${2:-}"
   case "$mode" in
@@ -217,6 +375,8 @@ case "${1:-}" in
     shift
     if [ -z "${1:-}" ]; then echo "Usage: $0 buy-credit <email|user-id|club:ID> [amount]"; exit 1; fi
     $COMPOSE exec api npx ts-node scripts/buy-credit.ts "$@" ;;
+  backup-full)   cmd_backup_full ;;
+  restore-full)  cmd_restore_full "$@" ;;
   backup-posts)  mkdir -p backups && $COMPOSE exec api npx ts-node scripts/backup-posts.ts "${2:-}" ;;
   restore-posts)
     if [ -z "${2:-}" ]; then echo "Usage: $0 restore-posts <filename>"; exit 1; fi
