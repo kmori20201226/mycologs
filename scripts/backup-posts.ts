@@ -24,6 +24,7 @@ import fs from 'fs'
 import { PassThrough } from 'stream'
 import { createGzip } from 'zlib'
 import { pipeline } from 'stream/promises'
+import { once } from 'events'
 import dotenv from 'dotenv'
 dotenv.config({ path: path.resolve(__dirname, '../.env') })
 
@@ -75,7 +76,12 @@ class TarStream {
     async writeFileFromDisk(archivePath: string, srcPath: string): Promise<void> {
         const size = fs.statSync(srcPath).size
         this.stream.write(tarHeader(archivePath, size))
-        await pipeline(fs.createReadStream(srcPath), this.stream, { end: false })
+        // Copied by hand rather than with pipeline(): pipeline(src, dest, { end: false })
+        // leaves a 'close' listener on dest per call, which piles up over thousands of
+        // media files and trips MaxListenersExceededWarning.
+        for await (const chunk of fs.createReadStream(srcPath)) {
+            if (!this.stream.write(chunk)) await once(this.stream, 'drain')
+        }
         const pad = (512 - (size % 512)) % 512
         if (pad > 0) this.stream.write(Buffer.alloc(pad))
     }
