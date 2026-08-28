@@ -110,3 +110,9 @@ iNaturalist-images/
 # Local backups
 # =========================
 /backups/
+
+# Full disaster-recovery archives pulled from the business server. These contain
+# .env, every password hash and live OAuth tokens — never let one near a commit.
+/business-full-backup/
+mycologs-full-*.tar
+mycologs-full-*.tar.sha256
