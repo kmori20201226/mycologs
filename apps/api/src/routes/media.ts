@@ -313,15 +313,23 @@ export default async function (fastify: FastifyInstance) {
         if (!fs.existsSync(srcPath)) return reply.code(404).send({ message: 'File not found' })
 
         const angle = direction === 'cw' ? 90 : -90
-        // First bake in EXIF orientation (so our 90° is relative to what the user
-        // sees), then apply the requested rotation.
-        const oriented = await sharp(srcPath).rotate().toBuffer()
-        const rotated = await sharp(oriented).rotate(angle).toBuffer()
-        const meta = await sharp(rotated).metadata()
-
         const ext = path.extname(media.filename)
         const newName = `P-${userId}-${media.postId}-${crypto.randomBytes(4).toString('hex')}${ext}`
-        await fs.promises.writeFile(path.join(UPLOADS_DIR, newName), rotated)
+
+        // Bake in EXIF orientation (so our 90° is relative to what the user sees),
+        // then apply the requested rotation — one pipeline, streamed straight to
+        // disk. autoOrient() is an input option and rotate(angle) sets the angle,
+        // so the two compose rather than overriding each other.
+        //
+        // Deliberately not buffering: a 1536x2048 photo is ~9 MB decoded, and the
+        // previous chain held two encoded buffers plus a third sharp instance just
+        // to read the dimensions. Concurrent rotates were a plausible route to the
+        // OOM kills on the business server. toFile() reports width/height/size, so
+        // nothing needs to sit in the JS heap.
+        const info = await sharp(srcPath)
+            .autoOrient()
+            .rotate(angle)
+            .toFile(path.join(UPLOADS_DIR, newName))
 
         const apiBase = process.env.API_URL ?? 'http://localhost:3000'
         const updated = await fastify.prisma.media.update({
@@ -329,9 +337,9 @@ export default async function (fastify: FastifyInstance) {
             data: {
                 filename: newName,
                 url: `${apiBase}/uploads/${newName}`,
-                width: meta.width ?? media.width,
-                height: meta.height ?? media.height,
-                size: rotated.length,
+                width: info.width,
+                height: info.height,
+                size: info.size,
             },
             include: { post: { select: { id: true, contents: true } } },
         })
