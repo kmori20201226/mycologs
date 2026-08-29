@@ -34,6 +34,13 @@ WORKDIR /app/apps/web
 
 COPY --from=builder /app/node_modules /app/node_modules
 COPY --from=builder /app/apps/web/package.json ./
+# Required at runtime, not just at build time. `next build` bakes rewrites() into
+# .next/routes-manifest.json, so proxying works without this file — but
+# experimental.proxyTimeout is read by `next start` when it loads the config, and
+# with no config present it silently falls back to the 30s default
+# (proxy-request.js: `proxyTimeout || 30000`). AI identification takes ~31-34s on
+# this host, so it landed just past the cutoff and the socket was reset.
+COPY --from=builder /app/apps/web/next.config.ts ./
 COPY --from=builder /app/apps/web/.next ./.next
 COPY --from=builder /app/apps/web/public ./public
 COPY --from=builder /app/CHANGELOG.md /app/CHANGELOG.md

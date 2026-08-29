@@ -19,6 +19,13 @@ EXPOSE 3000
 
 # Cap the V8 heap so a memory spike produces a clean OOM exit (and an
 # `unless-stopped` restart) instead of a runaway process the host OOM-kills.
-ENV NODE_OPTIONS="--max-old-space-size=512"
+#
+# Must stay BELOW the container's mem_limit (320m in business-sandbox), or the
+# cap does nothing: V8 would not feel pressure until 512 MB — a level Docker
+# never lets it reach — so it would keep growing instead of collecting, and be
+# killed mid-request rather than recovering. 192m leaves room for the rest of
+# RSS: the Node baseline plus sharp/libvips, which allocates natively and is
+# not counted against this cap.
+ENV NODE_OPTIONS="--max-old-space-size=192"
 
 CMD ["npx", "ts-node", "apps/api/src/server.ts"]
