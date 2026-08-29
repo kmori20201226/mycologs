@@ -53,13 +53,22 @@ services:
     # this container swap would turn every image-processing spike into an
     # immediate kill. Letting it swap is slow but survivable.
     #
-    # 320m proved too tight and is not just a spike ceiling: the entrypoint is
-    # `npx ts-node`, which compiles the whole API in-process at boot, and that
-    # transient peak is the largest heap the process ever needs. A 192m V8 cap
-    # aborted there every time — "Reached heap limit" ~4s after start, four
-    # restarts in two minutes — long before any request arrived. Sized so the
-    # boot compile fits with room for sharp/libvips on top.
-    mem_limit: ${API_MEM_LIMIT:-512m}
+    # These numbers are measured, not estimated — do not lower them without
+    # re-measuring. 235d748 sized a 320m limit from "the API idles at 53.9 MiB";
+    # in production this container sits at ~460 MiB. The entrypoint is `npx
+    # ts-node`, which compiles the whole API in-process before serving anything,
+    # and that boot compile — not request handling — is the high-water mark.
+    #
+    # Both 192m and 384m V8 caps aborted there ("Reached heap limit" /
+    # "Ineffective mark-compacts", ~4s after start, before any request arrived),
+    # crash-looping the API. 512m is the only value observed to boot. 768m of
+    # container gives that heap room for sharp/libvips on top, which allocates
+    # natively and is not counted against the V8 cap.
+    #
+    # On a 960 MiB host this bound is thin protection, but it is still a bound:
+    # unbounded is what let the kernel pick postgres as its OOM victim. The real
+    # fix is to stop compiling TypeScript at boot in production.
+    mem_limit: ${API_MEM_LIMIT:-768m}
     ports:
       - "3000:3000"
     environment:
@@ -67,7 +76,7 @@ services:
       # without a rebuild; compose's value wins over the Dockerfile's either way.
       # Must stay below mem_limit above, or the cap cannot bind before Docker
       # kills the container.
-      NODE_OPTIONS: ${API_NODE_OPTIONS:---max-old-space-size=384}
+      NODE_OPTIONS: ${API_NODE_OPTIONS:---max-old-space-size=512}
       DATABASE_URL: postgresql://postgres:password@postgres:5432/mycologs
       AI_SERVICE_URL: http://ai-service:3002
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3001}

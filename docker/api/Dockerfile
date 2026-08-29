@@ -27,12 +27,13 @@ EXPOSE 3000
 #
 # The floor is set by startup, not by request handling: the CMD below runs the
 # API through ts-node, which compiles the whole project in-process before it
-# serves anything. 192m aborted there ("Reached heap limit" ~4s in). Leave room
-# above that for sharp/libvips too, which allocates natively and is not counted
-# against this cap.
+# serves anything. Both 192m and 384m aborted there ("Reached heap limit" /
+# "Ineffective mark-compacts", ~4s in, before any request arrived); 512m is the
+# only value observed to boot. Leave room above it for sharp/libvips too, which
+# allocates natively and is not counted against this cap.
 #
 # business-sandbox/docker-compose.yml overrides this via API_NODE_OPTIONS so the
 # deployed value can be retuned without a rebuild; keep the two in step.
-ENV NODE_OPTIONS="--max-old-space-size=384"
+ENV NODE_OPTIONS="--max-old-space-size=512"
 
 CMD ["npx", "ts-node", "apps/api/src/server.ts"]
