@@ -175,13 +175,19 @@ export default async function (fastify: FastifyInstance) {
             })
         }
 
-        // Build image payload (resize each image before encoding)
-        const encodedImages = await Promise.all(
-            images.map(async (img) => {
-                const { data, mediaType } = await encodeImage(img.filename)
-                return { data, media_type: mediaType }
-            })
-        )
+        // Build image payload (resize each image before encoding).
+        //
+        // Encoded one at a time on purpose. Each encode decodes the full-size
+        // source in libvips' native memory — roughly 9 MB for a 1536x2048 photo,
+        // plus the JPEG buffer and a base64 string a third larger again. Running
+        // every image on the post concurrently multiplied that peak and put the
+        // API within reach of the kernel OOM killer, which shows up to the user
+        // as a dropped connection ("同定に失敗しました") that succeeds on retry.
+        const encodedImages: { data: string; media_type: string }[] = []
+        for (const img of images) {
+            const { data, mediaType } = await encodeImage(img.filename)
+            encodedImages.push({ data, media_type: mediaType })
+        }
 
         const event = post?.event
         const body: Record<string, unknown> = { images: encodedImages }

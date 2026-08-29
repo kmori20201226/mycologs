@@ -40,6 +40,19 @@ services:
       dockerfile: docker/api/Dockerfile
     container_name: mycologs-business-api
     restart: unless-stopped
+    # Bound the API's memory so it, and not the kernel, is what gives way under
+    # pressure. Unbounded, an image-processing spike (sharp/libvips allocates
+    # natively, so the Dockerfile's --max-old-space-size cap does not apply)
+    # exhausts the host and the kernel OOM killer picks its own victim — which
+    # could be postgres. An unclean postgres kill is what produced the
+    # 2026-08-27 clog/toast corruption. With a limit, Docker kills only this
+    # container and `restart: unless-stopped` brings it straight back.
+    #
+    # Sized via API_MEM_LIMIT. Deliberately NO memswap_limit: this host has only
+    # 960 MiB of RAM and is leaning on ~1.6 GiB of swap to stay up, so denying
+    # this container swap would turn every image-processing spike into an
+    # immediate kill. Letting it swap is slow but survivable.
+    mem_limit: ${API_MEM_LIMIT:-320m}
     ports:
       - "3000:3000"
     environment:
