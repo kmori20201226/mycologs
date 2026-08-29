@@ -116,3 +116,12 @@ iNaturalist-images/
 /business-full-backup/
 mycologs-full-*.tar
 mycologs-full-*.tar.sha256
+
+# =========================
+# Precipitation radar archive
+# =========================
+# ~980 MB of hourly tenki.jp JPEGs (~620 MB/year) plus the downloader's log.
+# Keep them on disk — they are what lets the grids be re-derived when the colour
+# table changes — but they are source data, not source code.
+dev-helpers/precipication-collector/images/
+dev-helpers/precipication-collector/download_log.csv

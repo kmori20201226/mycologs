@@ -651,3 +651,80 @@ model AiUsageLog {
   @@index([userId, createdAt])
   @@map("ai_usage_log")
 }
+
+// ---------------------------------------------------------------------------
+// Precipitation radar
+// ---------------------------------------------------------------------------
+// Hourly rain-rate snapshots extracted from tenki.jp's Fukuoka radar images, so
+// a post's location and date can be matched against the rain that preceded it.
+//
+// One row per snapshot, holding the whole grid as a compressed blob, rather
+// than one row per cell per hour. The grid is 173x130, so cell-level rows would
+// be 22,490 x 14,020 hours = ~328M rows to store what fits in 14,020 rows and
+// ~19 MB. Reads are whole-grid anyway: a point query inflates one blob per hour
+// in the range and indexes a single cell.
+
+// Geometry and band table for a family of snapshots. Versioned deliberately:
+// the pixel->lon/lat affine and the colour->mm/h mapping are properties of how
+// tenki.jp renders its images, and if that rendering changes, old snapshots must
+// keep being read with the spec they were extracted under. Insert a new row
+// rather than editing one that snapshots already point at.
+model PrecipGrid {
+  id        Int      @id @default(autoincrement())
+  source    String   // e.g. "tenki.jp/pref-43-large"
+
+  // Pixel -> lon/lat affine, including the small cross terms present in the
+  // source projection:  lon = lonPx*px + lonPy*py + lonC
+  //                     lat = latPx*px + latPy*py + latC
+  lonPx     Float    @map("lon_px")
+  lonPy     Float    @map("lon_py")
+  lonC      Float    @map("lon_c")
+  latPx     Float    @map("lat_px")
+  latPy     Float    @map("lat_py")
+  latC      Float    @map("lat_c")
+
+  // Cells are integer blocks of source pixels — blockSize x blockSize — so cell
+  // geometry follows from the affine with no separate origin to drift out of
+  // step. 4 gives ~1.06 km cells, close to the radar's own resolution.
+  blockSize Int      @map("block_size")
+  width     Int
+  height    Int
+
+  // Band index -> mm/h interval, as [{band, lower, upper}]. Intervals, not point
+  // values: tenki.jp's legend labels sit at band *boundaries*, so the yellow
+  // band means 15-20 mm/h, not 15. Band 0 is "no echo", 15 is "masked" (the
+  // timestamp caption, legend box and logo are painted over the map).
+  bands     Json
+
+  createdAt DateTime @default(now()) @map("created_at")
+  snapshots PrecipSnapshot[]
+
+  @@map("precip_grids")
+}
+
+model PrecipSnapshot {
+  id          Int      @id @default(autoincrement())
+  gridId      Int      @map("grid_id")
+
+  // The instant the radar image is labelled with. tenki.jp archives on the hour
+  // in JST; stored as a UTC instant like every other timestamp here.
+  observedAt  DateTime @map("observed_at")
+
+  // zlib(4-bit-packed band indices), row-major, width*height cells.
+  cells       Bytes
+
+  // Denormalised so "was there any rain, and how hard" can be answered without
+  // inflating the blob — the common case when scanning a long time range.
+  maxBand     Int      @map("max_band")
+  echoCells   Int      @map("echo_cells")
+
+  imageSha256 String   @map("image_sha256")
+  fetchedAt   DateTime @default(now()) @map("fetched_at")
+
+  grid        PrecipGrid @relation(fields: [gridId], references: [id], onDelete: Cascade)
+
+  @@unique([gridId, observedAt])
+  @@index([observedAt])
+  @@index([gridId, maxBand])
+  @@map("precip_snapshots")
+}
