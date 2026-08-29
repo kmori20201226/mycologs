@@ -52,10 +52,22 @@ services:
     # 960 MiB of RAM and is leaning on ~1.6 GiB of swap to stay up, so denying
     # this container swap would turn every image-processing spike into an
     # immediate kill. Letting it swap is slow but survivable.
-    mem_limit: ${API_MEM_LIMIT:-320m}
+    #
+    # 320m proved too tight and is not just a spike ceiling: the entrypoint is
+    # `npx ts-node`, which compiles the whole API in-process at boot, and that
+    # transient peak is the largest heap the process ever needs. A 192m V8 cap
+    # aborted there every time — "Reached heap limit" ~4s after start, four
+    # restarts in two minutes — long before any request arrived. Sized so the
+    # boot compile fits with room for sharp/libvips on top.
+    mem_limit: ${API_MEM_LIMIT:-512m}
     ports:
       - "3000:3000"
     environment:
+      # Set here rather than relying on the image's ENV so it can be retuned
+      # without a rebuild; compose's value wins over the Dockerfile's either way.
+      # Must stay below mem_limit above, or the cap cannot bind before Docker
+      # kills the container.
+      NODE_OPTIONS: ${API_NODE_OPTIONS:---max-old-space-size=384}
       DATABASE_URL: postgresql://postgres:password@postgres:5432/mycologs
       AI_SERVICE_URL: http://ai-service:3002
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3001}
