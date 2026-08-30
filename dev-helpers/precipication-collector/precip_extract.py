@@ -114,6 +114,26 @@ BASEMAP_SEA = np.array([53, 70, 78], dtype=np.float64)
 MATCH_MAX_DIST = 30    # accept a pixel as a band within this colour distance
 BASEMAP_DIST = 12      # within this, treat as bare basemap (no echo)
 
+# MATCH_MAX_DIST carries a small, measured under-report bias. A seasonal sweep
+# over 160 images spanning all 20 months found 8.22% of *colourful* pixels
+# (saturation >= 40) matching no band. They are not a missing band: every one
+# sits between two existing bands, or between a band and the white coastline
+# overlay -- JPEG interpolation at cell boundaries, e.g. (112,208,232) is 31 from
+# band 3 and (168,216,216) is 30 from band 2, both a hair outside the cutoff.
+# Unmatched pixels fall to band 0, so edges under-report slightly.
+#
+# The block majority vote absorbs nearly all of it. Measured effect on the final
+# grid of raising the threshold:
+#
+#     30 -> 35    0.172% of cells change, echo cells +1.10%
+#     30 -> 40    0.310% of cells change, echo cells +2.00%
+#     30 -> 45    0.428% of cells change, echo cells +2.79%
+#
+# Left at 30: this is the value verified byte-for-byte against the TypeScript
+# twin, and a 2% shift in echo coverage is far below the uncertainty already
+# baked into 1 km / 1 hour bands. Raise it only with a reason, and re-run
+# verify against the oracle if you do.
+
 _MATCH_MAX_D2 = float(MATCH_MAX_DIST ** 2)
 _BASEMAP_D2 = float(BASEMAP_DIST ** 2)
 
