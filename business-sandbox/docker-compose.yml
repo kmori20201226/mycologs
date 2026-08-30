@@ -65,10 +65,15 @@ services:
     # container gives that heap room for sharp/libvips on top, which allocates
     # natively and is not counted against the V8 cap.
     #
-    # On a 960 MiB host this bound is thin protection, but it is still a bound:
-    # unbounded is what let the kernel pick postgres as its OOM victim. The real
-    # fix is to stop compiling TypeScript at boot in production.
-    mem_limit: ${API_MEM_LIMIT:-768m}
+    # Resized 2026-08-31 for the 2 GB CONOHA host (the old one had 960 MiB and
+    # was permanently ~1.6 GiB into swap). Measured on that box: swap use fell to
+    # zero and a request that took 20.8 s now takes 0.15 s.
+    #
+    # 768m was survivable but left no margin above the boot compile, which is
+    # what made GET /species abort the process. The real fix is to stop compiling
+    # TypeScript at boot — see the Dockerfile — and these numbers should come
+    # back down when that lands.
+    mem_limit: ${API_MEM_LIMIT:-1280m}
     ports:
       - "3000:3000"
     environment:
@@ -76,7 +81,10 @@ services:
       # without a rebuild; compose's value wins over the Dockerfile's either way.
       # Must stay below mem_limit above, or the cap cannot bind before Docker
       # kills the container.
-      NODE_OPTIONS: ${API_NODE_OPTIONS:---max-old-space-size=512}
+      # 512 left only 31 MB above the 481 MB ts-node needs to compile the API at
+      # boot, so a single GET /species (+44 MB) aborted the process. Measured,
+      # not guessed. 1024 gives real headroom on the 2 GB host.
+      NODE_OPTIONS: ${API_NODE_OPTIONS:---max-old-space-size=1024}
       DATABASE_URL: postgresql://postgres:password@postgres:5432/mycologs
       AI_SERVICE_URL: http://ai-service:3002
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3001}

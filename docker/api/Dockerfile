@@ -27,13 +27,25 @@ EXPOSE 3000
 #
 # The floor is set by startup, not by request handling: the CMD below runs the
 # API through ts-node, which compiles the whole project in-process before it
-# serves anything. Both 192m and 384m aborted there ("Reached heap limit" /
-# "Ineffective mark-compacts", ~4s in, before any request arrived); 512m is the
-# only value observed to boot. Leave room above it for sharp/libvips too, which
-# allocates natively and is not counted against this cap.
+# serves anything. Measured cost of that compile alone:
+#
+#     before importing app.ts   heap 306 MB
+#     after                     heap 481 MB     <- 94% of a 512 MB cap
+#
+# So 512 left 31 MB for actual work, and a single GET /species (+44 MB, 11,513
+# rows) aborted the process — taking the API down for every user, since the
+# public /taxonomy page calls it on load. 192m and 384m could not even boot.
+#
+# 1024 is headroom on the 2 GB host, not a fix. The fix is to stop shipping the
+# TypeScript compiler into production: add outDir + a build script to apps/api,
+# compile in the builder stage, and change the CMD below to `node dist/server.js`.
+# That deletes 481 MB of runtime overhead outright. It is not a drop-in — the
+# generated Prisma client path, __dirname-relative lookups (UPLOADS_DIR in
+# ai-identify.ts) and the scripts/ entry points that run via ts-node all need
+# checking — which is why it is written down here rather than done in passing.
 #
 # business-sandbox/docker-compose.yml overrides this via API_NODE_OPTIONS so the
 # deployed value can be retuned without a rebuild; keep the two in step.
-ENV NODE_OPTIONS="--max-old-space-size=512"
+ENV NODE_OPTIONS="--max-old-space-size=1024"
 
 CMD ["npx", "ts-node", "apps/api/src/server.ts"]

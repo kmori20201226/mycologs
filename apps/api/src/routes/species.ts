@@ -68,10 +68,39 @@ export default async function (fastify: FastifyInstance) {
             }
         }
     }, async (request, reply) => {
+        // Explicit `select`, and deliberately no `include: { genus: true }`.
+        //
+        // This route returns every species — 11,513 rows in production — and
+        // with the relation included it reliably exhausted the API's heap:
+        // "FATAL ERROR: Reached heap limit", 38 seconds after a cold start, on a
+        // single request. The process aborts, so one visitor to the public
+        // /taxonomy page took the API down for everyone until it restarted.
+        //
+        // The payload was never the problem: the response is 4.3 MB of JSON
+        // (2.6 MB without the join). The cost is in building 11,513 Prisma
+        // objects each carrying a materialised genus, which nothing consumes —
+        // both /taxonomy and /admin/taxonomy fetch genera separately and join
+        // client-side on the scalar genusId. `genus` is optional in
+        // speciesSchema and absent from every caller, so dropping it changes no
+        // contract.
+        //
+        // This bounds the cost, it does not remove it. The durable fix is
+        // pagination, which needs both taxonomy pages reworked because they
+        // filter the full list in the browser.
         const species = await fastify.prisma.species.findMany({
-            include: { genus: true },
             where: { deletedAt: null },
-            orderBy: { scientificName: 'asc' }
+            orderBy: { scientificName: 'asc' },
+            select: {
+                id:            true,
+                scientificName: true,
+                japaneseName:  true,
+                gbifTaxonKey:  true,
+                edibility:     true,
+                genusId:       true,
+                createdAt:     true,
+                updatedAt:     true,
+                deletedAt:     true,
+            },
         })
 
         return species
