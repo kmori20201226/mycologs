@@ -43,12 +43,9 @@ in `precip.ts`; several are counter-intuitive and all were measured.
 
 ## What is left
 
-1. **Full backfill.** ~14,020 images in
-   `dev-helpers/precipication-collector/images/`, ~19 min, ~19 MB stored.
-   ```
-   npm run precip-backfill -- dev-helpers/precipication-collector/images
-   ```
-   Only 7 test snapshots are loaded right now.
+1. ~~Full backfill~~ **done** (2026-08-30). 14,020 ingested, 0 failed, 8.7 MB —
+   the whole 2025-01-01 .. 2026-08-08 archive is in the dev database. Took 83 min
+   at 2.8 img/s; see the performance note below if that ever needs to be faster.
 
 2. **Cron.** `fetch` is written for it and is self-healing — it scans the last N
    hours and fills any gap, so a missed run repairs itself. Suggested entry
@@ -66,6 +63,30 @@ in `precip.ts`; several are counter-intuitive and all were measured.
    DB only. Nothing has touched the business server. The assumption baked into
    the migration is that it belongs in the main mycologs DB, because that is
    what makes the posts↔rainfall join one query — but that was never confirmed.
+
+## Validated against climate, not just against itself
+
+The extracted data reproduces Fukuoka's seasonal cycle across two independent
+years without anything being tuned for it: winter months sit at 3.6-4.8% of
+hours above 4 mm/h with *zero* hours above 30 mm/h, June peaks at 37.2% (2025)
+and 33.6% (2026) for tsuyu, and August-September peaks at 62.4% and 57.5% for
+typhoon season. 2025-08-09..11 stands out as a three-day extreme — 20 hours
+above 50 mm/h on the 10th, peak band 14, 88% of the map under echo at once — and
+is worth confirming against JMA records as an external check.
+
+Beware the obvious "is it raining" query: `max_band >= 1` is true in essentially
+every hour, because band 1 is trace echo and the grid spans ~180 x 130 km. Use
+`max_band >= 4` (4 mm/h) or higher for anything meaning "it rained".
+
+## Performance note
+
+The numpy port runs at ~2.8 img/s against the TypeScript's ~12 img/s, because
+classification allocates a full (519, 692, 3) float64 temporary per reference
+colour -- 28 of them per image. Irrelevant for the hourly cron (0.36 s/run), and
+only matters for bulk re-ingestion. The fix, if it is ever wanted, is a
+precomputed RGB->band lookup table: classification is a pure function of
+(r, g, b), so a 64^3 LUT built once turns the 28-colour search into a single
+array index. Re-verify against the oracle if you do it.
 
 ## Gotchas
 
