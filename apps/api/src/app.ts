@@ -28,6 +28,7 @@ import uploadRoutes from './routes/upload'
 import aiIdentifyRoutes from './routes/ai-identify'
 import aiGeocodeRoutes from './routes/ai-geocode'
 import userRequestRoutes from './routes/user-requests'
+import precipitationRoutes from './routes/precipitation'
 import subscriptionRoutes from './routes/subscriptions'
 import paymentRoutes from './routes/payments'
 import stripeWebhookRoutes from './routes/webhook-stripe'
@@ -101,6 +102,7 @@ export async function buildApp() {
     await app.register(aiIdentifyRoutes)
     await app.register(aiGeocodeRoutes)
     await app.register(userRequestRoutes)
+    await app.register(precipitationRoutes)
     await app.register(subscriptionRoutes)
     await app.register(paymentRoutes)
     await app.register(adminThreadRoutes)
