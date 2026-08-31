@@ -15,6 +15,11 @@ COPY apps/api/ ./apps/api/
 COPY packages/ ./packages/
 RUN npx prisma generate
 
+# Compile TypeScript here, at image build time, so production never loads the
+# compiler. Must run after `prisma generate`: the generated client is imported
+# for its types and tsc cannot resolve them before it exists.
+RUN npx tsc -p apps/api/tsconfig.json
+
 EXPOSE 3000
 
 # Cap the V8 heap so a memory spike produces a clean OOM exit (and an
@@ -25,27 +30,40 @@ EXPOSE 3000
 # Docker never lets it reach, so it would keep growing instead of collecting and
 # be killed mid-request rather than recovering.
 #
-# The floor is set by startup, not by request handling: the CMD below runs the
-# API through ts-node, which compiles the whole project in-process before it
-# serves anything. Measured cost of that compile alone:
+# Still 1024 deliberately, even though the compiled server needs a fraction of
+# it. This value was sized for the ts-node process it is replacing, and lowering
+# it in the same change as the CMD below would make any failure impossible to
+# attribute. Measure the compiled server under real traffic first, then lower
+# this and mem_limit together in their own commit.
 #
-#     before importing app.ts   heap 306 MB
-#     after                     heap 481 MB     <- 94% of a 512 MB cap
+# What the CMD change is worth, measured on this project:
 #
-# So 512 left 31 MB for actual work, and a single GET /species (+44 MB, 11,513
-# rows) aborted the process — taking the API down for every user, since the
-# public /taxonomy page calls it on load. 192m and 384m could not even boot.
+#                        heap     rss
+#     ts-node boot      481 MB   624 MB
+#     compiled boot      31 MB   103 MB
 #
-# 1024 is headroom on the 2 GB host, not a fix. The fix is to stop shipping the
-# TypeScript compiler into production: add outDir + a build script to apps/api,
-# compile in the builder stage, and change the CMD below to `node dist/server.js`.
-# That deletes 481 MB of runtime overhead outright. It is not a drop-in — the
-# generated Prisma client path, __dirname-relative lookups (UPLOADS_DIR in
-# ai-identify.ts) and the scripts/ entry points that run via ts-node all need
-# checking — which is why it is written down here rather than done in passing.
+# and the ts-node figure is not garbage awaiting collection — three forced full
+# GCs freed 47 MB of it, leaving 454 MB live for the process lifetime, because
+# ts-node holds the module registry, the output cache and the type-checker
+# state. That is what production reported as "Ineffective mark-compacts near
+# heap limit": V8 collecting and finding nothing to release. It is also why
+# 192m and 384m could not boot at all, and why one GET /species (+44 MB) could
+# abort the process.
+#
+# For contrast, the actual runtime dependencies are almost free: fastify, the
+# Prisma client and sharp together come to 12 MB of heap. Essentially all of the
+# 481 MB was compiler.
 #
 # business-sandbox/docker-compose.yml overrides this via API_NODE_OPTIONS so the
 # deployed value can be retuned without a rebuild; keep the two in step.
 ENV NODE_OPTIONS="--max-old-space-size=1024"
 
-CMD ["npx", "ts-node", "apps/api/src/server.ts"]
+# Plain node on compiled JavaScript — no TypeScript in the running process.
+# --enable-source-maps keeps stack traces pointing at .ts lines (sourceMap is
+# already on in apps/api/tsconfig.json).
+#
+# ts-node stays installed on purpose: run.sh drives seven maintenance scripts
+# (seed-taxonomy, buy-credit, backup-posts, restore-posts, ...) through it via
+# `docker compose exec`. Those are short-lived separate processes, so they never
+# occupy the server's memory.
+CMD ["node", "--enable-source-maps", "apps/api/dist/server.js"]
