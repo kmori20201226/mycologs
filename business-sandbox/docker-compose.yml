@@ -65,15 +65,24 @@ services:
     # container gives that heap room for sharp/libvips on top, which allocates
     # natively and is not counted against the V8 cap.
     #
-    # Resized 2026-08-31 for the 2 GB CONOHA host (the old one had 960 MiB and
-    # was permanently ~1.6 GiB into swap). Measured on that box: swap use fell to
-    # zero and a request that took 20.8 s now takes 0.15 s.
+    # Right-sized 2026-08-31 against the compiled API, now that it no longer
+    # carries the TypeScript compiler (see docker/api/Dockerfile). Measured in
+    # production immediately after that deploy:
     #
-    # 768m was survivable but left no margin above the boot compile, which is
-    # what made GET /species abort the process. The real fix is to stop compiling
-    # TypeScript at boot — see the Dockerfile — and these numbers should come
-    # back down when that lands.
-    mem_limit: ${API_MEM_LIMIT:-1280m}
+    #     idle                        106 MiB
+    #     after 5x GET /species       247 MiB   <- heaviest measured request
+    #     startup                     1.7 s     (was ~17 s)
+    #
+    # 512m is deliberately ~2x the observed peak rather than a snug fit around
+    # it, because the heaviest path is the one not exercised above: ai-identify
+    # decodes images through sharp/libvips, which allocates natively and so is
+    # invisible to the V8 cap below. 235d748 measured that work at 82-127 MiB
+    # depending on image count. Re-measure after a real identification before
+    # going tighter.
+    #
+    # This still frees ~768 MiB against the 1280m it replaces — the headroom a
+    # second (sandbox) stack would need.
+    mem_limit: ${API_MEM_LIMIT:-512m}
     ports:
       - "3000:3000"
     environment:
@@ -81,10 +90,12 @@ services:
       # without a rebuild; compose's value wins over the Dockerfile's either way.
       # Must stay below mem_limit above, or the cap cannot bind before Docker
       # kills the container.
-      # 512 left only 31 MB above the 481 MB ts-node needs to compile the API at
-      # boot, so a single GET /species (+44 MB) aborted the process. Measured,
-      # not guessed. 1024 gives real headroom on the 2 GB host.
-      NODE_OPTIONS: ${API_NODE_OPTIONS:---max-old-space-size=1024}
+      # The compiled API boots with a 31 MB heap, where ts-node needed 481 MB of
+      # which 454 MB was unreclaimable. 256m is therefore ~8x the boot cost, and
+      # it must stay below mem_limit above so V8 collects before Docker kills.
+      # The 256 MiB of slack between the two is for sharp/libvips, which
+      # allocates natively and is not counted against this cap.
+      NODE_OPTIONS: ${API_NODE_OPTIONS:---max-old-space-size=256}
       DATABASE_URL: postgresql://postgres:password@postgres:5432/mycologs
       AI_SERVICE_URL: http://ai-service:3002
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3001}

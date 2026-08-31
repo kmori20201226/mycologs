@@ -30,11 +30,11 @@ EXPOSE 3000
 # Docker never lets it reach, so it would keep growing instead of collecting and
 # be killed mid-request rather than recovering.
 #
-# Still 1024 deliberately, even though the compiled server needs a fraction of
-# it. This value was sized for the ts-node process it is replacing, and lowering
-# it in the same change as the CMD below would make any failure impossible to
-# attribute. Measure the compiled server under real traffic first, then lower
-# this and mem_limit together in their own commit.
+# 256m, sized against the compiled server in production: it boots with a 31 MB
+# heap and peaked at 247 MiB RSS under repeated GET /species. Must stay below
+# the container's mem_limit (business-sandbox sets 512m) so V8 collects before
+# Docker kills; the gap between the two is for sharp/libvips, which allocates
+# natively and is not counted against this cap.
 #
 # What the CMD change is worth, measured on this project:
 #
@@ -56,7 +56,7 @@ EXPOSE 3000
 #
 # business-sandbox/docker-compose.yml overrides this via API_NODE_OPTIONS so the
 # deployed value can be retuned without a rebuild; keep the two in step.
-ENV NODE_OPTIONS="--max-old-space-size=1024"
+ENV NODE_OPTIONS="--max-old-space-size=256"
 
 # Plain node on compiled JavaScript — no TypeScript in the running process.
 # --enable-source-maps keeps stack traces pointing at .ts lines (sourceMap is
