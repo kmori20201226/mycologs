@@ -3,6 +3,7 @@ Fill precip_grids / precip_snapshots from radar images.
 
     python precip_fill.py backfill images/            # ingest a directory
     python precip_fill.py one images/precip-43-20250830-15.jpg
+    python precip_fill.py fetch --hours 72            # download + ingest (cron)
     python precip_fill.py status                      # what is stored
 
 DDL is owned by Prisma, not by this script. Every table, column and index comes
@@ -179,6 +180,109 @@ def cmd_one(conn, path: Path) -> None:
           f"echo={r['echo_cells']} {r['bytes']}B")
 
 
+# ---------------------------------------------------------------------------
+# fetch -- the cron entry point
+# ---------------------------------------------------------------------------
+
+ARCHIVE_URL = (
+    "https://storage.tenki.jp/archive/radar/"
+    "{y:04d}/{m:02d}/{d:02d}/{h:02d}/00/00/pref-43-large.jpg"
+)
+
+# tenki.jp publishes on the hour only: minute 00 returns 200, and 05/10/15/30
+# all 404. Hourly is the archive's real resolution, not a sampling choice.
+FETCH_DELAY_S = 0.5
+FETCH_TIMEOUT_S = 30
+USER_AGENT = "mycologs-precip/1.0 (+https://www.mycologs.club)"
+
+
+def utc_to_jst_parts(t: datetime) -> tuple[int, int, int, int]:
+    """Naive UTC datetime -> the JST calendar hour it falls in."""
+    j = t.replace(tzinfo=timezone.utc).astimezone(JST)
+    return j.year, j.month, j.day, j.hour
+
+
+def cmd_fetch(conn, hours: int, images_dir: Path, delay: float = FETCH_DELAY_S) -> None:
+    """
+    Download and ingest every hour in the last N that is not already stored.
+
+    Scanning a window rather than only the previous hour is what makes a missed
+    run self-healing: a reboot, a network blip or a stopped container repairs
+    itself on the next tick with nobody watching. It also means one command
+    closes an arbitrarily large gap -- pass a big --hours after an outage.
+
+    Downloaded images are KEPT, not discarded. They are the only thing that
+    allows the grids to be re-derived when the colour table improves, and the
+    upstream archive is someone else's and may not keep them forever. ~620 MB a
+    year.
+    """
+    import requests  # local import: only the fetch path needs it
+
+    images_dir.mkdir(parents=True, exist_ok=True)
+    grid_id = ensure_grid(conn)
+
+    # The current hour's image may not be published yet, so start at the previous
+    # one. Truncate to the hour to match how observed_at is stored.
+    # Naive UTC, to match how observed_at is stored (TIMESTAMP without zone).
+    now_hour = datetime.now(timezone.utc).replace(tzinfo=None, minute=0, second=0, microsecond=0)
+    wanted = [now_hour - timedelta(hours=k) for k in range(1, hours + 1)]
+
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT observed_at FROM precip_snapshots WHERE grid_id = %s AND observed_at = ANY(%s)",
+            (grid_id, wanted),
+        )
+        have = {r[0] for r in cur.fetchall()}
+
+    missing = sorted(t for t in wanted if t not in have)
+    if not missing:
+        print(f"Up to date: all {hours} of the last hours already stored.")
+        return
+    print(f"{len(missing)} of the last {hours} hours missing; fetching ...")
+
+    session = requests.Session()
+    session.headers["User-Agent"] = USER_AGENT
+    ok = not_found = failed = 0
+
+    for observed_at in missing:
+        y, m, d, h = utc_to_jst_parts(observed_at)
+        stamp = f"{y}-{m:02d}-{d:02d} {h:02d}:00 JST"
+        path = images_dir / f"precip-43-{y:04d}{m:02d}{d:02d}-{h:02d}.jpg"
+        downloaded = False
+
+        try:
+            # An image already on disk is ingested without re-downloading, so a
+            # re-run after a failed ingest costs the archive nothing.
+            if not (path.exists() and path.stat().st_size > 0):
+                resp = session.get(ARCHIVE_URL.format(y=y, m=m, d=d, h=h), timeout=FETCH_TIMEOUT_S)
+                if resp.status_code == 404:
+                    # Genuine upstream gaps exist -- the original download log
+                    # shows 20 in 14,040 hours. Absent, not an error.
+                    not_found += 1
+                    print(f"  {stamp} — not published (404)")
+                    continue
+                resp.raise_for_status()
+                path.write_bytes(resp.content)
+                downloaded = True
+
+            r = ingest_file(conn, grid_id, path, observed_at)
+            conn.commit()
+            ok += 1
+            print(f"  {stamp} — max_band={r['max_band']} echo={r['echo_cells']} "
+                  f"{r['bytes']}B{'' if downloaded else ' (from disk)'}")
+        except Exception as exc:  # noqa: BLE001 - one bad hour must not end the run
+            conn.rollback()
+            failed += 1
+            print(f"  {stamp} — {exc}")
+
+        if downloaded:
+            time.sleep(delay)  # someone else's bandwidth
+
+    print(f"\nFetched {ok}, absent upstream {not_found}, failed {failed}.")
+    if failed:
+        sys.exit(1)
+
+
 def cmd_status(conn) -> None:
     with conn.cursor() as cur:
         cur.execute("SELECT id, source, width, height, block_size FROM precip_grids ORDER BY id")
@@ -202,6 +306,11 @@ def main() -> None:
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("backfill"); p.add_argument("directory")
     p = sub.add_parser("one"); p.add_argument("path")
+    p = sub.add_parser("fetch")
+    p.add_argument("--hours", type=int, default=72,
+                   help="how far back to scan for gaps (default 72)")
+    p.add_argument("--images-dir", default=str(Path(__file__).resolve().parent / "images"),
+                   help="where downloaded JPEGs are kept")
     sub.add_parser("status")
     args = ap.parse_args()
 
@@ -211,6 +320,8 @@ def main() -> None:
             cmd_backfill(conn, Path(args.directory))
         elif args.cmd == "one":
             cmd_one(conn, Path(args.path))
+        elif args.cmd == "fetch":
+            cmd_fetch(conn, args.hours, Path(args.images_dir))
         else:
             cmd_status(conn)
     finally:
