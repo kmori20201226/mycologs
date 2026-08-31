@@ -125,3 +125,4 @@ mycologs-full-*.tar.sha256
 # table changes — but they are source data, not source code.
 dev-helpers/precipication-collector/images/
 dev-helpers/precipication-collector/download_log.csv
+dev-helpers/precipication-collector/cron.log
