@@ -4,6 +4,7 @@ import { createPostSchema, postSchema, updatePostSchema } from '../schemas/post'
 import { notifyAiCreditExhausted } from '../lib/mail'
 import { recordAiUsage } from '../lib/ai-usage'
 import { hasActiveAccess } from '../lib/subscription'
+import { getViewerId, visibilityFilter } from '../lib/post-access'
 
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL ?? 'http://localhost:3002'
 
@@ -185,28 +186,6 @@ async function resolveVisibilityAndClubs(
     return { visibility: 'CLUBMEMBERONLY', clubIds: memberships.map(m => m.clubId) }
 }
 
-// Returns a Prisma where-clause fragment that gates visibility for a viewer.
-// viewerId=null means anonymous (public only).
-function visibilityFilter(viewerId: number | null) {
-    if (viewerId === null) {
-        return { visibility: 'PUBLIC' as PublicityType }
-    }
-    return {
-        OR: [
-            { visibility: 'PUBLIC' as PublicityType },
-            { userId: viewerId },
-            {
-                visibility: 'CLUBMEMBERONLY' as PublicityType,
-                postClubs: {
-                    some: {
-                        club: { clubUsers: { some: { userId: viewerId } } }
-                    }
-                }
-            },
-        ],
-    }
-}
-
 // Photo capture times (takenAt) are filtered by calendar day in JST (UTC+9),
 // matching how users think about "when the picture was taken" regardless of the
 // server's timezone. Given a yyyy-mm-dd day, returns the UTC instant at its JST
@@ -216,15 +195,6 @@ function jstDayStart(day: string, addDays = 0): Date {
     const d = new Date(`${day}T00:00:00+09:00`)
     if (addDays) d.setUTCDate(d.getUTCDate() + addDays)
     return d
-}
-
-async function getViewerId(request: any): Promise<number | null> {
-    try {
-        await request.jwtVerify()
-        return (request.user as { id: number }).id
-    } catch {
-        return null
-    }
 }
 
 export default async function (fastify: FastifyInstance) {

@@ -28,6 +28,48 @@ export interface TaxGenus {
 
 export type Edibility = 'EDIBLE' | 'INEDIBLE' | 'TOXIC' | 'DEADLY' | 'UNKNOWN'
 
+export interface PrecipDay {
+  date: string          // JST calendar day, YYYY-MM-DD
+  lowerMm: number       // bounds, not a measurement — see getEventPrecipitation
+  upperMm: number
+  wetHours: number
+  maskedHours: number   // radar could not see; NOT the same as zero rain
+  hours: number
+}
+
+/**
+ * A daily rainfall series for one point and one span. Identical whoever asked
+ * for it — the subject only adds its own block on top (see below). Anything
+ * that draws rainfall should take this, not a subject-specific type, so it
+ * works for every subject at once.
+ */
+export interface PrecipSeries {
+  cell: { i: number; j: number; centreLongitude: number; centreLatitude: number }
+  from: string
+  to: string
+  hoursExpected: number
+  hoursPresent: number
+  hoursMissing: number  // hours the archive does not have at all
+  maskedHours: number
+  wetHours: number
+  totalLowerMm: number
+  totalUpperMm: number
+  daily: PrecipDay[]
+}
+
+export interface EventPrecipitation extends PrecipSeries {
+  event: { id: number; name: string; longitude: number; latitude: number; startAt: string | null; endAt: string | null }
+}
+
+export interface PostPrecipitation extends PrecipSeries {
+  post: { id: number; longitude: number; latitude: number; takenAt: string | null; createdAt: string }
+}
+
+/** Both precipitation endpoints take the same inclusive ISO instant range. */
+function precipRange(from: Date, to: Date): string {
+  return `from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}`
+}
+
 export interface TaxSpecies {
   id: number
   scientificName: string
@@ -386,6 +428,24 @@ class ApiClient {
 
   async updateEvent(id: number, data: { name?: string; description?: string; place?: string | null; publicPlace?: string | null; longitude?: number | null; latitude?: number | null; startAt?: string | null; endAt?: string | null; retrospective?: string | null }): Promise<Event> {
     return this.request(`/events/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
+  }
+
+  /**
+   * Rainfall history at an event's location, bucketed by JST day.
+   *
+   * Every figure is a range. The radar encodes bands (yellow = 15-20 mm/h, not
+   * 15) and samples instantaneously once an hour, so lowerMm/upperMm bound what
+   * fell rather than measuring it. Render both; a single number would be a
+   * precision the data does not have.
+   */
+  async getEventPrecipitation(id: number, from: Date, to: Date): Promise<EventPrecipitation> {
+    return this.request(`/events/${id}/precipitation?${precipRange(from, to)}`)
+  }
+
+  // Rainfall where a post's photo was taken. Gated server-side by the same
+  // visibility rule as the post, so this 404s for a post the viewer can't see.
+  async getPostPrecipitation(id: number, from: Date, to: Date): Promise<PostPrecipitation> {
+    return this.request(`/posts/${id}/precipitation?${precipRange(from, to)}`)
   }
 
   async geocodePlace(place: string): Promise<{ candidates: Array<{ name: string; longitude: number; latitude: number }> }> {

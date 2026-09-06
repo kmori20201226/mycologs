@@ -125,3 +125,7 @@ mycologs-full-*.tar.sha256
 # table changes — but they are source data, not source code.
 dev-helpers/precipication-collector/images/
 dev-helpers/precipication-collector/download_log.csv
+dev-helpers/precipication-collector/cron.log
+# Tarred-up copies of the same archive. One is sitting there at ~1 GB; without
+# this, a stray `git add -A` commits it.
+dev-helpers/precipication-collector/*.tar

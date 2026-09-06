@@ -1,0 +1,21 @@
+# Python dependencies for the precipitation pipeline.
+#
+# On the dev machine these are installed in the `mycologs` conda env, which also
+# hosts ai-service and gbif-tools. This file exists so the same set can be
+# reproduced on the server, where `precip_fill.py fetch` runs from cron.
+#
+#     pip install -r requirements.txt
+#
+# Lower bounds rather than exact pins: nothing here uses a recent or unstable
+# API, and pinning hard would fight the conda env these already live in. The
+# versions in the comments are what the pipeline was built and verified against.
+
+numpy>=2.0            # 2.5.2  — classification and the block-majority vote
+pillow>=11.0          # 12.1.1 — JPEG decode
+psycopg2-binary>=2.9  # 2.9.11 — Postgres; the binary wheel avoids needing libpq headers
+requests>=2.30        # 2.34.2 — fetching from the tenki.jp archive
+python-dotenv>=1.0    # 1.2.2  — reads DATABASE_URL from the repo-root .env
+
+# Only needed to re-run the validation work (the seasonal colour-table sweep,
+# the mesh-period autocorrelation). Not needed by the cron.
+# matplotlib>=3.10    # 3.11.1

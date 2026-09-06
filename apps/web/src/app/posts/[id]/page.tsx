@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { apiClient, type MediaItem, type AiIdentification, type CandidateEvaluation, type Event } from '@/lib/api'
 import { getStoredUser } from '@/lib/auth'
 import EventCombobox from '@/components/EventCombobox'
+import PostPrecipPanel from '@/components/PostPrecipPanel'
 
 type PostVisibility = 'PUBLIC' | 'CLUBMEMBERONLY' | 'PRIVATE'
 
@@ -16,6 +17,11 @@ interface Post {
   visibility: PostVisibility
   clubIds: number[]
   expectedMediaCount?: number
+  // Where and when the photo was taken (EXIF, or the device fallback). All
+  // null when no location is known — see the precipitation panel below.
+  longitude: number | null
+  latitude: number | null
+  takenAt: string | null
   mentionedSpecies?: { id: number; scientificName: string; japaneseName: string }[]
   user: { id: number; name: string; handleName: string | null }
   event: { id: number; name: string; startAt: string | null; publicPlace: string | null } | null
@@ -900,6 +906,17 @@ function PostPageInner() {
                 </div>
               )
             })()}
+
+            {/* Rainfall in the fortnight before the photo was taken. Renders
+                nothing when the post has no coordinates; the endpoint behind it
+                is gated by the same visibility rule as the post itself. */}
+            <PostPrecipPanel
+              postId={post.id}
+              longitude={post.longitude}
+              latitude={post.latitude}
+              takenAt={post.takenAt}
+              createdAt={post.createdAt}
+            />
 
             {/* Accepted identifications */}
             {acceptedIds.length > 0 && (

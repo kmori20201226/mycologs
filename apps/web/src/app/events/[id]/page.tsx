@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { apiClient, type Event } from '@/lib/api'
 import { getStoredUser } from '@/lib/auth'
+import EventPrecipPanel from '@/components/EventPrecipPanel'
 
 function toInputValue(iso: string | null): string {
   if (!iso) return ''
@@ -414,6 +415,21 @@ export default function UserEventEditPage() {
 
             {dateError && (
               <p className="text-red-500 text-xs">{dateError}</p>
+            )}
+
+            {/* Rainfall at this location. Reads saved values, not the unsaved
+                form state — the graph must describe the event as stored, not a
+                place the user is halfway through typing. */}
+            {original && (
+              <div className="pt-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2">降水量</label>
+                <EventPrecipPanel
+                  eventId={original.id}
+                  startAt={original.startAt}
+                  endAt={original.endAt}
+                  hasLocation={original.longitude != null && original.latitude != null}
+                />
+              </div>
             )}
 
             {/* Banner image */}
