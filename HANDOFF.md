@@ -106,6 +106,33 @@ npx prisma migrate diff --from-config-datasource prisma.config.ts --to-schema pr
 them: they are what lets the grids be re-derived when the colour table improves,
 without re-downloading 19 months. Roughly 620 MB/year.
 
+**Adding a second prefecture will silently break the first.** tenki.jp publishes
+one radar map per prefecture; `pref-43` is 福岡県 and is the only one fetched so
+far. The read path picks its grid with
+
+```
+apps/api/src/lib/precip-series.ts:105
+const row = await fastify.prisma.precipGrid.findFirst({ orderBy: { id: 'desc' } })
+```
+
+— the *newest* row, unconditionally, cached for the life of the process. That is
+correct while Fukuoka is the only grid. Ingest a second prefecture and its row
+becomes the newest, so every post is resolved against it, Fukuoka coordinates
+fall outside it, `lonLatToCell` returns null, and the panels go empty with no
+error logged anywhere. Existing posts appear to lose their rainfall.
+
+Everything else is already multi-grid: every function in `precip.ts` takes a
+`spec` rather than assuming one, `ensure_grid` matches on all geometry fields so
+a new prefecture becomes a new row instead of overwriting the old, and
+`precip_snapshots.grid_id` exists. It is only the selection that is singular.
+
+Before prefecture #2: select the grid that *contains* the lon/lat rather than the
+newest, key the cache per grid, and parameterize the Python side — `SOURCE`,
+`AFFINE`, `IMAGE_WIDTH`/`IMAGE_HEIGHT` in `precip_extract.py`, the hardcoded
+`precip-43-` in `FILENAME_RE`, and `BASE_URL` are all single-prefecture module
+constants today. Each map needs its own affine calibration; they are not
+interchangeable.
+
 **Values are intervals, never point estimates.** tenki.jp's legend labels sit on
 band *boundaries*, so yellow means 15–20 mm/h, not 15. Every answer is a lower
 and upper bound. Do not collapse a band to a single number.
