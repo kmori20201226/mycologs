@@ -55,7 +55,10 @@ export function PrecipChart({ data }: { data: EventPrecipitation }) {
     const plotW = W - PAD_L - PAD_R
     const plotH = H - PAD_T - PAD_B
     const slot = plotW / days.length
-    const barW = Math.max(3, Math.min(28, slot * 0.62))
+    // Bars take most of their slot. A fortnight is only ~15 bars, so there is
+    // room to be generous, and the pale upper section needs enough width to
+    // read as a band rather than a smear.
+    const barW = Math.max(4, Math.min(40, slot * 0.8))
 
     const y = (mm: number) => PAD_T + plotH - (mm / maxMm) * plotH
     const ticks = [0, maxMm / 2, maxMm]
