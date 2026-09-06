@@ -2,7 +2,7 @@
  * Reading stored precipitation snapshots.
  *
  * This module READS. It does not extract. Turning radar JPEGs into band grids
- * lives in dev-helpers/precipication-collector/precip_extract.py and lives there
+ * lives in precipication-collector/precip_extract.py and lives there
  * only — the colour table, the 0.73 blend, the two basemaps, the mask boxes and
  * the voting rules are measured values, and a second copy would drift into a
  * second meaning for the same stored bytes. An earlier TypeScript extractor did

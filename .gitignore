@@ -123,9 +123,13 @@ mycologs-full-*.tar.sha256
 # ~980 MB of hourly tenki.jp JPEGs (~620 MB/year) plus the downloader's log.
 # Keep them on disk — they are what lets the grids be re-derived when the colour
 # table changes — but they are source data, not source code.
-dev-helpers/precipication-collector/images/
-dev-helpers/precipication-collector/download_log.csv
-dev-helpers/precipication-collector/cron.log
+precipication-collector/precip-images/
+# The same archive as it lands on the business server (extracted from the tar
+# below). It was untracked but unignored, one `git add -A` away from a 1.1 GB
+# commit.
+business-sandbox/precip-images/
+precipication-collector/download_log.csv
+precipication-collector/cron.log
 # Tarred-up copies of the same archive. One is sitting there at ~1 GB; without
 # this, a stray `git add -A` commits it.
-dev-helpers/precipication-collector/*.tar
+precipication-collector/*.tar

@@ -2,7 +2,7 @@
 #
 # Hourly collection of tenki.jp Fukuoka radar snapshots. Installed as:
 #
-#     20 * * * * /home/kmori/mycologs/dev-helpers/precipication-collector/precip-cron.sh
+#     20 * * * * /home/kmori/mycologs/precipication-collector/precip-cron.sh
 #
 # Twenty past the hour, to give the archive time to publish. Absolute paths
 # throughout because cron runs with a near-empty environment — no conda, no

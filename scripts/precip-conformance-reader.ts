@@ -7,7 +7,7 @@
  * A file rather than stdout because stdout is not clean: dotenv prints a banner
  * that begins with '[', which is indistinguishable from the start of a JSON
  * array to anything scanning for one. The Python driver
- * (dev-helpers/precipication-collector/verify_conformance.py) computes the same
+ * (precipication-collector/verify_conformance.py) computes the same
  * records independently and compares them exactly.
  *
  * The point is not that this code is correct — it is that it agrees. Extraction

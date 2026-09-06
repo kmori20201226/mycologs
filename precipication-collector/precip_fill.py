@@ -1,8 +1,8 @@
 """
 Fill precip_grids / precip_snapshots from radar images.
 
-    python precip_fill.py backfill images/            # ingest a directory
-    python precip_fill.py one images/precip-43-20250830-15.jpg
+    python precip_fill.py backfill precip-images/     # ingest a directory
+    python precip_fill.py one precip-images/precip-43-20250830-15.jpg
     python precip_fill.py fetch --hours 72            # download + ingest (cron)
     python precip_fill.py status                      # what is stored
 
@@ -309,7 +309,7 @@ def main() -> None:
     p = sub.add_parser("fetch")
     p.add_argument("--hours", type=int, default=72,
                    help="how far back to scan for gaps (default 72)")
-    p.add_argument("--images-dir", default=str(Path(__file__).resolve().parent / "images"),
+    p.add_argument("--images-dir", default=str(Path(__file__).resolve().parent / "precip-images"),
                    help="where downloaded JPEGs are kept")
     sub.add_parser("status")
     args = ap.parse_args()

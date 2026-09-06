@@ -9,7 +9,7 @@ URL形式:
   precip-43-YYYYMMDD-hh.jpg
 
 使い方:
-  python3 download_tenki_radar.py --start 2025-01-01 --end 2026-08-08 --outdir ./images
+  python3 download_tenki_radar.py --start 2025-01-01 --end 2026-08-08 --outdir ./precip-images
 
 特徴:
   - 1時間ごとにダウンロード（mm/ss は 00/00 固定）
@@ -87,7 +87,7 @@ def main():
     ap = argparse.ArgumentParser(description="tenki.jp 雨雲レーダー画像 一括ダウンロード")
     ap.add_argument("--start", required=True, help="開始日 (YYYY-MM-DD, 00時から)")
     ap.add_argument("--end", required=True, help="終了日 (YYYY-MM-DD, 23時まで含む)")
-    ap.add_argument("--outdir", default="./images", help="保存先ディレクトリ")
+    ap.add_argument("--outdir", default="./precip-images", help="保存先ディレクトリ")
     ap.add_argument("--delay", type=float, default=0.5, help="リクエスト間隔（秒）")
     ap.add_argument("--log", default="download_log.csv", help="結果ログCSVのパス")
     args = ap.parse_args()

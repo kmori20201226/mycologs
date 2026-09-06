@@ -102,7 +102,7 @@ npx prisma migrate diff --from-config-datasource prisma.config.ts --to-schema pr
 ```
 
 **The images are not in git.** ~980 MB in
-`dev-helpers/precipication-collector/images/`, ignored via `.gitignore`. Keep
+`precipication-collector/precip-images/`, ignored via `.gitignore`. Keep
 them: they are what lets the grids be re-derived when the colour table improves,
 without re-downloading 19 months. Roughly 620 MB/year.
 
@@ -119,7 +119,7 @@ say "between X and Y mm", never "X mm fell".
 24 snapshots/day is the ceiling, not a sampling choice.
 
 **The Python prototype does not run here.** No conda env has both Pillow and
-numpy (`mycologs` has Pillow, `zmlenv` has numpy). `dev-helpers/precipication-collector/precip-fukuoka.py`
+numpy (`mycologs` has Pillow, `zmlenv` has numpy). `precipication-collector/precip-fukuoka.py`
 is kept for reference only — its colour table is wrong in four separate ways
 (see the commit message). The TypeScript path replaces it; the downloader
 `download-precip-fukuoka.py` is fine and still useful for bulk fetching.

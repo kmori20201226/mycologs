@@ -3,7 +3,7 @@
  *
  * Runs against the real dev database (no mocks, matching the rest of the
  * suite), so it needs precip_snapshots populated — see
- * dev-helpers/precipication-collector/. It skips rather than fails when the
+ * precipication-collector/. It skips rather than fails when the
  * table is empty, because an empty precip table means "this branch's data has
  * not been loaded here", not "the code is broken".
  */
