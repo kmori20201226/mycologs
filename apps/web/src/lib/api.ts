@@ -37,8 +37,13 @@ export interface PrecipDay {
   hours: number
 }
 
-export interface EventPrecipitation {
-  event: { id: number; name: string; longitude: number; latitude: number; startAt: string | null; endAt: string | null }
+/**
+ * A daily rainfall series for one point and one span. Identical whoever asked
+ * for it — the subject only adds its own block on top (see below). Anything
+ * that draws rainfall should take this, not a subject-specific type, so it
+ * works for every subject at once.
+ */
+export interface PrecipSeries {
   cell: { i: number; j: number; centreLongitude: number; centreLatitude: number }
   from: string
   to: string
@@ -50,6 +55,19 @@ export interface EventPrecipitation {
   totalLowerMm: number
   totalUpperMm: number
   daily: PrecipDay[]
+}
+
+export interface EventPrecipitation extends PrecipSeries {
+  event: { id: number; name: string; longitude: number; latitude: number; startAt: string | null; endAt: string | null }
+}
+
+export interface PostPrecipitation extends PrecipSeries {
+  post: { id: number; longitude: number; latitude: number; takenAt: string | null; createdAt: string }
+}
+
+/** Both precipitation endpoints take the same inclusive ISO instant range. */
+function precipRange(from: Date, to: Date): string {
+  return `from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}`
 }
 
 export interface TaxSpecies {
@@ -421,8 +439,13 @@ class ApiClient {
    * precision the data does not have.
    */
   async getEventPrecipitation(id: number, from: Date, to: Date): Promise<EventPrecipitation> {
-    const qs = `from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}`
-    return this.request(`/events/${id}/precipitation?${qs}`)
+    return this.request(`/events/${id}/precipitation?${precipRange(from, to)}`)
+  }
+
+  // Rainfall where a post's photo was taken. Gated server-side by the same
+  // visibility rule as the post, so this 404s for a post the viewer can't see.
+  async getPostPrecipitation(id: number, from: Date, to: Date): Promise<PostPrecipitation> {
+    return this.request(`/posts/${id}/precipitation?${precipRange(from, to)}`)
   }
 
   async geocodePlace(place: string): Promise<{ candidates: Array<{ name: string; longitude: number; latitude: number }> }> {

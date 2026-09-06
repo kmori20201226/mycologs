@@ -1,9 +1,9 @@
 'use client'
 
-import type { EventPrecipitation, PrecipDay } from '@/lib/api'
+import type { PrecipSeries, PrecipDay } from '@/lib/api'
 
 /**
- * Daily rainfall bars for an event location.
+ * Daily rainfall bars for one place over one span.
  *
  * Hand-drawn SVG rather than a charting library, for a specific reason: every
  * value here is an interval, not a number. The radar encodes bands — yellow is
@@ -45,7 +45,7 @@ function tooltip(d: PrecipDay): string {
     return parts.join(' / ')
 }
 
-export function PrecipChart({ data }: { data: EventPrecipitation }) {
+export function PrecipChart({ data }: { data: PrecipSeries }) {
     const days = data.daily
     if (days.length === 0) {
         return <p className="text-sm text-gray-500">この期間の降水データがありません。</p>
@@ -130,7 +130,7 @@ export function PrecipChart({ data }: { data: EventPrecipitation }) {
 }
 
 /** One-line summary of what the chart is showing, including its caveats. */
-export function PrecipSummary({ data }: { data: EventPrecipitation }) {
+export function PrecipSummary({ data }: { data: PrecipSeries }) {
     const gaps: string[] = []
     if (data.hoursMissing > 0) gaps.push(`${data.hoursMissing}時間 データなし`)
     if (data.maskedHours > 0) gaps.push(`${data.maskedHours}時間 観測不能`)
