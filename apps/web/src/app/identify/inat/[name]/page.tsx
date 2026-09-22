@@ -24,6 +24,12 @@ interface InatTaxon {
 
 const INAT_API = 'https://api.inaturalist.org/v1'
 
+// "Russula sp." etc. mean "unidentified species within this genus" — a valid
+// mycological placeholder, but not a real binomial. iNaturalist has no
+// species-rank taxon literally named that, so an exact species-rank match
+// always fails here even though the genus itself (and its observations) exist.
+const GENUS_SP_RE = /^([A-Za-z][A-Za-z-]*)\s+sp{1,2}\.?$/i
+
 function sizedUrl(squareUrl: string, size: 'small' | 'medium' | 'large'): string {
   return squareUrl.replace('/square.', `/${size}.`)
 }
@@ -51,12 +57,15 @@ function InatSamplesPageInner() {
         // name is slightly off or absent from iNaturalist. Taking it blindly
         // produced confidently-wrong links, so require an exact name match and
         // otherwise report "not found" rather than pointing at the wrong taxon.
-        const wanted = scientificName.trim().toLowerCase()
+        const genusSpMatch = scientificName.trim().match(GENUS_SP_RE)
+        const queryName = genusSpMatch ? genusSpMatch[1] : scientificName
+        const rank = genusSpMatch ? 'genus' : 'species'
+        const wanted = queryName.trim().toLowerCase()
         let found: InatTaxon | undefined
 
         // First try active taxa only
         const taxaRes = await fetch(
-          `${INAT_API}/taxa?q=${encodeURIComponent(scientificName)}&rank=species&is_active=true&per_page=10`,
+          `${INAT_API}/taxa?q=${encodeURIComponent(queryName)}&rank=${rank}&is_active=true&per_page=10`,
           { cache: 'no-store' }
         )
         const taxaData = await taxaRes.json()
@@ -66,7 +75,7 @@ function InatSamplesPageInner() {
         // Fall back to including inactive/synonymized taxa
         if (!found) {
           const inactiveRes = await fetch(
-            `${INAT_API}/taxa?q=${encodeURIComponent(scientificName)}&rank=species&per_page=10`,
+            `${INAT_API}/taxa?q=${encodeURIComponent(queryName)}&rank=${rank}&per_page=10`,
             { cache: 'no-store' }
           )
           const inactiveData = await inactiveRes.json()
