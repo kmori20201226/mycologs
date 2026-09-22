@@ -151,6 +151,36 @@ is kept for reference only — its colour table is wrong in four separate ways
 (see the commit message). The TypeScript path replaces it; the downloader
 `download-precip-fukuoka.py` is fine and still useful for bulk fetching.
 
+This is about the deprecated prototype specifically, not about `precip_fill.py`
+(the script the cron actually runs) — see "Setting up the `mycologs` env on a
+new machine" below, which gets that one working.
+
+**Setting up the `mycologs` env on a new machine.** As of 2026-09-22 a fresh
+machine had no `mycologs` conda env at all (not even the incomplete one above)
+and no crontab entry installed — `precip_fill.py` failed immediately with
+`DATABASE_URL is not set`. From scratch:
+
+```
+conda create -y -n mycologs python=3.13
+"$(conda info --base)/envs/mycologs/bin/python" -m pip install -r precipication-collector/requirements.txt
+(crontab -l 2>/dev/null; echo "20 * * * * $(pwd)/precipication-collector/precip-cron.sh") | crontab -
+```
+
+Recent conda refuses to create envs from the `defaults` channels until their
+Terms of Service are accepted (once per machine):
+```
+conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main
+conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
+```
+
+Before trusting the cron, run `python precip_fill.py status` — it should
+report a connected DB and a non-zero snapshot count (needs `db:up` running).
+If it instead complains about `DATABASE_URL`, check `REPO_ROOT` in
+`precip_fill.py` first: it is computed as `parents[N]` relative to the
+script's own location, so it silently breaks again if the collector is ever
+moved without updating that line (this happened once already — see commit
+`b5f1bfb`, fixing the fallout of `050fe24`).
+
 ## Resuming
 
 ```
