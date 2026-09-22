@@ -51,7 +51,7 @@ from dotenv import load_dotenv
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from precip_extract import decode_cells, lonlat_to_cell, GRID_W, BANDS  # noqa: E402
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[1]
 load_dotenv(REPO_ROOT / ".env")
 
 JST = timezone(timedelta(hours=9))

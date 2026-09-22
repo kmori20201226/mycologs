@@ -31,7 +31,7 @@ from precip_extract import (  # noqa: E402
     extract_file, encode_cells, grid_spec, GRID_W, GRID_H,
 )
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[1]
 load_dotenv(REPO_ROOT / ".env")
 
 JST = timezone(timedelta(hours=9))

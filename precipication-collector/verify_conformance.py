@@ -38,7 +38,7 @@ from precip_extract import (  # noqa: E402
     GRID_W, GRID_H, BLOCK, AFFINE,
 )
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[1]
 load_dotenv(REPO_ROOT / ".env")
 
 READER_TS = REPO_ROOT / "scripts" / "precip-conformance-reader.ts"
