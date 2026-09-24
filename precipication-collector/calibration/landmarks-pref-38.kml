@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2"><Document>
+  <name>landmarks-pref-38</name>
+  <Placemark>
+    <name>毘沙ノ鼻</name>
+    <description>cape, westernmost Honshu</description>
+    <Point><coordinates>130.862359,34.110091,0</coordinates></Point>
+  </Placemark>
+  <Placemark>
+    <name>六連島</name>
+    <description>small island, south</description>
+    <Point><coordinates>130.863139,33.975565,0</coordinates></Point>
+  </Placemark>
+  <Placemark>
+    <name>蓋井島</name>
+    <description>island ~2.4km2, expect ~0.8km</description>
+    <Point><coordinates>130.786685,34.103793,0</coordinates></Point>
+  </Placemark>
+  <Placemark>
+    <name>角島</name>
+    <description>island ~4km2, expect ~1km, north</description>
+    <Point><coordinates>130.869761,34.357430,0</coordinates></Point>
+  </Placemark>
+  <Placemark>
+    <name>青海島</name>
+    <description>long island ~15km2, north</description>
+    <Point><coordinates>131.193623,34.418009,0</coordinates></Point>
+  </Placemark>
+  <Placemark>
+    <name>室津</name>
+    <description>coastal, far east</description>
+    <Point><coordinates>132.135883,33.840911,0</coordinates></Point>
+  </Placemark>
+  <Placemark>
+    <name>祝島</name>
+    <description>island ~7.7km2, expect ~1.5km, SE</description>
+    <Point><coordinates>131.976863,33.783385,0</coordinates></Point>
+  </Placemark>
+</Document></kml>
