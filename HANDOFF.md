@@ -154,25 +154,52 @@ grid by full geometry match.
 
 ## Calibration
 
-`precipication-collector/calibration/` holds the fitter and the landmark sets.
+`precipication-collector/calibration/` holds three tools. The normal loop is two
+commands; reading landmarks off a map by hand is now the fallback, not the job.
 
-1. Pick 6-10 landmarks — capes, island tips, lighthouses. **Not prefecture
-   borders**: the map draws them generalised, and the 大分 fit was thrown by a
-   border point whose coordinate and pixel disagreed by 3 km and which induced a
-   spurious 1.27 deg tilt.
-2. Read each pixel off a rain-free image (choose one by running the archive
-   through `classify_pixels` and taking an hour at the echo floor), get each
-   coordinate from 地理院地図, and fill `landmarks-pref-NN.tsv`.
-3. `python fit_affine.py landmarks-pref-NN.tsv` prints residuals and the
-   `AFFINE` block. Judge it by: RMS under ~1 px; rotation near zero (Fukuoka is
-   +0.03 deg); and the scale-free aspect check `lon_px/|lat_py| = 1/cos(lat)`,
-   which Fukuoka satisfies to +0.17%. Do **not** expect the absolute scale to
-   match another prefecture's.
-4. Verify against a neighbour that is already calibrated: extract both maps for
-   the same rainy hours and compare bands at the same lon/lat across the
-   overlap. 大分 agrees with 福岡 on 87.5% of 30,516 sampled points, peaking
-   within 1 px of zero offset. Held-out landmarks should also project to within
-   a few hundred metres of the coastline the map draws.
+```
+python auto_affine.py   --pref 44 --ref 43                        # produce
+python verify_affine.py --pref 44 --ref 43 --landmarks landmarks-pref-44.tsv
+```
+
+**auto_affine.py** calibrates against an already-calibrated neighbour. The maps
+overlap and see the same rain, so the reference grid is ground truth: it searches
+the pixel-space scale and offset that makes the target read the same bands.
+Measured by calibrating 大分 against 福岡 with its landmarks withheld, then
+comparing to the landmark affine: **worst image-corner displacement 1.71 px,
+504 m**. Two things it prints every run are the ones to read — whether the
+fitted sx and sy agree (they must, the transform is a similarity), and how far
+the *reference* departs from Mercator, which is the floor on what calibrating
+against it can achieve (福岡: 1.3 px).
+
+Do not chain linear affines to compose the result. Longitude is exactly linear
+in Mercator and latitude is not, so a stored affine is only the best linear fit
+over its own latitude band; composing through it costs 4 px. `compose()` goes
+through a Mercator model of the reference and refits over the target's frame.
+
+**verify_affine.py** runs three checks that are not either fitter's objective:
+held-out landmark coordinates projected against the coastline the map draws; the
+overlap agreement with a neighbour as a shift sweep (the peak must sit dead
+centre — the value alone is weak evidence, since auto_affine nearly optimises
+it); and what the three mask boxes cover, with the land fraction under each.
+大分 measures: held-out median 0.42 km, overlap 95.4% peaking at (0,0), one box
+over land but Ehime's, not Oita's.
+
+**fit_affine.py** is the manual path, for a prefecture with no calibrated
+neighbour or when auto disagrees with verification. Pick 6-10 landmarks — capes,
+island tips, lighthouses, **not prefecture borders**: the map draws those
+generalised, and the 大分 fit was thrown by a border point whose coordinate and
+pixel disagreed by 3 km and which induced a spurious 1.27 deg tilt. Read pixels
+off a rain-free frame, coordinates from 地理院地図, then judge the fit by RMS
+under ~1 px, rotation near zero (福岡 is +0.03 deg), and the scale-free aspect
+check `lon_px/|lat_py| = 1/cos(lat)`, which 福岡 satisfies to +0.17%. Never
+expect the absolute scale to match another prefecture's.
+
+Verification numbers are only comparable when measured the same way: an early
+hand-run of the overlap check reported 87.5% for the same 大分 affine that
+verify_affine scores 95.4%, because it sampled four hours of the 2025-08-10
+extreme where echo covered 80% of the map. verify_affine picks hours in the
+10-65% echo band.
 
 **Values are intervals, never point estimates.** tenki.jp's legend labels sit on
 band *boundaries*, so yellow means 15–20 mm/h, not 15. Every answer is a lower
