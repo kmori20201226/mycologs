@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2"><Document>
+  <name>landmarks-pref-46</name>
+  <Placemark>
+    <name>三角港</name>
+    <description>port, north</description>
+    <Point><coordinates>130.468942,32.605726,0</coordinates></Point>
+  </Placemark>
+  <Placemark>
+    <name>湯島</name>
+    <description>small island</description>
+    <Point><coordinates>130.337885,32.602839,0</coordinates></Point>
+  </Placemark>
+  <Placemark>
+    <name>富岡港</name>
+    <description>port, west 天草</description>
+    <Point><coordinates>130.034630,32.523903,0</coordinates></Point>
+  </Placemark>
+  <Placemark>
+    <name>御所浦島</name>
+    <description>island ~13km2, expect ~1.5km</description>
+    <Point><coordinates>130.347420,32.327860,0</coordinates></Point>
+  </Placemark>
+  <Placemark>
+    <name>牛深港</name>
+    <description>port, far south</description>
+    <Point><coordinates>130.027870,32.194404,0</coordinates></Point>
+  </Placemark>
+</Document></kml>

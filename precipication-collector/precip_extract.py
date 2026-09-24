@@ -107,6 +107,14 @@ PREFECTURES = {
         # south, well outside the narrow shared strip — the extrapolation held.
         # Overlap 93.5%, optimum 298 m away. Fitted on only 12,530 echo cells,
         # the least of any prefecture, because the maps share barely 37% of a frame.
+        #
+        # Re-checked 2026-09-24 against five hand-read landmarks. KEPT this affine:
+        # the four good readings sit 2.0 px (597 m) from it on average, and a fit
+        # built from them scores WORSE on the overlap test (91.3% at zero offset
+        # against 93.5%, optimum 655 m out against 298 m). Four points clustered
+        # in lon 130.03-130.47 and all in the southern third cannot pin the scale
+        # as well as the whole overlap does — the opposite of 山口, where the
+        # landmarks were spread and did improve on auto_affine.
         "affine": dict(
             lon_px=3.183693e-03,
             lon_py=-1.504375e-06,

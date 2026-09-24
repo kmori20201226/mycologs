@@ -13,9 +13,25 @@
 # centroid, so it sits about its own radius from the coast by construction;
 # expected values are noted per row.
 #
+# Read 2026-09-24 off precip-images/pref-46-clear-*.jpg. The four good readings
+# sit 2.0 px (597 m) from the installed auto_affine affine on average, which is
+# within the uncertainty of reading a port — 三角港 and 牛深港 geocode to a park
+# and a bridge respectively. They VERIFY the affine; they did not improve it,
+# and the fit built from them scores worse on the overlap test (91.3% against
+# 93.5%) because four points clustered in lon 130.03-130.47, all in the southern
+# third of the map, cannot pin a scale as well as the whole overlap can.
+#
 #  px      py      lon           lat          name
-?       ?       130.468942    32.605726    三角港 (port, north)
-?       ?       130.337885    32.602839    湯島 (small island)
-?       ?       130.034630    32.523903    富岡港 (port, west 天草)
-?       ?       130.347420    32.327860    御所浦島 (island ~13km2, expect ~1.5km)
-?       ?       130.027870    32.194404    牛深港 (port, far south)
+295       277       130.468942    32.605726    三角港 (port, north)
+253       278       130.337885    32.602839    湯島 (small island)
+158       308       130.034630    32.523903    富岡港 (port, west 天草)
+# MISREAD, do not restore: 255 370 -- every pair of the other four agrees on the
+# latitude scale to 0.3% and every pair involving this one does not (-2.12 to
+# -3.16e-3 against -2.635e-3). It sits 9.8 px from where the affine puts it,
+# about 3 km, which is more than this island's radius, so it looks like a
+# different feature was read rather than an off-centre estimate. Including it
+# took the fit's RMS from 0.24 px to 3.32 and invented a -0.55 deg rotation.
+# If Kumamoto is ever re-fitted, replace it with a cape or a port on 御所浦島
+# rather than the centroid.
+?       ?       130.347420    32.327860    御所浦島 (island ~13km2 — centroid, too vague to read)
+155       433       130.027870    32.194404    牛深港 (port, far south)
