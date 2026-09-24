@@ -1,15 +1,19 @@
 #!/usr/bin/env python3
 """
-tenki.jp 福岡県(pref-43) 雨雲レーダー画像 一括ダウンロードスクリプト
+tenki.jp 雨雲レーダー画像 一括ダウンロードスクリプト
 
 URL形式:
-  https://storage.tenki.jp/archive/radar/YYYY/MM/DD/hh/00/00/pref-43-large.jpg
+  https://storage.tenki.jp/archive/radar/YYYY/MM/DD/hh/00/00/pref-NN-large.jpg
 
 保存ファイル名:
-  precip-43-YYYYMMDD-hh.jpg
+  precip-NN-YYYYMMDD-hh.jpg
 
 使い方:
-  python3 download_tenki_radar.py --start 2025-01-01 --end 2026-08-08 --outdir ./precip-images
+  python3 download-precip-fukuoka.py --start 2025-01-01 --end 2026-08-08 --outdir ./precip-images
+  python3 download-precip-fukuoka.py --pref 47 --start 2025-01-01 --end 2026-09-24
+
+  --pref は tenki.jp の県コード（43=福岡県、47=大分県。既定は43）。
+  ダウンロードするだけで、取り込みは precip_fill.py backfill が行う。
 
 特徴:
   - 1時間ごとにダウンロード（mm/ss は 00/00 固定）
@@ -29,8 +33,10 @@ from pathlib import Path
 
 import requests
 
-BASE_URL = "https://storage.tenki.jp/archive/radar/{y:04d}/{m:02d}/{d:02d}/{h:02d}/00/00/pref-43-large.jpg"
-FILENAME_FMT = "precip-43-{y:04d}{m:02d}{d:02d}-{h:02d}.jpg"
+# 県ごとに別の地図。--pref で差し替わる（既定は福岡県）。
+BASE_URL = "https://storage.tenki.jp/archive/radar/{y:04d}/{m:02d}/{d:02d}/{h:02d}/00/00/pref-{pref}-large.jpg"
+FILENAME_FMT = "precip-{pref}-{y:04d}{m:02d}{d:02d}-{h:02d}.jpg"
+DEFAULT_PREF = 43
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (compatible; research-script/1.0)"
@@ -45,9 +51,9 @@ def daterange_hours(start: datetime, end: datetime):
 
 
 def download_one(session, dt: datetime, outdir: Path, delay: float,
-                  max_retries: int = 3, timeout: float = 15.0):
-    url = BASE_URL.format(y=dt.year, m=dt.month, d=dt.day, h=dt.hour)
-    fname = FILENAME_FMT.format(y=dt.year, m=dt.month, d=dt.day, h=dt.hour)
+                  pref: int = DEFAULT_PREF, max_retries: int = 3, timeout: float = 15.0):
+    url = BASE_URL.format(pref=pref, y=dt.year, m=dt.month, d=dt.day, h=dt.hour)
+    fname = FILENAME_FMT.format(pref=pref, y=dt.year, m=dt.month, d=dt.day, h=dt.hour)
     out_path = outdir / fname
 
     if out_path.exists() and out_path.stat().st_size > 0:
@@ -85,6 +91,8 @@ def download_one(session, dt: datetime, outdir: Path, delay: float,
 
 def main():
     ap = argparse.ArgumentParser(description="tenki.jp 雨雲レーダー画像 一括ダウンロード")
+    ap.add_argument("--pref", type=int, default=DEFAULT_PREF,
+                    help=f"tenki.jpの県コード 43=福岡県 47=大分県 (既定 {DEFAULT_PREF})")
     ap.add_argument("--start", required=True, help="開始日 (YYYY-MM-DD, 00時から)")
     ap.add_argument("--end", required=True, help="終了日 (YYYY-MM-DD, 23時まで含む)")
     ap.add_argument("--outdir", default="./precip-images", help="保存先ディレクトリ")
@@ -100,7 +108,7 @@ def main():
 
     hours = list(daterange_hours(start, end))
     total = len(hours)
-    print(f"対象: {start} 〜 {end} ({total}件、1時間ごと)")
+    print(f"対象: pref-{args.pref} {start} 〜 {end} ({total}件、1時間ごと)")
 
     session = requests.Session()
     log_path = Path(args.log)
@@ -114,7 +122,7 @@ def main():
 
     try:
         for i, dt in enumerate(hours, 1):
-            result, fname = download_one(session, dt, outdir, args.delay)
+            result, fname = download_one(session, dt, outdir, args.delay, pref=args.pref)
             writer.writerow([dt.isoformat(), fname, result])
             log_f.flush()
 
