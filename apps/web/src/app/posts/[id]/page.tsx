@@ -104,9 +104,15 @@ function PostPageInner() {
     (post.visibility === 'PRIVATE' || (post.event != null && !clubEventIds.has(post.event.id)))
   )
 
-  // Identification hint (local only — stored on Identification when accepted)
-  const [hint, setHint] = useState('')
-  const [committedHint, setCommittedHint] = useState<string | null>(null)
+  // Identification hint (local only — stored on Identification when accepted).
+  // Seeded from the saved AI result so a restored result and the hint box agree
+  // about which hint produced it.
+  const [hint, setHint] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem(`aiResult:${postId}`)
+      return saved ? (JSON.parse(saved).hint ?? '') : ''
+    } catch { return '' }
+  })
 
   // AI identification state — persisted in sessionStorage so back-navigation doesn't lose it
   const sessionKey = `aiResult:${postId}`
@@ -452,7 +458,6 @@ function PostPageInner() {
     setAiLoading(true)
     setAiError('')
     setAiResult(null)
-    setCommittedHint(hint)
     try {
       // Auto-include up to 3 mentioned species (Phase 1) as candidates for the
       // AI to compare against the images.
@@ -497,6 +502,9 @@ function PostPageInner() {
   // until they're all in (it needs the full set, and the API refuses + refunds
   // an incomplete identification anyway).
   const mediaIncomplete = mediaLoaded && images.length < (post?.expectedMediaCount ?? 0)
+  // Re-identification is only worth a credit if the hint actually changed, so the
+  // button stays visible after a result but goes inert until the hint is edited.
+  const hintUnchanged = !!aiResult && hint.trim() === (aiResult.hint ?? '').trim()
   // Species already proposed on this post — used to dedupe the candidate "save" action.
   const identifiedSciNames = new Set(
     identifications.flatMap((i) => [i.species?.scientificName, i.description?.scientific_name].filter(Boolean) as string[]),
@@ -588,10 +596,10 @@ function PostPageInner() {
                   </button>
                   </>
                 ) : null })()}
-                {(aiLoading || committedHint === null || hint !== committedHint) && <button
+                <button
                   onClick={handleAiIdentify}
-                  disabled={aiLoading || !currentUser || (mediaLoaded && images.length === 0) || mediaIncomplete}
-                  title={mediaIncomplete ? '写真のアップロードが完了するまでお待ちください' : (mediaLoaded && images.length === 0) ? '写真を添付してから同定を依頼してください' : !currentUser ? 'ログインが必要です' : undefined}
+                  disabled={aiLoading || !currentUser || (mediaLoaded && images.length === 0) || mediaIncomplete || hintUnchanged}
+                  title={mediaIncomplete ? '写真のアップロードが完了するまでお待ちください' : (mediaLoaded && images.length === 0) ? '写真を添付してから同定を依頼してください' : !currentUser ? 'ログインが必要です' : hintUnchanged ? '同定ヒントを変更すると、再度同定を依頼できます' : undefined}
                   className={`inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors ${aiLoading ? 'cursor-wait' : ''}`}
                 >
                   {aiLoading ? (
@@ -603,9 +611,9 @@ function PostPageInner() {
                       同定中…
                     </>
                   ) : (
-                    '同定を依頼'
+                    aiResult ? '再度同定を依頼' : '同定を依頼'
                   )}
-                </button>}
+                </button>
                 </div>
               </div>
 
@@ -749,7 +757,11 @@ function PostPageInner() {
                     placeholder="色、臭い、採取場所の環境、季節など、同定に役立つ情報を自由に記入してください…"
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-emerald-400"
                   />
-                  <p className="text-xs text-gray-400 mt-1">同定を依頼するときにAIへ送信されます</p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    {hintUnchanged
+                      ? 'ヒントを書き換えると、同じ写真でもう一度同定を依頼できます'
+                      : '同定を依頼するときにAIへ送信されます'}
+                  </p>
                 </div>
               )}
 
