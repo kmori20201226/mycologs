@@ -32,12 +32,18 @@ if [ ! -x "$PYTHON" ]; then
 fi
 
 # One map per prefecture, each its own download and its own precip_grids row.
-# Adding a code here roughly doubles the disk the images take (~620 MB/year
-# each) and requires that precip_extract.PREFECTURES already has a calibrated
-# affine for it — precip_fill.py refuses the code otherwise rather than
-# guessing. A failing prefecture must not stop the others, so each runs in its
-# own statement and the exit status is collected at the end.
-PREFS="43 47"
+# All five calibrated maps: 38 山口, 43 福岡, 44 佐賀, 46 熊本, 47 大分.
+#
+# Each code costs ~620 MB/year of JPEGs, so this is ~3.1 GB/year in total, plus
+# ~1 GB per prefecture if its archive is ever backfilled. Adding a code requires
+# that precip_extract.PREFECTURES already has a calibrated affine — precip_fill.py
+# refuses the code otherwise rather than guessing.
+#
+# A failing prefecture must not stop the others, so each runs in its own
+# statement and the exit status is collected at the end. This also means the
+# run now takes five downloads an hour rather than one; at 0.5 s of courtesy
+# delay each that is still nothing, but it is no longer a single request.
+PREFS="38 43 44 46 47"
 rc=0
 for pref in $PREFS; do
     echo "--- pref-$pref"
