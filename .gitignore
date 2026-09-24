@@ -134,3 +134,8 @@ precipication-collector/cron.log
 # Tarred-up copies of the same archive. One is sitting there at ~1 GB; without
 # this, a stray `git add -A` commits it.
 precipication-collector/*.tar
+# Scratch scripts in the calibration dir — one-off loops and diagnostics with
+# prefecture codes hardcoded. The real tools are auto_affine / verify_affine /
+# fit_affine / landmarks_to_map / make_grid_image.
+precipication-collector/calibration/run_all.sh
+precipication-collector/calibration/wide_sweep.py
