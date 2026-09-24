@@ -144,8 +144,9 @@ def main():
           f"lat {A['lat_py']*IMG_H + A['lat_c']:.4f}..{A['lat_c']:.4f}")
     aspect, want = A["lon_px"] / abs(A["lat_py"]), 1 / np.cos(np.radians(clat))
     dev = 100 * (aspect / want - 1)
-    note = ("  <-- tautological: auto_affine builds the affine from a Mercator model, "
-            "so this identity holds by construction and confirms nothing"
+    note = ("  <-- tautological here: this affine was built with the aspect imposed "
+            "(auto_affine always is; fit_affine's constrained mode too), so the "
+            "identity holds by construction and confirms nothing"
             if abs(dev) < 0.02 else f"; 福岡 measures +0.17%, 大分 -0.38%")
     print(f"  aspect {aspect:.5f} vs 1/cos(lat) {want:.5f} ({dev:+.2f}%{note})\n")
 

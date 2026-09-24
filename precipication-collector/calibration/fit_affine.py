@@ -67,6 +67,59 @@ def report(a, rows):
     print(')')
 
 
+def _merc(l):   return np.log(np.tan(np.pi / 4 + np.radians(l) / 2))
+def _imerc(y):  return np.degrees(2 * np.arctan(np.exp(y)) - np.pi / 2)
+
+
+def fit_constrained(rows, seed=None):
+    """
+    The same fit with the projection imposed: no rotation, and the aspect fixed
+    at 1/cos(lat). Three parameters instead of six.
+
+    Worth having because rotation is the parameter a small or lopsided landmark
+    set gets wrong. 山口's seven points put five in x 73-188 and only two out
+    east, so rotation rested on one baseline where 1 px of reading error swings
+    it 0.17 deg; the free fit claimed 0.51 deg, against the 0.03-0.05 these maps
+    actually measure. Constraining it cost 0.07 px of RMS and moved the
+    independent overlap optimum from 323-457 m out to exactly zero.
+
+    Not a universal improvement. On 大分, whose six landmarks are well spread,
+    the free fit scores 95.4% centred and this one 95.2% peaking a pixel away.
+    Prefer it when the free fit reports a rotation these maps do not have, or
+    when the landmarks cluster.
+    """
+    px, py, lon, lat = (np.array([r[i] for r in rows], float) for i in range(4))
+    y = _merc(lat)
+
+    # Only the scale is searched. Given it, both offsets have closed forms:
+    # longitude is linear in px, and latitude is linear in MERCATOR y, which is
+    # the whole point of the constraint. That makes this a 1-D scan with an
+    # exact inner solve, rather than coordinate descent on three coupled
+    # parameters — which terminated early and returned different answers from
+    # different starting points, 0.36% apart in scale.
+    def solve(k):
+        lc = float(np.mean(lon - k * px))
+        yc = float(np.mean(y + np.radians(k) * py))
+        plat = _imerc(yc - np.radians(k) * py)
+        cost = np.hypot((k * px + lc - lon) / k,
+                        (plat - lat) / (k * np.cos(np.radians(lat)))).mean()
+        return cost, lc, yc
+
+    seed = (seed or fit(rows))["lon_px"]
+    lo, hi = seed * 0.97, seed * 1.03
+    for _ in range(60):                       # golden-section-ish bisection on a smooth 1-D cost
+        a1, a2 = lo + (hi - lo) / 3, hi - (hi - lo) / 3
+        if solve(a1)[0] < solve(a2)[0]:
+            hi = a2
+        else:
+            lo = a1
+    k = (lo + hi) / 2
+    best, lc, yc = solve(k)
+    top, bot = _imerc(yc), _imerc(yc - np.radians(k) * IMAGE_HEIGHT)
+    return dict(lon_px=k, lon_py=0.0, lon_c=lc,
+                lat_px=0.0, lat_py=(bot - top) / IMAGE_HEIGHT, lat_c=top), best
+
+
 def main(path):
     rows, unfilled = [], 0
     for line in open(path):
@@ -86,7 +139,24 @@ def main(path):
         print(f'({unfilled} landmark rows not filled in yet — skipped)\n')
     if len(rows) < 3:
         sys.exit(f'need at least 3 filled landmarks (6+ recommended); found {len(rows)}')
-    report(fit(rows), rows)
+    a = fit(rows)
+    report(a, rows)
+
+    rot = np.degrees(np.arctan2(-a["lon_py"], a["lon_px"]))
+    con, crms = fit_constrained(rows, seed=a)
+    print(f'\n--- constrained alternative: no rotation, aspect fixed at 1/cos(lat) ---')
+    print(f'RMS {crms:.2f} px (free fit above reports its own; rotation there is {rot:+.2f} deg)')
+    if abs(rot) > 0.15:
+        print(f'The free fit\'s {rot:+.2f} deg rotation is not physical — these maps measure')
+        print(f'0.03-0.05 deg — so it is absorbing reading error. PREFER THIS ONE, and')
+        print(f'confirm with verify_affine: the overlap peak should sit at exactly (0,0).')
+    else:
+        print(f'The free fit\'s rotation is plausible, so it is probably the better of the')
+        print(f'two; this is here for comparison. Let the overlap sweep decide.')
+    print('\nAFFINE = dict(')
+    for k in ("lon_px", "lon_py", "lon_c", "lat_px", "lat_py", "lat_c"):
+        print(f'    {k}={con[k]:.6e},' if abs(con[k]) < 1 else f'    {k}={con[k]:.6f},')
+    print(')')
 
 
 if __name__ == '__main__':

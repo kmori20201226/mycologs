@@ -121,19 +121,26 @@ PREFECTURES = {
         "source": "tenki.jp/pref-38-large",
         "width": 692,
         "height": 519,
-        # auto_affine.py against pref-43, accepted on verification:
-        # all seven held-out landmarks within 0.78 km, median 0.66, including 室津
-        # at the far east. Overlap 94.2%, optimum 723 m away — the largest of the
-        # four and the one to re-do with landmarks if precision ever matters.
-        # Do NOT calibrate this one against pref-47: that run scored 0.25 pixel
-        # agreement and placed the map 189 km out. Their maps barely overlap.
+        # Landmark fit, 2026-09-24, replacing the auto_affine result which the
+        # overlap test put 1165 m out. Seven landmarks read by hand off
+        # precip-images/pref-38-clear-20251209-03-grid.png.
+        #
+        # Fitted with rotation fixed at zero and the aspect fixed at 1/cos(lat)
+        # -- three parameters, not six. The unconstrained fit reported a 0.51 deg
+        # rotation, which is not real: these maps measure 0.03-0.05 deg, and five
+        # of the seven landmarks cluster in x 73-188 with only two out east, so
+        # rotation rests on one long baseline where 1 px of reading error swings
+        # it 0.17 deg. Constraining it costs almost nothing in fit (RMS 0.82 px
+        # against 0.75) and gains everything in the independent check: overlap
+        # agreement with pref-43 peaks at EXACTLY zero offset, where the
+        # unconstrained fits sit 323-457 m out and auto_affine 1165 m.
         "affine": dict(
-            lon_px=3.521742e-03,
-            lon_py=-1.664111e-06,
-            lon_c=130.533428,
-            lat_px=-6.783127e-17,
-            lat_py=-2.906735e-03,
-            lat_c=35.126445,
+lon_px=3.503855e-03,
+            lon_py=0.000000e+00,
+            lon_c=130.533409,
+            lat_px=0.000000e+00,
+            lat_py=-2.892219e-03,
+            lat_c=35.112859,
         ),
     },
 }

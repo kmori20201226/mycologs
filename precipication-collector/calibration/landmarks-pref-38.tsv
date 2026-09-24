@@ -14,10 +14,10 @@
 # expected values are noted per row.
 #
 #  px      py      lon           lat          name
-?       ?       130.862359    34.110091    毘沙ノ鼻 (cape, westernmost Honshu)
-?       ?       130.863139    33.975565    六連島 (small island, south)
-?       ?       130.786685    34.103793    蓋井島 (island ~2.4km2, expect ~0.8km)
-?       ?       130.869761    34.357430    角島 (island ~4km2, expect ~1km, north)
-?       ?       131.193623    34.418009    青海島 (long island ~15km2, north)
-?       ?       132.135883    33.840911    室津 (coastal, far east)
-?       ?       131.976863    33.783385    祝島 (island ~7.7km2, expect ~1.5km, SE)
+95      348     130.862359    34.110091    毘沙ノ鼻 (cape, westernmost Honshu)
+94      394     130.863139    33.975565    六連島 (small island, south)
+73      350       130.786685    34.103793    蓋井島 (island ~2.4km2, expect ~0.8km)
+94      262       130.869761    34.357430    角島 (island ~4km2, expect ~1km, north)
+188     242       131.193623    34.418009    青海島 (long island ~15km2, north)
+458     440       132.135883    33.840911    室津 (coastal, far east)
+412     460       131.976863    33.783385    祝島 (island ~7.7km2, expect ~1.5km, SE)
