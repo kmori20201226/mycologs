@@ -124,6 +124,7 @@ mycologs-full-*.tar.sha256
 # Keep them on disk — they are what lets the grids be re-derived when the colour
 # table changes — but they are source data, not source code.
 precipication-collector/precip-images/
+precipication-collector/calibration/cache/
 # The same archive as it lands on the business server (extracted from the tar
 # below). It was untracked but unignored, one `git add -A` away from a 1.1 GB
 # commit.
