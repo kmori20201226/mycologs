@@ -25,14 +25,22 @@
 579 365 132.17670835556117 33.0436592092966 水の子灯台
 500 483 131.922604 32.726291 深島北端
 
-# Commented-out candidates, coordinates from OSM, pixels never read. Useful if
-# this fit is ever redone with more points.
-#444 109 131.645732 33.723941 姫島 (island centroid)
-#401 125 131.522797 33.684097 長崎鼻 (豊後高田, cape)
-#573 269 132.014740 33.342459 佐田岬 (Shikoku, cape tip)
-#534 300 131.903092 33.267458 関埼 (佐賀関半島 tip)
-#401 307 131.524023 33.251989 高崎山 (別府湾 S shore)
-#572 368 132.010178 33.105591 保戸島 (island)
-#542 413 131.924568 32.998697 大入島 (佐伯湾 island)
-#598 441 132.085292 32.933004 鶴御崎 (cape)
-#588 438 132.056853 32.939923 米水津芳ヶ浦
+# Held out from the fit:coordinates from OSM, pixels never read.
+# verify_affine.py projects these against the coastline the map actually draws,
+# as a check independent of whatever produced the affine. fit_affine.py skips
+# them, because their px/py are '?'.
+#
+# Expect a coastal feature within a few hundred metres. 高崎山 is a hill about a
+# kilometre inland and correctly reads further out — read the list, not just the
+# summary.
+#
+#  px      py      lon           lat          name
+?       ?       131.645732    33.723941    姫島 (admin centroid, not a shape point)
+?       ?       131.522797    33.684097    長崎鼻 (豊後高田, cape)
+?       ?       132.014740    33.342459    佐田岬 (Shikoku, cape tip)
+?       ?       131.903092    33.267458    関埼 (佐賀関半島 tip)
+?       ?       131.524023    33.251989    高崎山 (別府湾 S shore)
+?       ?       132.010178    33.105591    保戸島 (island)
+?       ?       131.924568    32.998697    大入島 (佐伯湾 island)
+?       ?       132.085292    32.933004    鶴御崎 (cape)
+?       ?       132.056853    32.939923    米水津芳ヶ浦

@@ -255,9 +255,12 @@ _BASEMAP_D2 = float(BASEMAP_DIST ** 2)
 #
 # pref-43: all three fall outside Fukuoka proper -- the caption covers sea north
 # of the coast, the legend and logo cover longitudes east of 131.35, in Oita.
-# pref-47: also clear of Oita -- the caption covers lon 130.34-131.10 at lat
-# 33.92-34.01 (Suo-nada and Yamaguchi), the legend lon 132.29-132.53 and the logo
-# lon 132.24-132.53, both out in the Bungo channel past the prefecture's east.
+# pref-47: clear of Oita, but not of land. Measured by calibration/verify_affine.py:
+# the caption covers lon 130.34-131.10 at lat 33.92-34.01 (4% land, Suo-nada and
+# Yamaguchi), the legend lon 132.29-132.53 (10% land) and the logo lon
+# 132.24-132.53 (5% land). That land is Ehime, across the Bungo channel, so no
+# Oita coordinate is masked by it -- which is the thing that matters, and is not
+# the same as the boxes sitting over open sea.
 MASK_BOXES = [
     (0, 0, 240, 35),
     (615, 290, 692, 490),
