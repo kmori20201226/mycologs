@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Hourly collection of tenki.jp Fukuoka radar snapshots. Installed as:
+# Hourly collection of tenki.jp radar snapshots. Installed as:
 #
 #     20 * * * * /home/kmori/mycologs/precipication-collector/precip-cron.sh
 #
@@ -17,7 +17,7 @@
 # Hours that tenki.jp never published (20 of them in the first 20 months) are
 # reported as absent and retried while they remain inside the window, then
 # forgotten. That is correct: they are not coming.
-set -euo pipefail
+set -uo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PYTHON="/home/kmori/miniconda3/envs/mycologs/bin/python"
@@ -31,10 +31,23 @@ if [ ! -x "$PYTHON" ]; then
     exit 1
 fi
 
-"$PYTHON" "$DIR/precip_fill.py" fetch --hours 72
+# One map per prefecture, each its own download and its own precip_grids row.
+# Adding a code here roughly doubles the disk the images take (~620 MB/year
+# each) and requires that precip_extract.PREFECTURES already has a calibrated
+# affine for it — precip_fill.py refuses the code otherwise rather than
+# guessing. A failing prefecture must not stop the others, so each runs in its
+# own statement and the exit status is collected at the end.
+PREFS="43 47"
+rc=0
+for pref in $PREFS; do
+    echo "--- pref-$pref"
+    "$PYTHON" "$DIR/precip_fill.py" --pref "$pref" fetch --hours 72 || rc=$?
+done
 
 # Keep the log from growing without bound. Written to a temp file and moved so a
 # concurrent run never reads a half-truncated log.
 if [ "$(wc -l < "$LOG")" -gt 5000 ]; then
     tail -n 2000 "$LOG" > "$LOG.tmp" && mv "$LOG.tmp" "$LOG"
 fi
+
+exit "$rc"

@@ -10,6 +10,7 @@
 import test from 'node:test'
 import assert from 'node:assert'
 import { buildApp } from '../src/app'
+import { createPrecipReader } from '../src/lib/precip-series'
 
 test('GET /events/:id/precipitation', async (t) => {
     const app = await buildApp()
@@ -177,5 +178,70 @@ test('GET /posts/:id/precipitation', async (t) => {
             url: `/posts/${anyLocatedId}/precipitation?from=${far.toISOString()}&to=${to.toISOString()}`,
         })
         assert.equal(res.statusCode, 400)
+    })
+})
+
+/**
+ * Grid selection when more than one prefecture is ingested.
+ *
+ * tenki.jp publishes a separate map per prefecture, each fitted to its own
+ * bounding box with its own affine. The reader used to take the newest
+ * precip_grids row unconditionally, which was correct only while Fukuoka was
+ * alone: a second prefecture would become "newest", every existing post would
+ * resolve against a map its coordinates fall outside, and the panels would go
+ * empty with nothing logged. That is the failure this guards.
+ *
+ * Driven through createPrecipReader rather than the HTTP endpoints, because
+ * what is under test is which grid answers for a coordinate — and a coordinate
+ * is exactly what the endpoints do not let a caller choose.
+ *
+ * The second grid is created and removed inside the test, and carries no
+ * snapshots, so it can never be the right answer for a Fukuoka point.
+ */
+test('precipitation grid selection with several prefectures', async (t) => {
+    const app = await buildApp()
+    t.after(() => app.close())
+
+    const fukuoka = await app.prisma.precipGrid.findFirst({ orderBy: { id: 'asc' } })
+    if (!fukuoka) return t.skip('no precip_grids row — data not loaded in this database')
+
+    // The calibrated 大分 geometry. Its map reaches east to lon 132.53, well
+    // past Fukuoka's 131.61 edge, and overlaps it over the whole western half.
+    const oita = await app.prisma.precipGrid.create({
+        data: {
+            source: 'test/pref-47-large', lonPx: 3.174963e-3, lonPy: 2.994483e-6,
+            lonC: 130.335821, latPx: 4.176112e-6, latPy: -2.663095e-3, latC: 34.012942,
+            blockSize: fukuoka.blockSize, width: fukuoka.width, height: fukuoka.height,
+            bands: fukuoka.bands as object,
+        },
+    })
+    t.after(() => app.prisma.precipGrid.delete({ where: { id: oita.id } }))
+
+    // Built after the insert: the reader caches the grid set on first use.
+    const reader = createPrecipReader(app)
+    const to = new Date('2026-08-30T00:00:00Z')
+    const from = new Date(to.getTime() - 14 * 86_400_000)
+
+    await t.test('a Fukuoka point still answers from the Fukuoka grid', async () => {
+        // The coordinate the extractor was originally verified against.
+        const r = await reader.seriesAt(130.80546, 33.66280, from, to)
+        assert.ok(r.ok, 'a newer grid must not hide an existing point\'s rainfall')
+        assert.ok(r.series.hoursPresent > 0,
+            'resolved to the grid that holds hours, not merely to one containing the point')
+    })
+
+    await t.test('a point only the new grid covers resolves to the new grid', async () => {
+        // East of Fukuoka's image, inside Oita's: before this grid existed the
+        // same coordinate was outside coverage altogether.
+        const r = await reader.seriesAt(132.30, 33.20, from, to)
+        assert.ok(r.ok, 'the containing grid should answer even with no hours stored')
+        assert.equal(r.series.hoursPresent, 0, 'the test grid has no snapshots')
+        assert.equal(r.series.hoursMissing, r.series.hoursExpected)
+    })
+
+    await t.test('a point outside every grid is still refused', async () => {
+        const r = await reader.seriesAt(139.767, 35.681, from, to)   // Tokyo
+        assert.equal(r.ok, false)
+        if (!r.ok) assert.equal(r.refusal.code, 'outside_radar_coverage')
     })
 })

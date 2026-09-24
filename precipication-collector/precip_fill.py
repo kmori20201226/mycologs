@@ -6,6 +6,10 @@ Fill precip_grids / precip_snapshots from radar images.
     python precip_fill.py fetch --hours 72            # download + ingest (cron)
     python precip_fill.py status                      # what is stored
 
+Every command works on one prefecture, chosen with --pref (default 43, 福岡県).
+Each prefecture is a separate map with its own affine and its own precip_grids
+row, so `--pref 47 fetch` adds Oita alongside Fukuoka rather than replacing it.
+
 DDL is owned by Prisma, not by this script. Every table, column and index comes
 from a Prisma migration; this only ever INSERTs and SELECTs. Creating anything
 here would show up as drift and `prisma migrate dev` would offer to drop it.
@@ -28,7 +32,7 @@ from dotenv import load_dotenv
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from precip_extract import (  # noqa: E402
-    extract_file, encode_cells, grid_spec, GRID_W, GRID_H,
+    extract_file, encode_cells, grid_spec, select_prefecture, PREFECTURES, DEFAULT_PREF,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -36,12 +40,29 @@ load_dotenv(REPO_ROOT / ".env")
 
 JST = timezone(timedelta(hours=9))
 
-FILENAME_RE = re.compile(r"^precip-43-(\d{4})(\d{2})(\d{2})-(\d{2})\.jpg$")
+def filename_re(pref: int) -> re.Pattern[str]:
+    """Images are named per prefecture, so a shared directory stays unambiguous."""
+    return re.compile(rf"^precip-{pref}-(\d{{4}})(\d{{2}})(\d{{2}})-(\d{{2}})\.jpg$")
+
+
+# The prefecture every command below works on. Set once from --pref, because it
+# has to agree with the geometry select_prefecture() binds into precip_extract;
+# two different answers to "which map is this" would ingest one prefecture's
+# pixels against another's affine, and nothing downstream could detect it.
+PREF = DEFAULT_PREF
+FILENAME_RE = filename_re(PREF)
+
+
+def use_prefecture(pref: int) -> None:
+    global PREF, FILENAME_RE
+    select_prefecture(pref)          # raises if it has no calibrated affine
+    PREF = pref
+    FILENAME_RE = filename_re(pref)
 
 
 def observed_at_from_filename(name: str) -> datetime | None:
     """
-    precip-43-YYYYMMDD-HH.jpg -> naive UTC datetime.
+    precip-NN-YYYYMMDD-HH.jpg -> naive UTC datetime.
 
     The filename hour is JST -- it matches both the archive URL path and the
     caption painted into the image. `observed_at` is TIMESTAMP(3) *without* time
@@ -135,10 +156,10 @@ def ingest_file(conn, grid_id: int, path: Path, observed_at: datetime) -> dict:
 def cmd_backfill(conn, directory: Path, commit_every: int = 200) -> None:
     files = sorted(f for f in os.listdir(directory) if observed_at_from_filename(f))
     if not files:
-        sys.exit(f"No precip-43-YYYYMMDD-HH.jpg files in {directory}")
+        sys.exit(f"No precip-{PREF}-YYYYMMDD-HH.jpg files in {directory}")
 
     grid_id = ensure_grid(conn)
-    print(f"Ingesting {len(files):,} snapshots from {directory} ...")
+    print(f"Ingesting {len(files):,} {PREFECTURES[PREF]['name']} snapshots from {directory} ...")
 
     ok = failed = total_bytes = 0
     t0 = time.time()
@@ -172,7 +193,8 @@ def cmd_backfill(conn, directory: Path, commit_every: int = 200) -> None:
 def cmd_one(conn, path: Path) -> None:
     observed_at = observed_at_from_filename(path.name)
     if observed_at is None:
-        sys.exit(f"{path.name} does not match precip-43-YYYYMMDD-HH.jpg")
+        sys.exit(f"{path.name} does not match precip-{PREF}-YYYYMMDD-HH.jpg "
+                 f"(use --pref to ingest another prefecture)")
     grid_id = ensure_grid(conn)
     r = ingest_file(conn, grid_id, path, observed_at)
     conn.commit()
@@ -186,7 +208,7 @@ def cmd_one(conn, path: Path) -> None:
 
 ARCHIVE_URL = (
     "https://storage.tenki.jp/archive/radar/"
-    "{y:04d}/{m:02d}/{d:02d}/{h:02d}/00/00/pref-43-large.jpg"
+    "{y:04d}/{m:02d}/{d:02d}/{h:02d}/00/00/pref-{pref}-large.jpg"
 )
 
 # tenki.jp publishes on the hour only: minute 00 returns 200, and 05/10/15/30
@@ -247,14 +269,15 @@ def cmd_fetch(conn, hours: int, images_dir: Path, delay: float = FETCH_DELAY_S) 
     for observed_at in missing:
         y, m, d, h = utc_to_jst_parts(observed_at)
         stamp = f"{y}-{m:02d}-{d:02d} {h:02d}:00 JST"
-        path = images_dir / f"precip-43-{y:04d}{m:02d}{d:02d}-{h:02d}.jpg"
+        path = images_dir / f"precip-{PREF}-{y:04d}{m:02d}{d:02d}-{h:02d}.jpg"
         downloaded = False
 
         try:
             # An image already on disk is ingested without re-downloading, so a
             # re-run after a failed ingest costs the archive nothing.
             if not (path.exists() and path.stat().st_size > 0):
-                resp = session.get(ARCHIVE_URL.format(y=y, m=m, d=d, h=h), timeout=FETCH_TIMEOUT_S)
+                resp = session.get(ARCHIVE_URL.format(y=y, m=m, d=d, h=h, pref=PREF),
+                                   timeout=FETCH_TIMEOUT_S)
                 if resp.status_code == 404:
                     # Genuine upstream gaps exist -- the original download log
                     # shows 20 in 14,040 hours. Absent, not an error.
@@ -303,6 +326,12 @@ def cmd_status(conn) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument(
+        "--pref", type=int, default=DEFAULT_PREF, choices=sorted(PREFECTURES),
+        help="tenki.jp prefecture map to work on: "
+             + ", ".join(f"{k} {v['name']}" for k, v in sorted(PREFECTURES.items()))
+             + f" (default {DEFAULT_PREF})",
+    )
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("backfill"); p.add_argument("directory")
     p = sub.add_parser("one"); p.add_argument("path")
@@ -313,6 +342,7 @@ def main() -> None:
                    help="where downloaded JPEGs are kept")
     sub.add_parser("status")
     args = ap.parse_args()
+    use_prefecture(args.pref)
 
     conn = connect()
     try:

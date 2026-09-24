@@ -49,7 +49,9 @@ import psycopg2
 from dotenv import load_dotenv
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from precip_extract import decode_cells, lonlat_to_cell, GRID_W, BANDS  # noqa: E402
+from precip_extract import (  # noqa: E402
+    decode_cells, lonlat_to_cell, grid_spec, GRID_W, BANDS, SOURCE,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 load_dotenv(REPO_ROOT / ".env")
@@ -87,18 +89,52 @@ def load_posts(path: Path):
     return posts
 
 
+def resolve_grid_id(conn) -> int:
+    """
+    The precip_grids row this analysis is reading cells against.
+
+    Cell indices only mean something relative to one grid, and once a second
+    prefecture is ingested the table holds several -- same index, different
+    place on the earth. Matched on the full geometry rather than on source
+    alone, so a recalibrated affine (which is written as a new row) is a miss
+    rather than a silent reinterpretation of the old cells.
+    """
+    spec = grid_spec()
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT id FROM precip_grids
+             WHERE source = %(source)s
+               AND lon_px = %(lon_px)s AND lon_py = %(lon_py)s AND lon_c = %(lon_c)s
+               AND lat_px = %(lat_px)s AND lat_py = %(lat_py)s AND lat_c = %(lat_c)s
+               AND block_size = %(block_size)s
+               AND width = %(width)s AND height = %(height)s
+             ORDER BY id DESC LIMIT 1
+            """,
+            spec,
+        )
+        row = cur.fetchone()
+    if not row:
+        sys.exit(f"No precip_grids row matches the current {SOURCE} geometry — "
+                 f"has it been ingested with this affine?")
+    return row[0]
+
+
 def build_rainfall(conn, cells: set, date_from, date_to) -> dict:
     """(cell_index, date) -> mm for that JST day, for the cells we care about."""
     idxs = sorted({j * GRID_W + i for (i, j) in cells})
     idx_arr = np.array(idxs)
     daily = defaultdict(float)
+    grid_id = resolve_grid_id(conn)
 
     with conn.cursor(name="precip_stream") as cur:
         cur.itersize = 500
         cur.execute(
             "SELECT observed_at, cells FROM precip_snapshots "
-            "WHERE observed_at >= %s AND observed_at < %s ORDER BY observed_at",
-            (datetime.combine(date_from, datetime.min.time()) - timedelta(hours=9),
+            "WHERE grid_id = %s AND observed_at >= %s AND observed_at < %s "
+            "ORDER BY observed_at",
+            (grid_id,
+             datetime.combine(date_from, datetime.min.time()) - timedelta(hours=9),
              datetime.combine(date_to, datetime.min.time()) + timedelta(days=1)),
         )
         n = 0

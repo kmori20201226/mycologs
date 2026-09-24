@@ -1,0 +1,38 @@
+# Landmarks for the tenki.jp 大分 map (pref-47-large, 692x519), as fitted.
+#
+#     px   py   lon   lat   name
+#
+# px/py were read off a rain-free frame, 2025-12-09 09:00 JST, kept as
+# precip-images/pref-47-clear-20251209-09.jpg (with a pixel-grid overlay beside
+# it). Coordinates are from OpenStreetMap unless noted.
+#
+# Fit: RMS 0.84 px, worst 1.44 px, rotation -0.05 deg, scale 3.38 px/km.
+# The result is in precip_extract.PREFECTURES[47]; see HANDOFF.md "Calibration"
+# for how it was verified.
+#
+#     python fit_affine.py landmarks-pref-47.tsv
+#
+#  px      py      lon           lat          name
+419 111 131.665618 33.716857 姫島 南端
+268 148 131.186257 33.619146 福岡、県境中津
+528 254 132.014112 33.342428 佐多岬
+# REJECTED: 498 474 131.884469 32.748089 佐伯市、県境
+#   Its coordinate and its pixel disagree by 3 km (the pixel reads as
+#   131.9224, 32.7611) and including it induces a spurious 1.27 deg tilt,
+#   costing 2.5 px of RMS. Prefecture borders are drawn generalised; read
+#   capes, island tips and lighthouses instead.
+158 342 130.839737 33.104258 熊本、大分県境
+579 365 132.17670835556117 33.0436592092966 水の子灯台
+500 483 131.922604 32.726291 深島北端
+
+# Commented-out candidates, coordinates from OSM, pixels never read. Useful if
+# this fit is ever redone with more points.
+#444 109 131.645732 33.723941 姫島 (island centroid)
+#401 125 131.522797 33.684097 長崎鼻 (豊後高田, cape)
+#573 269 132.014740 33.342459 佐田岬 (Shikoku, cape tip)
+#534 300 131.903092 33.267458 関埼 (佐賀関半島 tip)
+#401 307 131.524023 33.251989 高崎山 (別府湾 S shore)
+#572 368 132.010178 33.105591 保戸島 (island)
+#542 413 131.924568 32.998697 大入島 (佐伯湾 island)
+#598 441 132.085292 32.933004 鶴御崎 (cape)
+#588 438 132.056853 32.939923 米水津芳ヶ浦

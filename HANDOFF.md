@@ -1,14 +1,16 @@
-# Handoff — `precip-radar`
+# Handoff — precipitation
 
-Branch state as of 2026-08-30. This file exists only on this branch; `main` is
-deliberately kept clean so a production incident can be handled from it at any
-moment without this work in the way.
+Merged into `main` on 2026-09-06, from the `precip-radar` / `precip-event-graph`
+branches. The branch-era framing that used to open this file — "this exists only
+on this branch, main is kept clean" — no longer applies; so does the dev-DB drift
+warning that went with it, since main's schema now matches the database.
 
 ## Goal
 
-Store hourly rainfall for Fukuoka so a post can be asked what rain preceded it —
-input is a longitude/latitude and a time span, which is what `posts` already
-carries (`longitude`, `latitude`, `taken_at`).
+Store hourly rainfall so a post can be asked what rain preceded it — input is a
+longitude/latitude and a time span, which is what `posts` already carries
+(`longitude`, `latitude`, `taken_at`). 福岡 (pref-43) and 大分 (pref-47) are
+ingested; see the prefecture note under Gotchas before adding a third.
 
 ## What works today
 
@@ -21,11 +23,18 @@ tenki.jp JPEG -> band grid -> 4-bit packed + zlib -> precip_snapshots row
 
 | Piece | File |
 |---|---|
-| Extraction, geometry, codec | `apps/api/src/lib/precip.ts` |
-| `backfill` / `fetch` / `query` commands | `scripts/precip-ingest.ts` |
+| Extraction, geometry, codec (the source of truth) | `precipication-collector/precip_extract.py` |
+| Per-prefecture maps and affines | `precip_extract.PREFECTURES` |
+| `backfill` / `one` / `fetch` / `status` commands | `precipication-collector/precip_fill.py` |
+| Hourly cron, one pass per prefecture | `precipication-collector/precip-cron.sh` |
+| Affine calibration | `precipication-collector/calibration/` |
+| Reading it back (interpretation only) | `apps/api/src/lib/precip.ts`, `precip-series.ts` |
 | Tables | `prisma/schema.prisma` (`PrecipGrid`, `PrecipSnapshot`) |
 | Migration | `prisma/migrations/20260829135014_add_precip_snapshots/` |
-| npm entry points | `precip-backfill`, `precip-fetch`, `precip-query` |
+
+`scripts/precip-ingest.ts` and the `precip-backfill` / `precip-fetch` /
+`precip-query` npm entry points this table used to list are gone; ingestion is
+the Python collector's job and `precip.ts` only reads stored rows.
 
 Verified, not assumed:
 
@@ -90,48 +99,80 @@ array index. Re-verify against the oracle if you do it.
 
 ## Gotchas
 
-**Dev DB drift.** The local dev DB has `precip_grids`/`precip_snapshots`, which
-`main` does not know about. `prisma migrate status` reports "up to date" anyway —
-it only checks that folder migrations are applied, not the reverse — but
-`prisma migrate dev` on `main` sees drift and offers to **reset the whole
-database**. It prompts first, so it cannot happen silently. Say no.
-
-To confirm what it would do, without doing it:
+**~~Dev DB drift~~ — resolved by the merge.** The precip tables used to exist in
+the dev database but not on `main`, so `prisma migrate dev` there offered to
+reset everything. The merge moved main's schema to match; `prisma migrate diff`
+returns an empty migration. To confirm before trusting it:
 ```
 npx prisma migrate diff --from-config-datasource prisma.config.ts --to-schema prisma/schema.prisma --script
 ```
+
+**The tables still exist only on the dev database.** Nothing has been applied to
+the business server, and which database this belongs in was never decided. The
+migration itself is purely additive, so applying it cannot disturb the running
+version; the risk there is the collector's disk, not the schema.
 
 **The images are not in git.** ~980 MB in
 `precipication-collector/precip-images/`, ignored via `.gitignore`. Keep
 them: they are what lets the grids be re-derived when the colour table improves,
 without re-downloading 19 months. Roughly 620 MB/year.
 
-**Adding a second prefecture will silently break the first.** tenki.jp publishes
-one radar map per prefecture; `pref-43` is 福岡県 and is the only one fetched so
-far. The read path picks its grid with
+**Two prefectures are ingested: 福岡 (pref-43) and 大分 (pref-47).** tenki.jp
+publishes one radar map per prefecture, each fitted to *its own* prefecture's
+bounding box — the zoom is not shared. Measured: Kagoshima renders at 2.10 px/km
+against Fukuoka's 3.78 on the same 692x519 canvas, and Oita at 3.38. Every
+prefecture therefore needs its own affine, measured from landmarks; the maps are
+not interchangeable. What *is* shared, and was verified between 43 and 47: the
+colour swatches, the blend constant, both basemap colours, the band table, and
+the three MASK_BOXES rectangles (identical pixels, though the geography beneath
+them differs and must be re-checked per prefecture).
+
+Adding a prefecture now means: calibrate an affine (see Calibration below), add
+it to `PREFECTURES` in `precip_extract.py`, and add its code to `PREFS` in
+`precip-cron.sh`. Each code costs ~620 MB/year of images. `precip_fill.py`
+refuses a code with no calibrated affine rather than guessing.
+
+The read path selects **by containment, not by recency**:
 
 ```
-apps/api/src/lib/precip-series.ts:105
-const row = await fastify.prisma.precipGrid.findFirst({ orderBy: { id: 'desc' } })
+apps/api/src/lib/precip-series.ts   gridFor()
 ```
 
-— the *newest* row, unconditionally, cached for the life of the process. That is
-correct while Fukuoka is the only grid. Ingest a second prefecture and its row
-becomes the newest, so every post is resolved against it, Fukuoka coordinates
-fall outside it, `lonLatToCell` returns null, and the panels go empty with no
-error logged anywhere. Existing posts appear to lose their rainfall.
+Among the grids whose image contains the point, the one holding snapshots for
+the requested span wins, and interiority — how far inside its image the point
+sits — breaks the remaining ties. This used to be
+`findFirst({ orderBy: { id: 'desc' } })`, which was correct only while Fukuoka
+was the only grid: ingesting a second prefecture would have made its row the
+newest, resolved every post against it, and emptied every existing panel with
+nothing logged. `apps/api/test/precipitation.test.ts` guards it — the test was
+confirmed to fail against the old selection.
 
-Everything else is already multi-grid: every function in `precip.ts` takes a
-`spec` rather than assuming one, `ensure_grid` matches on all geometry fields so
-a new prefecture becomes a new row instead of overwriting the old, and
-`precip_snapshots.grid_id` exists. It is only the selection that is singular.
+`analyze_fruiting.py` had the same latent bug from the other direction: it read
+`precip_snapshots` with no `grid_id` filter, so a second prefecture would have
+blended two grids that share cell indices but not geography. It now resolves its
+grid by full geometry match.
 
-Before prefecture #2: select the grid that *contains* the lon/lat rather than the
-newest, key the cache per grid, and parameterize the Python side — `SOURCE`,
-`AFFINE`, `IMAGE_WIDTH`/`IMAGE_HEIGHT` in `precip_extract.py`, the hardcoded
-`precip-43-` in `FILENAME_RE`, and `BASE_URL` are all single-prefecture module
-constants today. Each map needs its own affine calibration; they are not
-interchangeable.
+## Calibration
+
+`precipication-collector/calibration/` holds the fitter and the landmark sets.
+
+1. Pick 6-10 landmarks — capes, island tips, lighthouses. **Not prefecture
+   borders**: the map draws them generalised, and the 大分 fit was thrown by a
+   border point whose coordinate and pixel disagreed by 3 km and which induced a
+   spurious 1.27 deg tilt.
+2. Read each pixel off a rain-free image (choose one by running the archive
+   through `classify_pixels` and taking an hour at the echo floor), get each
+   coordinate from 地理院地図, and fill `landmarks-pref-NN.tsv`.
+3. `python fit_affine.py landmarks-pref-NN.tsv` prints residuals and the
+   `AFFINE` block. Judge it by: RMS under ~1 px; rotation near zero (Fukuoka is
+   +0.03 deg); and the scale-free aspect check `lon_px/|lat_py| = 1/cos(lat)`,
+   which Fukuoka satisfies to +0.17%. Do **not** expect the absolute scale to
+   match another prefecture's.
+4. Verify against a neighbour that is already calibrated: extract both maps for
+   the same rainy hours and compare bands at the same lon/lat across the
+   overlap. 大分 agrees with 福岡 on 87.5% of 30,516 sampled points, peaking
+   within 1 px of zero offset. Held-out landmarks should also project to within
+   a few hundred metres of the coastline the map draws.
 
 **Values are intervals, never point estimates.** tenki.jp's legend labels sit on
 band *boundaries*, so yellow means 15–20 mm/h, not 15. Every answer is a lower

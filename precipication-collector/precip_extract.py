@@ -1,5 +1,5 @@
 """
-tenki.jp Fukuoka radar image -> band grid.
+tenki.jp prefecture radar image -> band grid.
 
 This is the single source of truth for extraction. Every constant here was
 measured from the images; none are guessable and several are not what the
@@ -20,22 +20,75 @@ import zlib
 import numpy as np
 from PIL import Image
 
-SOURCE = "tenki.jp/pref-43-large"
+# tenki.jp publishes one radar map per prefecture, and each map is fitted to its
+# own prefecture's bounding box -- the zoom is NOT shared. Measured: Kagoshima
+# renders at 2.10 px/km (Yakushima 59 px wide, Tanegashima 118 px long) against
+# Fukuoka's 3.78, on the same 692x519 canvas. So every prefecture needs its own
+# affine, measured from landmarks; the maps are not interchangeable.
+#
+# What IS shared, and therefore lives outside this table: the colour swatches,
+# the blend constant, both basemap colours, the band table, and the three
+# MASK_BOXES rectangles. Verified between pref-43 and pref-47 -- identical
+# dominant basemap colours, and the legend swatches sit at the same pixels in
+# both (magenta at x 645-648 y 343-346, yellow at y 403-406).
+#
+# Each affine maps pixel -> lon/lat including the small cross terms, since the
+# projection is very slightly rotated (lon depends on py and lat on px).
+PREFECTURES = {
+    43: {
+        "name": "福岡県",
+        "source": "tenki.jp/pref-43-large",
+        "width": 692,
+        "height": 519,
+        # Sanity check: Fukuoka city (130.4017, 33.5904) lands on pixel
+        # (269, 225), which is Hakata Bay.
+        "affine": dict(
+            lon_px=2.857252e-3,
+            lon_py=-1.350123e-6,
+            lon_c=129.634248,
+            lat_px=-7.448166e-6,
+            lat_py=-2.378694e-3,
+            lat_c=34.127323,
+        ),
+    },
+    47: {
+        "name": "大分県",
+        "source": "tenki.jp/pref-47-large",
+        "width": 692,
+        "height": 519,
+        # Fitted by least squares to six landmarks (姫島南端, 中津の県境,
+        # 佐田岬, 熊本大分県境, 水の子灯台, 深島北端): RMS 0.84 px, worst 1.44 px,
+        # rotation -0.05 deg against Fukuoka's +0.03. Checked three further ways:
+        #   - seven held-out landmarks project to within 0.3-0.5 km of the
+        #     coastline the map actually draws (the one exception, 高崎山, is a
+        #     hill a kilometre inland, where it belongs);
+        #   - 87.5% of 30,516 sampled points in the lon 130.4-131.6 overlap read
+        #     the same band as the Fukuoka grid across four rainy hours, and the
+        #     agreement peaks within 1 px of zero offset;
+        #   - the scale, 1.120x Fukuoka's degrees per pixel, matches the 1.10-1.12
+        #     obtained independently by cross-correlating the two maps.
+        # A seventh landmark on the 佐伯 prefecture border was rejected: its
+        # coordinate and its pixel disagreed by 3 km and it induced a 1.27 deg
+        # tilt. Border lines are generalised renderings -- prefer capes, island
+        # tips and lighthouses.
+        "affine": dict(
+            lon_px=3.174963e-03,
+            lon_py=2.994483e-06,
+            lon_c=130.335821,
+            lat_px=4.176112e-06,
+            lat_py=-2.663095e-03,
+            lat_c=34.012942,
+        ),
+    },
+}
 
-IMAGE_WIDTH = 692
-IMAGE_HEIGHT = 519
+DEFAULT_PREF = 43
 
-# Pixel -> lon/lat, including the small cross terms (the projection is very
-# slightly rotated, so lon depends on py and lat on px). Sanity check: Fukuoka
-# city (130.4017, 33.5904) lands on pixel (269, 225), which is Hakata Bay.
-AFFINE = dict(
-    lon_px=2.857252e-3,
-    lon_py=-1.350123e-6,
-    lon_c=129.634248,
-    lat_px=-7.448166e-6,
-    lat_py=-2.378694e-3,
-    lat_c=34.127323,
-)
+PREF_CODE = DEFAULT_PREF
+SOURCE = PREFECTURES[PREF_CODE]["source"]
+IMAGE_WIDTH = PREFECTURES[PREF_CODE]["width"]
+IMAGE_HEIGHT = PREFECTURES[PREF_CODE]["height"]
+AFFINE = PREFECTURES[PREF_CODE]["affine"]
 
 # Cells are integer blocks of source pixels. 4x4 gives ~1.06 km cells, close to
 # the radar's own ~4.4 x 3.5 px mesh, and the majority vote across the block is
@@ -49,6 +102,30 @@ AFFINE = dict(
 BLOCK = 4
 GRID_W = -(-IMAGE_WIDTH // BLOCK)    # 173
 GRID_H = -(-IMAGE_HEIGHT // BLOCK)   # 130
+
+
+def select_prefecture(code: int) -> None:
+    """
+    Point this module at another prefecture's map.
+
+    Rebinds the geometry globals rather than threading a spec through every
+    function, which keeps the extraction code and its byte-for-byte agreement
+    with the TypeScript twin untouched. Call it once, before extracting; it is
+    not safe to interleave two prefectures within a process.
+    """
+    global PREF_CODE, SOURCE, IMAGE_WIDTH, IMAGE_HEIGHT, AFFINE, GRID_W, GRID_H
+
+    if code not in PREFECTURES:
+        raise KeyError(f"no affine for pref-{code}; it must be calibrated first "
+                       f"(known: {sorted(PREFECTURES)})")
+    p = PREFECTURES[code]
+    PREF_CODE = code
+    SOURCE = p["source"]
+    IMAGE_WIDTH = p["width"]
+    IMAGE_HEIGHT = p["height"]
+    AFFINE = p["affine"]
+    GRID_W = -(-IMAGE_WIDTH // BLOCK)
+    GRID_H = -(-IMAGE_HEIGHT // BLOCK)
 
 # Band index -> mm/h interval.
 #
@@ -172,9 +249,15 @@ _BASEMAP_D2 = float(BASEMAP_DIST ** 2)
 
 # Regions the image paints over the map: timestamp caption (top left), legend box
 # (right), tenki.jp logo (bottom right). Cells here are masked, not "no rain" --
-# the truth is unknown. All three fall outside Fukuoka prefecture proper: the
-# caption covers sea north of the coast, and the legend and logo cover longitudes
-# east of 131.35, which is Oita.
+# the truth is unknown. The rectangles are the same pixels on every prefecture's
+# map (verified against pref-47), but the geography under them is not, so each
+# new prefecture has to be checked for furniture sitting on land that matters.
+#
+# pref-43: all three fall outside Fukuoka proper -- the caption covers sea north
+# of the coast, the legend and logo cover longitudes east of 131.35, in Oita.
+# pref-47: also clear of Oita -- the caption covers lon 130.34-131.10 at lat
+# 33.92-34.01 (Suo-nada and Yamaguchi), the legend lon 132.29-132.53 and the logo
+# lon 132.24-132.53, both out in the Bungo channel past the prefecture's east.
 MASK_BOXES = [
     (0, 0, 240, 35),
     (615, 290, 692, 490),

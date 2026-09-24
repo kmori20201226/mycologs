@@ -1,7 +1,7 @@
 import { FastifyInstance } from 'fastify'
 import {
-    gridSpecFromRow, decodeCells, lonLatToCell, readCell, bandRange, cellToLonLat,
-    BAND_MASKED, BAND_NO_ECHO, type PrecipGridSpec,
+    gridSpecFromRow, decodeCells, lonLatToCell, lonLatToPixel, readCell, bandRange,
+    cellToLonLat, BAND_MASKED, BAND_NO_ECHO, type PrecipGridSpec, type Cell,
 } from './precip'
 
 /**
@@ -91,21 +91,87 @@ export function parseRange(from: string, to: string): RangeResult {
 }
 
 /**
- * Reads series for one Fastify instance, holding the grid spec.
+ * Reads series for one Fastify instance, holding the grid specs.
  *
- * The spec is immutable once written — a change produces a new row — so it is
- * safe to hold. Scoped to the instance rather than the module so that a test
+ * A spec is immutable once written — a change produces a new row — so the set
+ * is safe to hold. Scoped to the instance rather than the module so that a test
  * building several apps does not share state between them.
+ *
+ * ALL grids are held, not the newest one. tenki.jp publishes a separate map per
+ * prefecture, each with its own affine, and the maps overlap; which one answers
+ * for a point is decided per point by `gridFor` below.
  */
 export function createPrecipReader(fastify: FastifyInstance) {
-    let cachedSpec: PrecipGridSpec | null = null
+    let cachedSpecs: PrecipGridSpec[] | null = null
 
-    async function loadSpec(): Promise<PrecipGridSpec | null> {
-        if (cachedSpec) return cachedSpec
-        const row = await fastify.prisma.precipGrid.findFirst({ orderBy: { id: 'desc' } })
-        if (!row) return null
-        cachedSpec = gridSpecFromRow(row)
-        return cachedSpec
+    async function loadSpecs(): Promise<PrecipGridSpec[]> {
+        if (cachedSpecs) return cachedSpecs
+        const rows = await fastify.prisma.precipGrid.findMany({ orderBy: { id: 'asc' } })
+        if (rows.length === 0) return []   // not cached: the first ingest should take effect
+        cachedSpecs = rows.map(gridSpecFromRow)
+        return cachedSpecs
+    }
+
+    /**
+     * How far inside its image a point sits, as a fraction of the half-extent:
+     * 1 at the centre, 0 at any edge. The tie-break when several prefectures'
+     * maps cover the same point — the map centred on the point is the one whose
+     * prefecture it is, and image edges are where the radar composite is
+     * weakest.
+     */
+    function interiority(spec: PrecipGridSpec, lon: number, lat: number): number {
+        const { px, py } = lonLatToPixel(spec, lon, lat)
+        const imgW = spec.width * spec.blockSize
+        const imgH = spec.height * spec.blockSize
+        return Math.min(
+            Math.min(px, imgW - px) / (imgW / 2),
+            Math.min(py, imgH - py) / (imgH / 2),
+        )
+    }
+
+    /**
+     * The grid that should answer for a point, with its cell.
+     *
+     * Selection is by containment, never by recency. Picking the newest row —
+     * which is what this did while Fukuoka was the only prefecture — sends every
+     * post to whichever map was ingested last, and coordinates outside it read
+     * as no coverage at all. Adding a prefecture would have emptied every
+     * existing post's panel with nothing logged.
+     *
+     * Among the maps that do contain the point, the one holding data for the
+     * requested span wins: a prefecture part-way through its backfill must not
+     * shadow a neighbour that already has the hours. Interiority breaks the
+     * remaining ties.
+     */
+    async function gridFor(
+        lon: number,
+        lat: number,
+        fromAt: Date,
+        toAt: Date,
+    ): Promise<{ spec: PrecipGridSpec; cell: Cell } | null> {
+        const specs = await loadSpecs()
+        const candidates = specs
+            .map(spec => ({ spec, cell: lonLatToCell(spec, lon, lat) }))
+            .filter((c): c is { spec: PrecipGridSpec; cell: Cell } => c.cell !== null)
+
+        if (candidates.length <= 1) return candidates[0] ?? null
+
+        const counts = await fastify.prisma.precipSnapshot.groupBy({
+            by: ['gridId'],
+            where: {
+                gridId: { in: candidates.map(c => c.spec.id) },
+                observedAt: { gte: fromAt, lte: toAt },
+            },
+            _count: { _all: true },
+        })
+        const byGrid = new Map(counts.map(c => [c.gridId, c._count._all]))
+
+        candidates.sort((a, b) => {
+            const d = (byGrid.get(b.spec.id) ?? 0) - (byGrid.get(a.spec.id) ?? 0)
+            if (d !== 0) return d
+            return interiority(b.spec, lon, lat) - interiority(a.spec, lon, lat)
+        })
+        return candidates[0] ?? null
     }
 
     /**
@@ -119,8 +185,7 @@ export function createPrecipReader(fastify: FastifyInstance) {
         fromAt: Date,
         toAt: Date,
     ): Promise<{ ok: true; series: PrecipSeries } | { ok: false; refusal: PrecipRefusal }> {
-        const spec = await loadSpec()
-        if (!spec) {
+        if ((await loadSpecs()).length === 0) {
             return {
                 ok: false,
                 refusal: {
@@ -131,9 +196,9 @@ export function createPrecipReader(fastify: FastifyInstance) {
             }
         }
 
-        const cell = lonLatToCell(spec, longitude, latitude)
-        if (!cell) {
-            // Outside the radar image entirely — somewhere in another prefecture.
+        const match = await gridFor(longitude, latitude, fromAt, toAt)
+        if (!match) {
+            // Outside every ingested map — a prefecture whose radar we do not fetch.
             return {
                 ok: false,
                 refusal: {
@@ -143,6 +208,7 @@ export function createPrecipReader(fastify: FastifyInstance) {
                 },
             }
         }
+        const { spec, cell } = match
 
         const snapshots = await fastify.prisma.precipSnapshot.findMany({
             where: { gridId: spec.id, observedAt: { gte: fromAt, lte: toAt } },
