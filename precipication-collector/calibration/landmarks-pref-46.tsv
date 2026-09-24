@@ -1,0 +1,21 @@
+# Verification landmarks for the tenki.jp 熊本県 map (pref-46-large).
+#
+# All rows are '?': these are for verify_affine.py, which projects their
+# coordinates against the coastline the map draws. Nothing here was fitted, and
+# fit_affine.py skips them all.
+#
+# Coordinates from OpenStreetMap (Nominatim), each checked against its
+# display_name — several plausible-looking queries resolved to other
+# prefectures or other countries entirely.
+#
+# Read distances with the feature in mind. A cape or a port is a coastal point
+# and should land within a few hundred metres. An ISLAND row is the island's
+# centroid, so it sits about its own radius from the coast by construction;
+# expected values are noted per row.
+#
+#  px      py      lon           lat          name
+?       ?       130.468942    32.605726    三角港 (port, north)
+?       ?       130.337885    32.602839    湯島 (small island)
+?       ?       130.034630    32.523903    富岡港 (port, west 天草)
+?       ?       130.347420    32.327860    御所浦島 (island ~13km2, expect ~1.5km)
+?       ?       130.027870    32.194404    牛深港 (port, far south)

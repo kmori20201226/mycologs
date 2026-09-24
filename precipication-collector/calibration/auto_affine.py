@@ -397,9 +397,18 @@ def main():
     print(f"\n  sx {sx:.5f}  sy {sy:.5f}  tx {tx:.2f}  ty {ty:.2f}")
     print(f"  agreement {score_px:.4f} (pixel level)\n")
 
+    # Thresholds set from four real calibrations rather than guessed. sx/sy
+    # divergence turned out to be a WEAK predictor: 佐賀 0.44%, 熊本 0.76% and
+    # 山口 0.90% all verified fine against held-out landmarks, while 大分 sat at
+    # 0.08%. The one genuine failure — 山口 against 大分, which placed the map
+    # 189 km away — showed 4.17% AND a pixel agreement of 0.25 where every good
+    # run scored 0.93-0.97. So agreement is the gate; divergence is a hint.
     aniso = 100 * abs(sx / sy - 1)
-    print(f"Pixel map: scale {(sx+sy)/2:.5f}, sx/sy apart by {aniso:.3f}% "
-          f"({'consistent with Mercator' if aniso < 0.5 else 'SUSPICIOUS — expected a similarity'})")
+    verdict = ("looks sound" if score_px >= 0.90 else
+               "REJECT — no good run has scored below 0.93; this one did not find the map")
+    print(f"Pixel map: scale {(sx+sy)/2:.5f}, sx/sy apart by {aniso:.3f}%"
+          + ("" if aniso < 2.0 else "  <-- high; expected a similarity"))
+    print(f"Pixel agreement {score_px:.4f} — {verdict}")
     print(f"Reference pref-{args.ref} departs from Mercator by up to "
           f"{reference_nonlinearity(ref_affine):.2f} px inside its own frame; "
           f"the target inherits that.\n")

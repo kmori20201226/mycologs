@@ -80,6 +80,62 @@ PREFECTURES = {
             lat_c=34.012942,
         ),
     },
+    44: {
+        "name": "佐賀県",
+        "source": "tenki.jp/pref-44-large",
+        "width": 692,
+        "height": 519,
+        # auto_affine.py against pref-43, accepted on verification:
+        # held-out landmarks median 0.38 km (波戸岬 0.19, 呼子港 0.38, 竹崎島 0.31);
+        # overlap 94.4%, optimum 417 m away. sx/sy apart 0.440%.
+        "affine": dict(
+            lon_px=3.170300e-03,
+            lon_py=-1.498046e-06,
+            lon_c=128.916771,
+            lat_px=-7.345629e-17,
+            lat_py=-2.652380e-03,
+            lat_c=33.900271,
+        ),
+    },
+    46: {
+        "name": "熊本県",
+        "source": "tenki.jp/pref-46-large",
+        "width": 692,
+        "height": 519,
+        # auto_affine.py against pref-43, accepted on verification:
+        # held-out landmarks median 0.66 km, including 牛深港 0.59 km at the far
+        # south, well outside the narrow shared strip — the extrapolation held.
+        # Overlap 93.5%, optimum 298 m away. Fitted on only 12,530 echo cells,
+        # the least of any prefecture, because the maps share barely 37% of a frame.
+        "affine": dict(
+            lon_px=3.183693e-03,
+            lon_py=-1.504375e-06,
+            lon_c=129.535230,
+            lat_px=-9.448745e-17,
+            lat_py=-2.680551e-03,
+            lat_c=33.345903,
+        ),
+    },
+    38: {
+        "name": "山口県",
+        "source": "tenki.jp/pref-38-large",
+        "width": 692,
+        "height": 519,
+        # auto_affine.py against pref-43, accepted on verification:
+        # all seven held-out landmarks within 0.78 km, median 0.66, including 室津
+        # at the far east. Overlap 94.2%, optimum 723 m away — the largest of the
+        # four and the one to re-do with landmarks if precision ever matters.
+        # Do NOT calibrate this one against pref-47: that run scored 0.25 pixel
+        # agreement and placed the map 189 km out. Their maps barely overlap.
+        "affine": dict(
+            lon_px=3.521742e-03,
+            lon_py=-1.664111e-06,
+            lon_c=130.533428,
+            lat_px=-6.783127e-17,
+            lat_py=-2.906735e-03,
+            lat_c=35.126445,
+        ),
+    },
 }
 
 DEFAULT_PREF = 43

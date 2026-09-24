@@ -143,8 +143,11 @@ def main():
     print(f"  covers lon {A['lon_c']:.4f}..{A['lon_px']*IMG_W + A['lon_c']:.4f}  "
           f"lat {A['lat_py']*IMG_H + A['lat_c']:.4f}..{A['lat_c']:.4f}")
     aspect, want = A["lon_px"] / abs(A["lat_py"]), 1 / np.cos(np.radians(clat))
-    print(f"  aspect {aspect:.5f} vs 1/cos(lat) {want:.5f} ({100*(aspect/want-1):+.2f}%; "
-          f"福岡 measures +0.17%)\n")
+    dev = 100 * (aspect / want - 1)
+    note = ("  <-- tautological: auto_affine builds the affine from a Mercator model, "
+            "so this identity holds by construction and confirms nothing"
+            if abs(dev) < 0.02 else f"; 福岡 measures +0.17%, 大分 -0.38%")
+    print(f"  aspect {aspect:.5f} vs 1/cos(lat) {want:.5f} ({dev:+.2f}%{note})\n")
 
     dry_scan = [(2025, 12, d, h) for d in (9, 19) for h in (3, 9, 15)] + \
                [(2026, 1, d, h) for d in (5, 12) for h in (3, 9, 15)] + \
