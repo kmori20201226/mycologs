@@ -43,8 +43,8 @@ class Variant:
 VARIANTS: dict[str, "Variant"] = {
     "claude-opus-4-8/prompt-v2.2": Variant(
         "claude-opus-4-8", PROMPT_V2_2, "production pairing"),
-    "claude-opus-5/prompt-v2.2": Variant(
-        "claude-opus-5", PROMPT_V2_2, "same prompt on Opus 5 — isolates the model change"),
+    "claude-opus-5-5/prompt-v2.2": Variant(
+        "claude-opus-5-5", PROMPT_V2_2, "same prompt on Opus 5.5 — isolates the model change"),
     "claude-sonnet-5/prompt-v2.2": Variant(
         "claude-sonnet-5", PROMPT_V2_2, "same prompt on Sonnet 5 — cheaper, for cost against quality"),
 }
