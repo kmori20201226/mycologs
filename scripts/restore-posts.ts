@@ -75,22 +75,28 @@ async function readTarGz(archivePath: string): Promise<TarEntry[]> {
 // ---------------------------------------------------------------------------
 
 /**
- * Archive string -> the enum, or fail.
+ * Archive string -> the enum, falling back to PUBLIC.
  *
- * Refusing an unknown value rather than defaulting it is deliberate. Every
- * other field here degrades visibly — a missing coordinate means no rainfall
- * panel, and you notice. Visibility degrades the other way: fall back to PUBLIC
- * and a restricted post is simply readable, with nothing on screen to say so.
+ * Only reachable from an archive written by a different schema version, since
+ * the exporter writes the enum straight out of the database.
+ *
+ * The fallback is loud on purpose. Widening a post's audience is the one change
+ * here that leaves no trace on screen — the post is simply readable by more
+ * people than before — so each occurrence is warned and the total is repeated
+ * in the closing summary, where it cannot scroll past unseen.
  */
+let coercedVisibility = 0
+
 function asVisibility(value: string, postId: number): PublicityType {
     if (Object.values(PublicityType).includes(value as PublicityType)) {
         return value as PublicityType
     }
-    throw new Error(
-        `post id=${postId}: unknown visibility ${JSON.stringify(value)}. ` +
-        `Known values: ${Object.values(PublicityType).join(', ')}. ` +
-        `Refusing rather than defaulting to PUBLIC.`,
+    coercedVisibility++
+    console.warn(
+        `  WARNING: post id=${postId} has unknown visibility ${JSON.stringify(value)} — ` +
+        `restoring as PUBLIC. Known values: ${Object.values(PublicityType).join(', ')}.`,
     )
+    return PublicityType.PUBLIC
 }
 
 
@@ -369,6 +375,12 @@ async function main() {
         console.log(`  Inserted ${insertedIdents} identifications (${skippedIdents} skipped)`)
 
         console.log('\nRestore complete.')
+        if (coercedVisibility > 0) {
+            console.warn(
+                `${coercedVisibility} post(s) had an unrecognised visibility and were restored ` +
+                `as PUBLIC. Check them before treating this data as faithfully restored.`,
+            )
+        }
         if (dummyUserId !== null) {
             console.log(`Note: records attributed to unknown users were assigned to user id=${dummyUserId} (${DUMMY_USER_EMAIL})`)
         }
