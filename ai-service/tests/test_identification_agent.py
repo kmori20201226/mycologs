@@ -162,3 +162,18 @@ def test_every_variant_key_names_its_own_model():
     # called, two rows in the tab strip could claim to differ and not.
     for name, v in agent.VARIANTS.items():
         assert name.startswith(v.model + "/"), f"{name} does not name {v.model}"
+
+
+def test_tool_choice_is_auto_not_forced(monkeypatch):
+    """
+    Newer models reject a forced tool_choice outright — Opus 5.5 returns
+    400 'tool_choice: type "tool" and "any" are not supported for this model'.
+    The prompt names the tool instead, so this must stay "auto" for every
+    variant: a pairing that has to be asked differently is not comparable.
+    """
+    client = FakeClient(tool_message(VALID_INPUT))
+    monkeypatch.setattr(agent, "client", client)
+    for name in agent.VARIANTS:
+        agent.evaluate(make_payload(variant=name))
+    for call in client.messages.calls:
+        assert call["tool_choice"] == {"type": "auto"}, call["tool_choice"]

@@ -126,7 +126,18 @@ def evaluate(payload: IdentificationRequest) -> IdentificationResult:
         max_tokens=2048,
         system=variant.system,
         tools=[_TOOL],
-        tool_choice={"type": "tool", "name": "report_identification"},
+        # "auto", not a forced {"type": "tool", ...}. Newer models reject forced
+        # tool choice outright — Opus 5.5 answers
+        #   400 tool_choice: type "tool" and "any" are not supported for this model
+        # — and the documented replacement is auto plus an instruction naming the
+        # tool, which SYSTEM_PROMPT already carries ("report_identification
+        # ツールを使って結果を返してください").
+        #
+        # Applied to every variant rather than only the ones that require it: two
+        # pairings that differ in request shape are not a comparison. The cost is
+        # that a model may now answer in prose instead of calling the tool, which
+        # raises below rather than passing silently.
+        tool_choice={"type": "auto"},
         messages=[{"role": "user", "content": [*image_blocks, text_block]}],
     )
 
