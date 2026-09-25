@@ -3,6 +3,10 @@
  * Votes are intentionally excluded — they are only meaningful for trusted users
  * in the target system and cannot be portably transferred.
  *
+ * Archive version 2 adds the five Post columns v1 dropped: visibility,
+ * longitude, latitude, takenAt, expectedMediaCount. v1 archives restore as
+ * before — the reader treats all five as optional.
+ *
  * Internal references (Post.id, Identification.id) are kept as numeric IDs.
  * External references are resolved to stable names:
  *   Post.userId           → User.email
@@ -171,7 +175,7 @@ async function main() {
 
         // Build JSON payload
         const data = {
-            version: 1,
+            version: 2,
             exportedAt: new Date().toISOString(),
             posts: posts.map(p => ({
                 id: p.id,
@@ -179,6 +183,16 @@ async function main() {
                 // Null out parentPostId if the parent is not included in this backup
                 parentPostId: p.parentPostId && postIdSet.has(p.parentPostId) ? p.parentPostId : null,
                 contents: p.contents,
+                // Carried since v2. Without them a restore silently rewrote the
+                // post: NOT NULL columns took their defaults, so every PRIVATE
+                // post came back PUBLIC and expected_media_count reset to 0,
+                // while coordinates and takenAt became NULL — which also costs
+                // the restored post its rainfall panel, since that needs both.
+                visibility: p.visibility,
+                longitude: p.longitude,
+                latitude: p.latitude,
+                takenAt: p.takenAt,
+                expectedMediaCount: p.expectedMediaCount,
                 deletedAt: p.deletedAt,
                 createdAt: p.createdAt,
                 updatedAt: p.updatedAt,

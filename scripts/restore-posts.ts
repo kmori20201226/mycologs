@@ -23,7 +23,7 @@ import { createGunzip } from 'zlib'
 import dotenv from 'dotenv'
 dotenv.config({ path: path.resolve(__dirname, '../.env') })
 
-import { PrismaClient } from '../generated/prisma/client'
+import { PrismaClient, PublicityType } from '../generated/prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
 
 const UPLOADS_DIR = path.resolve(__dirname, '../data/uploads')
@@ -74,6 +74,26 @@ async function readTarGz(archivePath: string): Promise<TarEntry[]> {
 // Main
 // ---------------------------------------------------------------------------
 
+/**
+ * Archive string -> the enum, or fail.
+ *
+ * Refusing an unknown value rather than defaulting it is deliberate. Every
+ * other field here degrades visibly — a missing coordinate means no rainfall
+ * panel, and you notice. Visibility degrades the other way: fall back to PUBLIC
+ * and a restricted post is simply readable, with nothing on screen to say so.
+ */
+function asVisibility(value: string, postId: number): PublicityType {
+    if (Object.values(PublicityType).includes(value as PublicityType)) {
+        return value as PublicityType
+    }
+    throw new Error(
+        `post id=${postId}: unknown visibility ${JSON.stringify(value)}. ` +
+        `Known values: ${Object.values(PublicityType).join(', ')}. ` +
+        `Refusing rather than defaulting to PUBLIC.`,
+    )
+}
+
+
 async function main() {
     const archivePath = process.argv[2]
     if (!archivePath) {
@@ -98,6 +118,13 @@ async function main() {
             userEmail: string | null
             parentPostId: number | null
             contents: string
+            // v2 and later. Optional so v1 archives still load, in which case
+            // these fall back to the column defaults as they always did.
+            visibility?: string | null
+            longitude?: number | null
+            latitude?: number | null
+            takenAt?: string | null
+            expectedMediaCount?: number | null
             deletedAt: string | null
             createdAt: string
             updatedAt: string
@@ -231,6 +258,16 @@ async function main() {
                     userId,
                     parentPostId: newParentId ?? null,
                     contents: p.contents,
+                    // v1 archives carry none of these; omitting them lets the
+                    // column defaults apply, which is what v1 restores did.
+                    // An unrecognised visibility is refused rather than coerced
+                    // to PUBLIC: quietly widening who can see a post is the one
+                    // failure here that nobody would notice.
+                    ...(p.visibility != null ? { visibility: asVisibility(p.visibility, p.id) } : {}),
+                    ...(p.longitude != null ? { longitude: p.longitude } : {}),
+                    ...(p.latitude != null ? { latitude: p.latitude } : {}),
+                    ...(p.takenAt != null ? { takenAt: new Date(p.takenAt) } : {}),
+                    ...(p.expectedMediaCount != null ? { expectedMediaCount: p.expectedMediaCount } : {}),
                     deletedAt: p.deletedAt ? new Date(p.deletedAt) : null,
                     createdAt: new Date(p.createdAt),
                     updatedAt: new Date(p.updatedAt),
