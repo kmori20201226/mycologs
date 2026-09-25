@@ -98,6 +98,13 @@ export interface CandidateEvaluation {
   reason?: string
 }
 
+/** One model/prompt pairing the AI service can run, named by the service. */
+export interface AiVariant {
+  name: string
+  model: string
+  note: string
+}
+
 export interface AiIdentification {
   scientific_name: string
   japanese_name: string
@@ -565,16 +572,25 @@ class ApiClient {
   }
 
   // AI identification
+  /** The model/prompt pairings the service can run. Admin only; 403 otherwise. */
+  async aiIdentifyVariants(): Promise<{ default: string; variants: AiVariant[] }> {
+    return this.request('/ai-identify/variants')
+  }
+
   async aiIdentify(
     postId: number,
     hint?: string,
     userId?: number,
     candidates?: { japanese_name: string; scientific_name: string }[],
+    variant?: string,
   ): Promise<AiIdentification> {
     const body: Record<string, unknown> = {}
     if (hint)   body.hint   = hint
     if (userId) body.userId = userId
     if (candidates && candidates.length) body.candidates = candidates
+    // One request is one pairing. Comparing several means calling this several
+    // times, so a failure belongs to that pairing rather than the whole set.
+    if (variant) body.variant = variant
     return this.request(`/posts/${postId}/ai-identify`, {
       method: 'POST',
       body: JSON.stringify(body),

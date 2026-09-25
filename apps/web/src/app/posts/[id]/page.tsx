@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useRef, useState } from 'react'
 import { useParams, useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { apiClient, type MediaItem, type AiIdentification, type CandidateEvaluation, type Event } from '@/lib/api'
+import { apiClient, type MediaItem, type AiIdentification, type AiVariant, type CandidateEvaluation, type Event } from '@/lib/api'
 import { getStoredUser } from '@/lib/auth'
 import EventCombobox from '@/components/EventCombobox'
 import PostPrecipPanel from '@/components/PostPrecipPanel'
@@ -43,6 +43,14 @@ interface Followup {
   contents: string
   createdAt: string
   user: { id: number; name: string; handleName: string | null }
+}
+
+/** One pairing's run: its own request, its own tab, its own failure. */
+type AiRun = {
+  variant: string            // '' means "whatever the service defaults to"
+  state: 'loading' | 'ok' | 'error'
+  result?: AiIdentification
+  error?: string
 }
 
 function PostPageInner() {
@@ -109,28 +117,66 @@ function PostPageInner() {
   // about which hint produced it.
   const [hint, setHint] = useState(() => {
     try {
-      const saved = sessionStorage.getItem(`aiResult:${postId}`)
-      return saved ? (JSON.parse(saved).hint ?? '') : ''
+      const saved = sessionStorage.getItem(`aiRuns:${postId}`)
+      const runs = saved ? JSON.parse(saved) : []
+      return runs.find((r: { result?: { hint?: string } }) => r.result)?.result?.hint ?? ''
     } catch { return '' }
   })
 
-  // AI identification state — persisted in sessionStorage so back-navigation doesn't lose it
-  const sessionKey = `aiResult:${postId}`
-  const [aiResult, setAiResultState] = useState<AiIdentification | null>(() => {
+  // AI identification runs, one per model/prompt pairing, shown as tabs.
+  //
+  // A request is always ONE pairing; comparing several means firing several
+  // requests in parallel. That keeps a failure inside its own tab instead of
+  // sinking the whole comparison, and lets tabs fill as each answer lands
+  // rather than waiting on the slowest.
+  //
+  // Everything below still reads `aiResult` — it is now simply the ACTIVE tab's
+  // result, so the result panel and the save path work unchanged on whichever
+  // tab is selected.
+  const sessionKey = `aiRuns:${postId}`
+  const [runs, setRunsState] = useState<AiRun[]>(() => {
     try {
-      const saved = sessionStorage.getItem(`aiResult:${postId}`)
-      return saved ? JSON.parse(saved) : null
-    } catch { return null }
+      const saved = sessionStorage.getItem(`aiRuns:${postId}`)
+      return saved ? JSON.parse(saved) : []
+    } catch { return [] }
   })
-  function setAiResult(result: AiIdentification | null) {
-    setAiResultState(result)
-    try {
-      if (result) sessionStorage.setItem(sessionKey, JSON.stringify(result))
-      else sessionStorage.removeItem(sessionKey)
-    } catch { /* ignore */ }
+  const [activeVariant, setActiveVariant] = useState<string | null>(null)
+
+  function setRuns(next: AiRun[] | ((prev: AiRun[]) => AiRun[])) {
+    setRunsState((prev) => {
+      const value = typeof next === 'function' ? next(prev) : next
+      try {
+        // Only settled runs are restored. A 'loading' tab brought back by
+        // navigation would spin forever with no request behind it.
+        const settled = value.filter((r) => r.state !== 'loading')
+        if (settled.length) sessionStorage.setItem(sessionKey, JSON.stringify(settled))
+        else sessionStorage.removeItem(sessionKey)
+      } catch { /* ignore */ }
+      return value
+    })
   }
-  const [aiLoading, setAiLoading] = useState(false)
-  const [aiError, setAiError] = useState('')
+
+  const activeRun = runs.find((r) => r.variant === activeVariant) ?? runs[0] ?? null
+  const aiResult = activeRun?.result ?? null
+  const aiLoading = runs.some((r) => r.state === 'loading')
+  const aiError = activeRun?.state === 'error' ? (activeRun.error ?? '') : ''
+  /** Dismiss the comparison. Accepting or declining ends it for every tab. */
+  function setAiResult(result: AiIdentification | null) {
+    if (result === null) { setRuns([]); setActiveVariant(null) }
+  }
+
+  // Admin-only: which pairings to run. The list comes from the service so the
+  // names live in agent.VARIANTS and nowhere else.
+  const [variants, setVariants] = useState<AiVariant[]>([])
+  const [chosenVariants, setChosenVariants] = useState<string[]>([])
+  const isAdmin = !!currentUser && ['ADMIN', 'DEVELOPER', 'MODERATOR'].includes(currentUser.role ?? '')
+
+  useEffect(() => {
+    if (!isAdmin) return
+    apiClient.aiIdentifyVariants()
+      .then((v) => { setVariants(v.variants); setChosenVariants([v.default]) })
+      .catch(() => { /* not an admin after all, or service down — hide the picker */ })
+  }, [isAdmin])
   const [toast, setToast] = useState('')
   const [sessionExpired, setSessionExpired] = useState(false)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -448,6 +494,18 @@ function PostPageInner() {
     }
   }
 
+  /** Turn one failure into the message its tab should show. */
+  function aiErrorMessage(err: unknown): string {
+    const e = err as { status?: number; apiMessage?: string }
+    if (e?.status === 402) {
+      return e.apiMessage?.includes('クラブ') ? 'insufficient_credit_club' : 'insufficient_credit_user'
+    }
+    if (e?.status === 503) return 'ai_service_unavailable'
+    if (e?.status === 409) return e.apiMessage ?? '画像のアップロードが完了してから同定をご依頼ください。'
+    if (e?.status === 403) return 'この model/prompt を実行する権限がありません。'
+    return '同定に失敗しました。もう一度お試しください。'
+  }
+
   async function handleAiIdentify() {
     const images = media.filter((m) => m.type === 'IMAGE')
     if (images.length === 0) {
@@ -455,34 +513,31 @@ function PostPageInner() {
       return
     }
     const currentUser = getStoredUser()
-    setAiLoading(true)
-    setAiError('')
-    setAiResult(null)
-    try {
-      // Auto-include up to 3 mentioned species (Phase 1) as candidates for the
-      // AI to compare against the images.
-      const candidates = (post?.mentionedSpecies ?? [])
-        .slice(0, 3)
-        .map((s) => ({ japanese_name: s.japaneseName, scientific_name: s.scientificName }))
-      const result = await apiClient.aiIdentify(postId, hint || undefined, currentUser?.id, candidates.length ? candidates : undefined)
-      setAiResult(result)
-      setTimeout(() => identSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
-    } catch (err: any) {
-      if (err?.status === 402) {
-        const isClub = err?.apiMessage?.includes('クラブ')
-        setAiError(isClub ? 'insufficient_credit_club' : 'insufficient_credit_user')
-      } else if (err?.status === 503) {
-        // Anthropic account credit exhausted — temporary outage on our side.
-        setAiError('ai_service_unavailable')
-      } else if (err?.status === 409) {
-        // Images still uploading in the background — no credit charged.
-        setAiError(err?.apiMessage ?? '画像のアップロードが完了してから同定をご依頼ください。')
-      } else {
-        setAiError('同定に失敗しました。もう一度お試しください。')
+    // Auto-include up to 3 mentioned species (Phase 1) as candidates for the
+    // AI to compare against the images.
+    const candidates = (post?.mentionedSpecies ?? [])
+      .slice(0, 3)
+      .map((s) => ({ japanese_name: s.japaneseName, scientific_name: s.scientificName }))
+
+    // '' is the non-admin path: no variant sent, the service picks its default.
+    const wanted = isAdmin && chosenVariants.length ? chosenVariants : ['']
+    setRuns(wanted.map((v) => ({ variant: v, state: 'loading' as const })))
+    setActiveVariant(wanted[0] ?? null)
+    setTimeout(() => identSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
+
+    // Fired together rather than in sequence: each tab settles on its own, and
+    // one pairing's 503 leaves the others intact.
+    await Promise.all(wanted.map(async (v) => {
+      try {
+        const result = await apiClient.aiIdentify(
+          postId, hint || undefined, currentUser?.id,
+          candidates.length ? candidates : undefined, v || undefined,
+        )
+        setRuns((prev) => prev.map((r) => r.variant === v ? { ...r, state: 'ok', result } : r))
+      } catch (err) {
+        setRuns((prev) => prev.map((r) => r.variant === v ? { ...r, state: 'error', error: aiErrorMessage(err) } : r))
       }
-    } finally {
-      setAiLoading(false)
-    }
+    }))
   }
 
   if (notFound) {
@@ -502,9 +557,15 @@ function PostPageInner() {
   // until they're all in (it needs the full set, and the API refuses + refunds
   // an incomplete identification anyway).
   const mediaIncomplete = mediaLoaded && images.length < (post?.expectedMediaCount ?? 0)
-  // Re-identification is only worth a credit if the hint actually changed, so the
-  // button stays visible after a result but goes inert until the hint is edited.
-  const hintUnchanged = !!aiResult && hint.trim() === (aiResult.hint ?? '').trim()
+  // Re-identification is only worth a credit if something about the request
+  // changed, so the button stays visible after a result but goes inert until it
+  // does. For an admin that includes the pairing selection: ticking a different
+  // box is a different question even with the same hint.
+  const lastRunKey = runs.map((r) => r.variant).slice().sort().join(',')
+  const nextRunKey = (isAdmin && chosenVariants.length ? chosenVariants : ['']).slice().sort().join(',')
+  const sameAsLastRun = !!aiResult
+    && hint.trim() === (aiResult.hint ?? '').trim()
+    && lastRunKey === nextRunKey
   // Species already proposed on this post — used to dedupe the candidate "save" action.
   const identifiedSciNames = new Set(
     identifications.flatMap((i) => [i.species?.scientificName, i.description?.scientific_name].filter(Boolean) as string[]),
@@ -598,8 +659,8 @@ function PostPageInner() {
                 ) : null })()}
                 <button
                   onClick={handleAiIdentify}
-                  disabled={aiLoading || !currentUser || (mediaLoaded && images.length === 0) || mediaIncomplete || hintUnchanged}
-                  title={mediaIncomplete ? '写真のアップロードが完了するまでお待ちください' : (mediaLoaded && images.length === 0) ? '写真を添付してから同定を依頼してください' : !currentUser ? 'ログインが必要です' : hintUnchanged ? '同定ヒントを変更すると、再度同定を依頼できます' : undefined}
+                  disabled={aiLoading || !currentUser || (mediaLoaded && images.length === 0) || mediaIncomplete || sameAsLastRun}
+                  title={mediaIncomplete ? '写真のアップロードが完了するまでお待ちください' : (mediaLoaded && images.length === 0) ? '写真を添付してから同定を依頼してください' : !currentUser ? 'ログインが必要です' : sameAsLastRun ? (isAdmin ? '同定ヒントか model/prompt を変更すると、再度依頼できます' : '同定ヒントを変更すると、再度同定を依頼できます') : undefined}
                   className={`inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors ${aiLoading ? 'cursor-wait' : ''}`}
                 >
                   {aiLoading ? (
@@ -758,9 +819,43 @@ function PostPageInner() {
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-emerald-400"
                   />
                   <p className="text-xs text-gray-400 mt-1">
-                    {hintUnchanged
+                    {sameAsLastRun
                       ? 'ヒントを書き換えると、同じ写真でもう一度同定を依頼できます'
                       : '同定を依頼するときにAIへ送信されます'}
+                  </p>
+                </div>
+              )}
+
+              {/* Administrator: which model/prompt pairings to run. Each ticked
+                  box is one more full identification fired in parallel, and one
+                  more tab. The list is served by the AI service, so a pairing
+                  added to agent.VARIANTS appears here with no frontend change. */}
+              {isAdmin && variants.length > 0 && (
+                <div className="mt-4 pt-4 border-t border-dashed border-amber-300">
+                  <label className="block text-xs font-semibold text-amber-700 uppercase tracking-wide mb-1.5">
+                    model / prompt（管理者）
+                  </label>
+                  <div className="space-y-1.5">
+                    {variants.map((v) => (
+                      <label key={v.name} className="flex items-start gap-2 text-sm text-gray-700">
+                        <input
+                          type="checkbox"
+                          className="mt-1 accent-amber-600"
+                          checked={chosenVariants.includes(v.name)}
+                          onChange={(e) => setChosenVariants((prev) =>
+                            e.target.checked ? [...prev, v.name] : prev.filter((n) => n !== v.name))}
+                        />
+                        <span>
+                          <span className="font-mono text-xs">{v.name}</span>
+                          {v.note && <span className="block text-xs text-gray-400">{v.note}</span>}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1.5">
+                    {chosenVariants.length === 0
+                      ? '未選択のときはサービス既定の組み合わせで1回実行します'
+                      : `${chosenVariants.length}件を並列実行し、タブで比較します（クレジットは消費しません）`}
                   </p>
                 </div>
               )}
@@ -1104,7 +1199,7 @@ function PostPageInner() {
 
             {/* AI identification result */}
             <div ref={identSectionRef}>
-              {aiLoading && (
+              {aiLoading && runs.length <= 1 && (
                 <div className="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 flex items-center gap-3 text-emerald-700 text-sm">
                   <svg className="animate-spin w-4 h-4 shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -1138,6 +1233,47 @@ function PostPageInner() {
                       するとクレジットが追加されます。
                     </>
                   ) : aiError}
+                </div>
+              )}
+
+              {/* One tab per model/prompt pairing. Each settles independently,
+                  so a tab can be spinning, done, or failed while its neighbours
+                  are something else. Saving acts on whichever is selected. */}
+              {runs.length > 1 && (
+                <div className="mb-3 flex flex-wrap gap-1 border-b border-gray-200">
+                  {runs.map((r) => {
+                    const on = r.variant === (activeRun?.variant ?? '')
+                    return (
+                      <button
+                        key={r.variant}
+                        onClick={() => setActiveVariant(r.variant)}
+                        className={`px-3 py-1.5 text-xs font-medium rounded-t-lg border border-b-0 transition-colors ${
+                          on ? 'bg-white border-gray-200 text-gray-900'
+                             : 'bg-gray-50 border-transparent text-gray-500 hover:text-gray-700'}`}
+                        title={r.variant || '既定'}
+                      >
+                        <span className="inline-flex items-center gap-1.5">
+                          {r.state === 'loading' && (
+                            <svg className="animate-spin w-3 h-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                            </svg>
+                          )}
+                          {r.state === 'error' && <span className="text-red-500">×</span>}
+                          {r.variant || '既定'}
+                          {r.state === 'ok' && r.result?.score != null && (
+                            <span className="text-gray-400">{Math.round(r.result.score * 100)}%</span>
+                          )}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+
+              {activeRun?.state === 'loading' && runs.length > 1 && (
+                <div className="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-700 text-sm">
+                  {activeRun.variant} で分析中…
                 </div>
               )}
 

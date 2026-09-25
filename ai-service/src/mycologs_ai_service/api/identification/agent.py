@@ -1,12 +1,11 @@
+from dataclasses import dataclass
+
 import anthropic as _anthropic
 from mycologs_ai_service.core.anthropic_client import client
 from mycologs_ai_service.core.usage import AiUsage
 from mycologs_ai_service.api.identification.schemas import IdentificationRequest, IdentificationResult
 
-MODEL = "claude-opus-4-8"
-AGENT_VERSION = f"{MODEL}/prompt-v2.2"
-
-SYSTEM_PROMPT = """\
+PROMPT_V2_2 = """\
 あなたは日本の菌類を専門とするマイコロジスト（菌類学者）です。
 与えられたキノコの写真をもとに同定を行い、report_identification ツールを使って結果を返してください。
 
@@ -19,6 +18,53 @@ SYSTEM_PROMPT = """\
 - disclaimer には食用判断を AI に委ねないよう促す安全上の注意を必ず含める
 - 投稿者が候補種を挙げている場合、各候補について画像と照合し、candidate_evaluations に matches（該当可否）・confidence・score・reason（日本語の根拠）を記入する。候補がなければ candidate_evaluations は空にする
 - すべてのフィールドは日本語で記述する"""
+
+
+@dataclass(frozen=True)
+class Variant:
+    """One pre-compiled model+prompt pairing, addressable by name."""
+    model: str
+    system: str
+    note: str = ""
+
+
+# Every pairing the service will run, keyed by the name the caller asks for.
+# The key is also what lands in `agent_version` on the result, and therefore in
+# Identification.description when an admin saves a tab — so a saved
+# identification always says which pairing produced it.
+#
+# Adding one is three lines. Keep the key in "<model>/<prompt-version>" form:
+# that is what makes two rows comparable at a glance, and the existing
+# production value ("claude-opus-4-8/prompt-v2.2") already reads that way.
+#
+# Comparing MODELS means holding the prompt fixed, which is why these three
+# share prompt-v2.2. To compare PROMPTS, add another PROMPT_* string and pair it
+# with a model already in the list.
+VARIANTS: dict[str, "Variant"] = {
+    "claude-opus-4-8/prompt-v2.2": Variant(
+        "claude-opus-4-8", PROMPT_V2_2, "production pairing"),
+    "claude-opus-5/prompt-v2.2": Variant(
+        "claude-opus-5", PROMPT_V2_2, "same prompt on Opus 5 — isolates the model change"),
+    "claude-sonnet-5/prompt-v2.2": Variant(
+        "claude-sonnet-5", PROMPT_V2_2, "same prompt on Sonnet 5 — cheaper, for cost against quality"),
+}
+
+DEFAULT_VARIANT = "claude-opus-4-8/prompt-v2.2"
+
+# What everything outside an experiment still uses. Kept under the old names so
+# callers and tests that predate the registry keep working unchanged.
+MODEL = VARIANTS[DEFAULT_VARIANT].model
+SYSTEM_PROMPT = VARIANTS[DEFAULT_VARIANT].system
+AGENT_VERSION = DEFAULT_VARIANT
+
+
+def resolve(name: str | None) -> tuple[str, Variant]:
+    """Name -> (name, Variant). Unknown names are refused, never defaulted:
+    silently falling back would label a result with a pairing that did not run."""
+    key = name or DEFAULT_VARIANT
+    if key not in VARIANTS:
+        raise KeyError(f"unknown variant {key!r}; known: {sorted(VARIANTS)}")
+    return key, VARIANTS[key]
 
 def _build_input_schema() -> dict:
     schema = IdentificationResult.model_json_schema()
@@ -37,7 +83,13 @@ _TOOL: _anthropic.types.ToolParam = {
 def evaluate(payload: IdentificationRequest) -> IdentificationResult:
     """
     Blocking call — intended to be run via asyncio.to_thread() in async contexts.
+
+    One call runs ONE variant. Comparing several is the caller's job: the web
+    page fires a request per variant and tabs the answers, which keeps the
+    fan-out where the failures are easiest to show (one tab, one error) and
+    keeps this function single-purpose.
     """
+    variant_name, variant = resolve(payload.variant)
     image_blocks: list[_anthropic.ImageBlockParam] = [
         {
             "type": "image",
@@ -70,9 +122,9 @@ def evaluate(payload: IdentificationRequest) -> IdentificationResult:
     text_block: _anthropic.TextBlockParam = {"type": "text", "text": user_text}
 
     message = client.messages.create(
-        model=MODEL,
+        model=variant.model,
         max_tokens=2048,
-        system=SYSTEM_PROMPT,
+        system=variant.system,
         tools=[_TOOL],
         tool_choice={"type": "tool", "name": "report_identification"},
         messages=[{"role": "user", "content": [*image_blocks, text_block]}],
@@ -83,6 +135,6 @@ def evaluate(payload: IdentificationRequest) -> IdentificationResult:
         raise ValueError(f"No tool_use block in response. stop_reason={message.stop_reason}, content={message.content}")
     return IdentificationResult(
         **tool_use.input,
-        agent_version=AGENT_VERSION,
-        usage=AiUsage.from_message(MODEL, message.usage),
+        agent_version=variant_name,
+        usage=AiUsage.from_message(variant.model, message.usage),
     )

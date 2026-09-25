@@ -25,6 +25,7 @@ class IdentificationRequest(BaseModel):
     longitude:  float | None = None
     hint:       str | None = None
     candidates: list[CandidateInput] = Field(default_factory=list, description="投稿者が挙げた候補種（画像と照合する）")
+    variant:    str | None = Field(default=None, description="使用する model/prompt の組み合わせ名（省略時は既定）")
 
 
 class SimilarSpecies(BaseModel):

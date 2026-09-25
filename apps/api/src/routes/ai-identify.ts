@@ -1,4 +1,4 @@
-import { FastifyInstance } from 'fastify'
+import { FastifyInstance, FastifyRequest } from 'fastify'
 import fs from 'fs'
 import path from 'path'
 import sharp from 'sharp'
@@ -77,7 +77,46 @@ async function canonicalScientificName(
     return scientificName
 }
 
+// Roles allowed to run a non-default model/prompt pairing, matching
+// site-settings.ts. Experiments are an administrative tool, not a user feature.
+const ADMIN_ROLES = ['ADMIN', 'DEVELOPER', 'MODERATOR']
+
+/**
+ * Whether the CALLER is an admin, from their token.
+ *
+ * Deliberately not from `userId` in the body: that field is client-supplied
+ * (it exists to say whose credit to spend) and would make the gate decorative.
+ * This route is usable anonymously, so a missing or bad token is not an error
+ * here — it just means "not an admin".
+ */
+async function callerIsAdmin(fastify: FastifyInstance, request: FastifyRequest): Promise<boolean> {
+    try {
+        await request.jwtVerify()
+    } catch {
+        return false
+    }
+    const id = (request.user as { id?: number } | undefined)?.id
+    if (!id) return false
+    const user = await fastify.prisma.user.findUnique({ where: { id }, select: { role: true } })
+    return ADMIN_ROLES.includes(user?.role ?? '')
+}
+
 export default async function (fastify: FastifyInstance) {
+    /**
+     * The model/prompt pairings the AI service can run, proxied so the admin
+     * picker never hard-codes them. agent.VARIANTS stays the single source.
+     */
+    fastify.get('/ai-identify/variants', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+        if (!await callerIsAdmin(fastify, request)) {
+            return reply.code(403).send({ message: 'Forbidden' })
+        }
+        const response = await fetch(`${AI_SERVICE_URL}/api/identification/variants`)
+        if (!response.ok) {
+            return reply.code(502).send({ message: 'AI service unavailable' })
+        }
+        return reply.send(await response.json())
+    })
+
     fastify.post('/posts/:postId/ai-identify', {
         schema: {
             params: {
@@ -90,6 +129,10 @@ export default async function (fastify: FastifyInstance) {
                 properties: {
                     hint:   { type: 'string' },
                     userId: { type: 'integer' },
+                    // Admin-only: which model/prompt pairing to run. One request
+                    // is one pairing; comparing several is the page firing
+                    // several requests, so failures stay per-tab.
+                    variant: { type: 'string' },
                     candidates: {
                         type: 'array',
                         items: {
@@ -105,10 +148,18 @@ export default async function (fastify: FastifyInstance) {
         },
     }, async (request, reply) => {
         const { postId } = request.params as { postId: number }
-        const { hint, userId, candidates } = (request.body ?? {}) as {
+        const { hint, userId, candidates, variant } = (request.body ?? {}) as {
             hint?: string
             userId?: number
+            variant?: string
             candidates?: { japanese_name: string; scientific_name: string }[]
+        }
+
+        // Asking for a pairing at all is an administrative act. Non-admins never
+        // send one and get the service's default, so their path is unchanged.
+        const isAdmin = await callerIsAdmin(fastify, request)
+        if (variant && !isAdmin) {
+            return reply.code(403).send({ message: 'Forbidden' })
         }
 
         // Fetch the post with its event (for location data + credit ownership)
@@ -120,9 +171,14 @@ export default async function (fastify: FastifyInstance) {
         // ── Credit check ─────────────────────────────────────────────────────
         // Remember how to undo the deduction so we can refund if the AI call
         // can't be fulfilled for reasons outside the user's control.
+        // Admins are exempt: comparing four pairings is four identifications,
+        // and charging for a measurement would make the tool cost money to use.
+        // Usage is still recorded below, so the Anthropic-side cost stays visible.
         const eventClubId = post?.event?.clubId ?? null
         let refundCredit: (() => Promise<void>) | null = null
-        if (eventClubId) {
+        if (isAdmin) {
+            // no debit, no refund path
+        } else if (eventClubId) {
             const deducted = await fastify.prisma.club.updateMany({
                 where: { id: eventClubId, credit: { gte: AI_COST } },
                 data:  { credit: { decrement: AI_COST } },
@@ -194,6 +250,7 @@ export default async function (fastify: FastifyInstance) {
         if (event?.latitude != null)  body.latitude  = event.latitude
         if (event?.longitude != null) body.longitude = event.longitude
         if (hint)                     body.hint       = hint
+        if (variant)                  body.variant    = variant
         if (Array.isArray(candidates) && candidates.length) body.candidates = candidates
 
         const response = await fetch(`${AI_SERVICE_URL}/api/identification/evaluate`, {

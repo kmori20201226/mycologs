@@ -10,10 +10,29 @@ from mycologs_ai_service.core.exceptions import (
     internal_error,
     is_insufficient_credit,
 )
+from fastapi import HTTPException
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/identification", tags=["identification"])
+
+
+@router.get("/variants")
+async def list_variants():
+    """
+    The model+prompt pairings this service can run.
+
+    Exposed so the admin picker in the web app never hard-codes the names —
+    agent.VARIANTS stays the one place a pairing is defined, and a variant added
+    there shows up in the UI on the next page load without a frontend change.
+    """
+    return {
+        "default": agent.DEFAULT_VARIANT,
+        "variants": [
+            {"name": name, "model": v.model, "note": v.note}
+            for name, v in agent.VARIANTS.items()
+        ],
+    }
 
 
 @router.post("/evaluate", response_model=IdentificationResult)
@@ -25,6 +44,13 @@ async def evaluate_identification(payload: IdentificationRequest, request: Reque
     loop. A disconnect-poller races against it — if the client aborts before
     the AI responds, the task is cancelled and no tokens are wasted.
     """
+    # Refuse an unknown variant before spending anything: resolve() raises, and
+    # a 400 here is clearer than a 500 out of the thread pool.
+    try:
+        agent.resolve(payload.variant)
+    except KeyError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
     ai_task = asyncio.create_task(
         asyncio.to_thread(agent.evaluate, payload)
     )

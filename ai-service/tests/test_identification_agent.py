@@ -112,3 +112,53 @@ def test_no_candidates_leaves_evaluations_empty(monkeypatch):
     monkeypatch.setattr(agent, "client", client)
     result = agent.evaluate(make_payload())
     assert result.candidate_evaluations == []
+
+
+# --- variants -------------------------------------------------------------
+#
+# One call runs one variant; the web page fans out across several and tabs the
+# answers. So what matters here is that a named variant actually reaches the
+# API call, and that the name stamped on the result is the one that ran —
+# because that string is what ends up in Identification.description when an
+# admin saves a tab, and a wrong one would silently misattribute a result.
+
+def test_named_variant_selects_its_model_and_prompt(monkeypatch):
+    client = FakeClient(tool_message(VALID_INPUT))
+    monkeypatch.setattr(agent, "client", client)
+    name = "claude-sonnet-5/prompt-v2.2"
+
+    result = agent.evaluate(make_payload(variant=name))
+
+    call = client.messages.calls[0]
+    assert call["model"] == agent.VARIANTS[name].model
+    assert call["system"] == agent.VARIANTS[name].system
+    assert result.agent_version == name
+    assert result.usage.model == agent.VARIANTS[name].model
+
+
+def test_omitting_the_variant_keeps_the_production_pairing(monkeypatch):
+    client = FakeClient(tool_message(VALID_INPUT))
+    monkeypatch.setattr(agent, "client", client)
+
+    result = agent.evaluate(make_payload())
+
+    assert client.messages.calls[0]["model"] == agent.MODEL
+    assert result.agent_version == agent.DEFAULT_VARIANT
+
+
+def test_unknown_variant_is_refused_rather_than_defaulted(monkeypatch):
+    client = FakeClient(tool_message(VALID_INPUT))
+    monkeypatch.setattr(agent, "client", client)
+
+    # Defaulting would label the result with a pairing that never ran, which is
+    # worse than failing: the comparison would be quietly wrong.
+    with pytest.raises(KeyError):
+        agent.evaluate(make_payload(variant="claude-opus-5/prompt-v99"))
+    assert client.messages.calls == []
+
+
+def test_every_variant_key_names_its_own_model():
+    # The key is the comparison label. If it disagreed with the model actually
+    # called, two rows in the tab strip could claim to differ and not.
+    for name, v in agent.VARIANTS.items():
+        assert name.startswith(v.model + "/"), f"{name} does not name {v.model}"
