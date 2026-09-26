@@ -39,6 +39,11 @@ class Variant:
 # Comparing MODELS means holding the prompt fixed, which is why these three
 # share prompt-v2.2. To compare PROMPTS, add another PROMPT_* string and pair it
 # with a model already in the list.
+# Cost, for when the default is next revisited: Opus 5.5 is cheaper than Opus
+# 4.8 in every category — base input and output 20% lower, cache reads 60%
+# lower. So the 4.8 -> 5.5 switch below is not a quality-for-money trade; it is
+# cheaper as well. (Per the project owner, 2026-09-26; the bundled API reference
+# predates 5.5 and lists no price for it, and the Models API returns none.)
 VARIANTS: dict[str, "Variant"] = {
     "claude-opus-5-5/prompt-v2.2": Variant(
         "claude-opus-5-5", PROMPT_V2_2, "production pairing"),
