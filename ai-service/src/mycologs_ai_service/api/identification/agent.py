@@ -34,22 +34,21 @@ class Variant:
 # identification always says which pairing produced it.
 #
 # Adding one is three lines. Keep the key in "<model>/<prompt-version>" form:
-# that is what makes two rows comparable at a glance, and the existing
-# production value ("claude-opus-4-8/prompt-v2.2") already reads that way.
+# that is what makes two rows comparable at a glance.
 #
 # Comparing MODELS means holding the prompt fixed, which is why these three
 # share prompt-v2.2. To compare PROMPTS, add another PROMPT_* string and pair it
 # with a model already in the list.
 VARIANTS: dict[str, "Variant"] = {
-    "claude-opus-4-8/prompt-v2.2": Variant(
-        "claude-opus-4-8", PROMPT_V2_2, "production pairing"),
     "claude-opus-5-5/prompt-v2.2": Variant(
-        "claude-opus-5-5", PROMPT_V2_2, "same prompt on Opus 5.5 — isolates the model change"),
+        "claude-opus-5-5", PROMPT_V2_2, "production pairing"),
+    "claude-opus-4-8/prompt-v2.2": Variant(
+        "claude-opus-4-8", PROMPT_V2_2, "previous production pairing, kept to compare against"),
     "claude-sonnet-5/prompt-v2.2": Variant(
         "claude-sonnet-5", PROMPT_V2_2, "same prompt on Sonnet 5 — cheaper, for cost against quality"),
 }
 
-DEFAULT_VARIANT = "claude-opus-4-8/prompt-v2.2"
+DEFAULT_VARIANT = "claude-opus-5-5/prompt-v2.2"
 
 # What everything outside an experiment still uses. Kept under the old names so
 # callers and tests that predate the registry keep working unchanged.
